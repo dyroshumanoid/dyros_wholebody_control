@@ -3,6 +3,7 @@
 ofstream dataWM1("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM1.txt");
 ofstream dataWM2("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM2.txt");
 ofstream dataWM3("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM3.txt");
+ofstream dataWM4("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM4.txt");
 
 WalkingManager::WalkingManager(RobotData &rd) : rd_(rd)
 {
@@ -135,9 +136,24 @@ void WalkingManager::getFootTrajectory()
     {
         rd_.link_[support_foot_link_idx].x_traj = rd_.link_[support_foot_link_idx].support_xpos_init;
 
-        rd_.link_[swing_foot_link_idx].x_traj(0) = cubicBezierPolynomial(step_time, 0.0, trajectory_duration, rd_.link_[swing_foot_link_idx].support_xpos_init(0), rd_.link_[swing_hip_link_idx].support_xpos(0) - 0.07, footstep_des(0));
-        rd_.link_[swing_foot_link_idx].x_traj(1) = cubicBezierPolynomial(step_time, 0.0, trajectory_duration, rd_.link_[swing_foot_link_idx].support_xpos_init(1), rd_.link_[swing_hip_link_idx].support_xpos(1), footstep_des(1));
-        rd_.link_[swing_foot_link_idx].x_traj(2) = cubicBezierPolynomial(step_time, 0.0, trajectory_duration, rd_.link_[swing_foot_link_idx].support_xpos_init(2), foot_height, 0.0);
+        rd_.link_[swing_foot_link_idx].x_traj(0) = DyrosMath::QuinticSpline(step_time, 0.0, trajectory_duration, rd_.link_[swing_foot_link_idx].support_xpos_init(0), 0.0, 0.0, footstep_des(0), 0.0, 0.0)(0);
+        rd_.link_[swing_foot_link_idx].x_traj(1) = DyrosMath::QuinticSpline(step_time, 0.0, trajectory_duration, rd_.link_[swing_foot_link_idx].support_xpos_init(1), 0.0, 0.0, footstep_des(1), 0.0, 0.0)(0);
+
+        double start_time = 0.0;
+        double end_time   = 0.0;
+        if(step_time <= trajectory_duration / 2.0) {
+            start_time = 0.0;
+            end_time = trajectory_duration / 2.0; 
+
+            rd_.link_[swing_foot_link_idx].x_traj(2) = DyrosMath::QuinticSpline(step_time, start_time, end_time, rd_.link_[swing_foot_link_idx].support_xpos_init(2), 0.0, 0.0, foot_height, 0.0, 0.0)(0);
+        }
+        else {
+            start_time = trajectory_duration / 2.0;
+            end_time = trajectory_duration;  
+
+            rd_.link_[swing_foot_link_idx].x_traj(2) = DyrosMath::QuinticSpline(step_time, start_time, end_time, foot_height, 0.0, 0.0, 0.0, 0.0, 0.0)(0);
+        }
+
 
         rd_.link_[Left_Foot].r_traj.setIdentity();
         rd_.link_[Right_Foot].r_traj.setIdentity();
@@ -170,18 +186,12 @@ void WalkingManager::getComTrajectory()
     {
         int foot_contact_idx = local_LF_contact ? +1 : -1;
 
-        rd_.link_[Pelvis].x_desired(0) = footstep_des(0) / 2.0 - 0.05;
-        rd_.link_[Pelvis].x_desired(1) = footstep_des(1) / 2.0 + foot_contact_idx * 0.01;
+        rd_.link_[Pelvis].x_desired(0) = footstep_des(0) / 2.0;
+        rd_.link_[Pelvis].x_desired(1) = footstep_des(1) / 2.0 + foot_contact_idx * 0.0;
         rd_.link_[Pelvis].x_desired(2) = 0.765;
     }
 
     rd_.link_[Pelvis].SetTrajectoryQuintic(step_time, 0.0, trajectory_duration, rd_.link_[Pelvis].support_xpos_init, rd_.link_[Pelvis].x_desired);
-
-
-    dataWM3 << std::setprecision(3)
-            << rd_.link_[Pelvis].x_traj(0) << "," << rd_.link_[Pelvis].x_traj(1) << "," << rd_.link_[Pelvis].x_traj(2) << ","
-            << rd_.link_[Pelvis].support_xpos(0) << "," << rd_.link_[Pelvis].support_xpos(1) << "," << rd_.link_[Pelvis].support_xpos(2)
-            << std::endl;
 
     rd_.link_[Pelvis].x_traj = rd_.link_[Pelvis].x_traj - rd_.link_[Pelvis].support_xpos;
     rd_.link_[Pelvis].r_traj.setIdentity();

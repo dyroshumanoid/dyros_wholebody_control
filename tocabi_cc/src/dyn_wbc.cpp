@@ -5,6 +5,10 @@
 using namespace Eigen;
 using namespace qpOASES;
 
+ofstream torque_id_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_id.txt");
+ofstream torque_pd_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd.txt");
+ofstream contact_wrench_id_log("/home/kwan/catkin_ws/src/tocabi_cc/data/contact_wrench_id.txt");
+
 DynWBC::DynWBC(RobotData& rd) : rd_(rd) { }
 
 void DynWBC::computeDynamicWBC()
@@ -147,6 +151,10 @@ void DynWBC::computeTotalTorqueCommand()
         }
     }
 
+    torque_id_log << std::setprecision(4) << torque_inv_dyn.transpose() << std::endl;
+    torque_pd_log << std::setprecision(4) << torque_pd.transpose() << std::endl;
+    contact_wrench_id_log << std::setprecision(4) << contact_wrench_qp.transpose() << std::endl;
+
     rd_.torque_desired = torque_sum;
 }
 
@@ -181,54 +189,6 @@ void DynWBC::calcEqualityConstraint()
     lbA_fl = Sf * G;
     ubA_fl = Sf * G;
     constraints_.push_back({A_fl, lbA_fl, ubA_fl});
-
-    //--- (1) contact constraints
-    Eigen::MatrixXd A_cc; A_cc.setZero(contact_dim, contact_dim + MODEL_DOF_VIRTUAL);
-    Eigen::VectorXd lbA_cc; lbA_cc.setZero(contact_dim);
-    Eigen::VectorXd ubA_cc; ubA_cc.setZero(contact_dim);
-
-    A_cc.rightCols(MODEL_DOF_VIRTUAL) = base_contact_Jac;
-    const double K_contact = 20.0;
-    bool local_LF_contact = rd_.ee_[0].contact;
-    bool local_RF_contact = rd_.ee_[1].contact;
-    for (int i = 0; i < rd_.contact_index; i++)
-    {
-        if (local_LF_contact == true && local_RF_contact == true)
-        {
-            lbA_cc.segment(0, 3) = -K_contact * rd_.ee_[0].v_contact;
-            lbA_cc.segment(3, 3) = -K_contact * rd_.ee_[0].w_contact;
-            lbA_cc.segment(6, 3) = -K_contact * rd_.ee_[1].v_contact;
-            lbA_cc.segment(9, 3) = -K_contact * rd_.ee_[1].w_contact;
-
-            ubA_cc.segment(0, 3) = -K_contact * rd_.ee_[0].v_contact;
-            ubA_cc.segment(3, 3) = -K_contact * rd_.ee_[0].w_contact;
-            ubA_cc.segment(6, 3) = -K_contact * rd_.ee_[1].v_contact;
-            ubA_cc.segment(9, 3) = -K_contact * rd_.ee_[1].w_contact;
-        }
-        else if (local_LF_contact == true && local_RF_contact != true)
-        {
-            lbA_cc.segment(0, 3) = -K_contact * rd_.ee_[0].v_contact;
-            lbA_cc.segment(3, 3) = -K_contact * rd_.ee_[0].w_contact;
-            
-            ubA_cc.segment(0, 3) = -K_contact * rd_.ee_[0].v_contact;
-            ubA_cc.segment(3, 3) = -K_contact * rd_.ee_[0].w_contact;
-        }
-        else if (local_LF_contact != true && local_RF_contact == true)
-        {
-            lbA_cc.segment(0, 3) = -K_contact * rd_.ee_[1].v_contact;
-            lbA_cc.segment(3, 3) = -K_contact * rd_.ee_[1].w_contact;
-
-            ubA_cc.segment(0, 3) = -K_contact * rd_.ee_[1].v_contact;
-            ubA_cc.segment(3, 3) = -K_contact * rd_.ee_[1].w_contact;
-        }
-        else
-        {
-            ROS_ERROR("Contact Indicator are assigned with something wrong value.");
-            assert((local_LF_contact == true && local_RF_contact == true) || (local_LF_contact == true && local_RF_contact != true) || (local_LF_contact != true && local_RF_contact == true));
-        }
-    }
-
-    // constraints_.push_back({A_cc, lbA_cc, ubA_cc});
 }
 
 void DynWBC::calcInequalityConstraint()

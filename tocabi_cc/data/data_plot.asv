@@ -37,14 +37,19 @@ end
 
 %%
 data = readmatrix('dataCC1.txt');
-LF = data(:, 3);
-RF = data(:, 9);
-
+LF = data(:, 1:6);
+RF = data(:, 7:12);
+data = readmatrix('contact_wrench_id.txt')
+LF_id = data(:, 1:6);
+RF_id = data(:, 7:12);
 
 figure()
-plot(LF(:,1))
+plot(LF(:,3))
 hold on
-plot(RF(:,1))
+plot(LF_id(:,3))
+plot(RF(:,3))
+plot(RF_id(:,3))
+
 
 data = readmatrix('dataCC2.txt');
 torque_sol = data(:, 1:33);

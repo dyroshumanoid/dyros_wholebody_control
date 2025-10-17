@@ -15,16 +15,16 @@ joint_gains:
      # If the above Kp and Kd values (which are very high gains) are used to compute the desired acceleration from joint feedback, 
      # the robot’s motion can become abrupt, jerky, and potentially dangerous.
      Kp_dyn: [100, 100, 100, 100, 100, 100,
-              200, 500, 400, 370, 400, 400,
-              200, 500, 400, 370, 400, 400,
-              500, 500, 500,
+              400, 400, 400, 400, 400, 400,
+              400, 400, 400, 400, 400, 400,
+              400, 400, 400,
               40, 80, 40, 40, 25, 25, 5, 5,
               5, 5,
               40, 80, 40, 40, 25, 25, 5, 5]
      Kd_dyn: [40, 40, 40, 40, 40, 40,
-              20, 55, 45, 40, 65, 65,
-              20, 55, 45, 40, 65, 65,
-              200, 100, 100,
+              40, 40, 40, 40, 40, 40,
+              40, 40, 40, 40, 40, 40,
+              40, 40, 40,
               10, 10, 10, 10, 2.5, 2.0, 2.0, 2.0,
               2.0, 2.0,
               10, 10, 10, 10, 2.5, 2.0, 2.0, 2.0]
@@ -58,15 +58,15 @@ joint_limits:  # TODO : check the limits
 
 task_param:
   traj_time: 3.0
-  pelv_dist: 0.15
+  pelv_dist: 0.10
   hand_dist: 0.2
-  step_length: 0.2
+  step_length: 0.1
   foot_height: 0.05
   step_duration: 0.6
 
 wbid:
   W_qddot : 1.0
-  W_cwr : 1e-5
+  W_cwr : 0.00001
   W_energy : 1.0
 
 motion_mode : 3

@@ -60,6 +60,17 @@ void TaskManager::movePelvHandPose()
         rd_.link_[idx].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[idx].local_xpos_init, rd_.link_[idx].x_desired);
     }
 
+    // Sine-wave Test
+    static int tick_pelv = 0;
+    double T = traj_time; // period
+    double wn = (2.0 * M_PI) / T;
+    rd_.link_[Pelvis].x_traj = rd_.link_[Pelvis].support_xpos_init;
+    rd_.link_[Pelvis].x_traj(1) = rd_.link_[Pelvis].support_xpos_init(1) + pelv_dist * sin(wn * tick_pelv / hz_);
+    rd_.link_[Pelvis].v_traj(1) = wn * pelv_dist * cos(wn * tick_pelv / hz_);
+    rd_.link_[Pelvis].x_traj = rd_.link_[Pelvis].x_traj - rd_.link_[Pelvis].support_xpos;
+
+    tick_pelv++;
+
     //--- Increment Tick
     sim_tick++;
 }
