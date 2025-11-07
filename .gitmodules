@@ -1,0 +1,6 @@
+[submodule "tocabi_avatar"]
+	path = tocabi_avatar
+	url = https://github.com/kwlee365/tocabi_avatar.git
+[submodule "tocabi_gui"]
+	path = tocabi_gui
+	url = https://github.com/saga0619/tocabi_gui.git
