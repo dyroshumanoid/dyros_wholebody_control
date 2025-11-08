@@ -22,8 +22,6 @@ private:
     void contactStateMachine();
     void mapGlobalToBase();
     void mapBaseToSupport();
-    void updateDynamics();
-    void updateContact();
 
     Eigen::Vector3d base_pos; 
     Eigen::Matrix3d base_rot;

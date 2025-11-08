@@ -65,14 +65,11 @@ private:
     //--- Local eigen variables
     Eigen::MatrixVVd M; 
     Eigen::VectorVQd G; 
-    Eigen::MatrixXd base_contact_Jac;
-    Eigen::MatrixXd base_contact_Jac_T;
+    Eigen::MatrixXd J_C;
+    Eigen::MatrixXd J_C_T;
     Eigen::MatrixXd Sa_T;
     Eigen::MatrixXd Sa;  
     Eigen::MatrixXd Sf;  
-
-    Eigen::VectorVQd q;
-    Eigen::VectorVQd qdot;
 
     Eigen::MatrixXd A_fric;
     Eigen::VectorXd lbA_fric;

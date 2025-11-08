@@ -22,6 +22,15 @@ void setWalkingParameter(const double &step_length_, const double &foot_yaw_angl
 void setTimeInformation(const int &step_tick_, const int &trajectory_duration_);
 void setStepDuration(const double &step_duration_);
 void setTransferDuration(const double &transfer_duration_);
+void isForceTorqueSensorAvailable(const bool &is_ft_sensor_available_);
+void findPreviewParameter(double dt, int NL);   
+
+//---Getter
+double getPreviewStepNumber();
+
+void contactWrenchCalculator();
+Eigen::Vector2d cp_desired_;
+Eigen::Vector2d cp_measured_;
 
 private:
 RobotData &rd_;
@@ -30,13 +39,34 @@ double hz_;
 void updateStepTick();
 void updateSupportInitialState();
 void calcFootstepQueue();
-void calcCapturePointQueue();
+void getZmpTrajectory();
 void getFootTrajectory();
 void getComTrajectory();
+void updateFootPoseFromContactWrench();
+void updateMomentControl(double &error,
+                         double &error_pre,
+                         double &input,
+                         double measurement,
+                         double reference,
+                         double kp,
+                         double kd,
+                         double damping,
+                         double hz)
+{
+    error_pre = error;
+    error     = reference - measurement;
+    double error_dot = (error - error_pre) * hz;
+
+    double input_dot = kp * error + kd * error_dot - damping * input;
+    input += input_dot / hz;
+}
+
+void mapSupportToBase();
+void mapBaseToGlobal();
 
 Eigen::Vector2d footstep_des;
 
-const int preview_idx = 3;
+const int preview_idx = 4;
 Eigen::Vector2d step_command;
 std::deque<Eigen::Vector2d> step_queue;
 std::deque<Eigen::Vector2d> cp_end_queue;
@@ -56,10 +86,32 @@ double com_height = 0.0;
 double wn = 0.0;
 double T = 0.0;
 
+Eigen::MatrixXd A;
+Eigen::VectorXd B;
+Eigen::MatrixXd C;
+Eigen::MatrixXd Gi;
+Eigen::VectorXd Gd;
+Eigen::MatrixXd Gx;
+Eigen::VectorXd zmp_x_traj, zmp_y_traj;
+
+Eigen::Vector3d com_x_dx_ddx;
+Eigen::Vector3d com_y_dy_ddy;
+
+Eigen::Vector6d lfoot_contact_wrench;
+Eigen::Vector6d rfoot_contact_wrench;
+
+double cf_error = 0.0, cf_error_pre = 0.0, cf_input = 0.0;
+double cm_lfoot_roll_error = 0.0, cm_lfoot_roll_error_pre = 0.0, cm_lfoot_roll_input = 0.0;
+double cm_rfoot_roll_error = 0.0, cm_rfoot_roll_error_pre = 0.0, cm_rfoot_roll_input = 0.0;
+double cm_lfoot_pitch_error = 0.0, cm_lfoot_pitch_error_pre = 0.0, cm_lfoot_pitch_input = 0.0;
+double cm_rfoot_pitch_error = 0.0, cm_rfoot_pitch_error_pre = 0.0, cm_rfoot_pitch_input = 0.0;
+
 bool local_LF_contact = true;
 bool local_RF_contact = true;
 
 bool is_support_transition = false;
 bool is_footstep_update = false;
-bool is_cp_eos_update = false;
+bool is_zmp_update = true;
+bool is_com_frame_transition = false;
+bool is_ft_sensor_available = false;
 };

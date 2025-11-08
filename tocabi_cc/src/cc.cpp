@@ -58,10 +58,17 @@ void CustomController::computeSlow()
 
         kin_wbc_.computeTaskSpaceKinematicWBC();
 
-        dyn_wbc_.computeDynamicWBC();
-        dyn_wbc_.computeTotalTorqueCommand();
+        if(is_kinematic_control == true)
+        {
+            rd_.torque_desired = (rd_.Kp_diag * (rd_.q_desired - rd_.q_)) + (rd_.Kd_diag * (rd_.q_dot_desired -  rd_.q_dot_));
+        }
+        else
+        {
+            dyn_wbc_.computeDynamicWBC();
+            dyn_wbc_.computeTotalTorqueCommand();
+        }
 
-        dataCC1 << rd_.LF_FT.transpose() << " " << rd_.RF_FT.transpose() << std::endl;
+        dataCC1 << -rd_.LF_FT.transpose() << " " << -rd_.RF_FT.transpose() << std::endl;
         dataCC2 << rd_.torque_desired.transpose() << std::endl;
 
     }
@@ -92,9 +99,6 @@ void CustomController::CustomControllerInit()
         q_init_ = rd_.q_;
         WBC::SetContact(rd_, true, true);
         
-        cout << "========== CUSTOMCONTROLLER IS NOW INITIALIZED ==========" << endl;
-        cout << "TIME: "<< rd_.control_time_ << endl; 
-
         is_cc_init = false;
     }
 }
@@ -278,6 +282,7 @@ void CustomController::loadParams()
     std::cout << "=====================================" << std::endl;
     std::cout << "===== Motion Mode : " << mode_name << " =====" << std::endl;
     std::cout << "=====================================" << std::endl;
+    std::cout << " " << std::endl;
 
     //--- Task Parameter
     double traj_time_, pelv_dist_, hand_dist_, step_length_, foot_height_, step_duration_;
@@ -295,15 +300,16 @@ void CustomController::loadParams()
     tm_.setFootHeight(foot_height_);
     tm_.setStepDuration(step_duration_);
 
-    std::cout << "=====================================" << std::endl;
-    std::cout << "========== Task Parameters ========== " << std::endl;
+    std::cout << "====================================" << std::endl;
+    std::cout << "======== Task Parameters ========== " << std::endl;
     std::cout << "Trajectory Time : " << traj_time_ << " sec" << std::endl;
     std::cout << "Pelvis Distance : " << pelv_dist_ << " m" << std::endl;
     std::cout << "Hand Distance : " << hand_dist_ << " m" << std::endl;
     std::cout << "Step Length : " << step_length_ << " m" << std::endl;
     std::cout << "Foot Height : " << foot_height_ << " m" << std::endl;
     std::cout << "Step Duration : " << step_duration_ << " sec" << std::endl;
-    std::cout << "=====================================" << std::endl;
+    std::cout << "====================================" << std::endl;
+    std::cout << " " << std::endl;
 
     //--- Whole-body Inverse Dynamics
     double W_qddot, W_cwr, W_energy;
@@ -320,4 +326,32 @@ void CustomController::loadParams()
     std::cout << "W_qddot : " << W_qddot  << std::endl;
     std::cout << "W_cwr : " << W_cwr  << std::endl;
     std::cout << "W_energy : " << W_energy  << std::endl;
+    std::cout << "=====================================" << std::endl;
+    std::cout << " " << std::endl;
+
+    int is_kinematic_control_idx = -1;
+    nh_cc_.getParam("/tocabi_controller/is_kinematic_control_idx", is_kinematic_control_idx);
+    if (is_kinematic_control_idx == 0)
+    {
+        std::cout << "==========================================" << std::endl;
+        std::cout << "========== DYNAMIC CONTROL MODE ========== " << std::endl;
+        std::cout << "==========================================" << std::endl;
+        std::cout << " " << std::endl;
+        is_kinematic_control = false;
+    }
+    else if (is_kinematic_control_idx == 1)
+    {
+        std::cout << "============================================" << std::endl;
+        std::cout << "========== KINEMATIC CONTROL MODE ========== " << std::endl;
+        std::cout << "============================================" << std::endl;
+        std::cout << " " << std::endl;
+
+        is_kinematic_control = true;
+    }
+    else
+    {
+        ROS_ERROR("kinematic_control_idx error: got %d", is_kinematic_control_idx);
+        assert(is_kinematic_control_idx == 0 || is_kinematic_control_idx == 1);
+    }
+    tm_.isForceTorqueSensorAvailable(is_kinematic_control);
 }

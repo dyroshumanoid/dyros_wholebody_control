@@ -261,6 +261,8 @@ struct RobotData
     Eigen::MatrixQQd Kp_diag;
     Eigen::MatrixQQd Kd_diag;
 
+    Eigen::Vector6d LF_FT_DES, RF_FT_DES;       
+
     bool is_left_contact_transition = false;
     bool is_right_contact_transition = false;
 };

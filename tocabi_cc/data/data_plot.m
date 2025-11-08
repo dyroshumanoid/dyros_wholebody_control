@@ -11,9 +11,10 @@ left_foot_pos = data(:, 1:6);
 data = readmatrix('dataWM2.txt');
 right_foot_pos= data(:, 1:6);
 data = readmatrix('dataWM3.txt');
-pelv_pos = data(:, 1:6);
+com= data(:, 1:6);
+
 data = readmatrix('dataWM4.txt');
-cp_pos = data(:, 1:6);
+cp= data(:, 1:4);
 
 figure()
 
@@ -28,18 +29,32 @@ for cnt = 1:1:2
     plot(left_foot_pos(:,start_cnt + cnt + 3));
     plot(right_foot_pos(:, start_cnt + cnt))
     plot(right_foot_pos(:, start_cnt + cnt + 3))
-    % plot(pelv_pos(:,start_cnt + cnt));
-    % plot(pelv_pos(:,start_cnt + cnt + 3));
-    plot(cp_pos(:,start_cnt + cnt));
-    plot(cp_pos(:,start_cnt + cnt + 2));
-    plot(cp_pos(:,start_cnt + cnt + 4));
-
-
-
-    % legend('lfoot traj', 'lfoot cur', 'rfoot traj', 'rfoot cur', 'pelv traj', 'pelv cur', 'cp_pos', 'cp_mea', 'del zmp');
-    legend('lfoot traj', 'lfoot cur', 'rfoot traj', 'rfoot cur', 'cp pos', 'cp mea', 'del zmp');
+    plot(com(:, start_cnt + cnt))
+    plot(com(:, start_cnt + cnt + 3))
+    plot(cp(:, start_cnt + cnt))
+    plot(cp(:, start_cnt + cnt + 2))
+     
+    legend('lfoot traj', 'lfoot cur', 'rfoot traj', 'rfoot cur', 'com traj', 'com cur', 'cp traj', 'cp cur');
 end
 
+%%
+clc
+clear all
+close all
+
+preview_tick = 1
+
+data = load('dataWM5.txt');
+zmp_x = data(:, :);
+data = load('dataWM6.txt');
+zmp_y = data(:, :);
+
+figure()
+
+subplot(2,1,1)
+plot(zmp_x(preview_tick,:));
+subplot(2,1,2)
+plot(zmp_y(preview_tick,:));
 %%
 data = readmatrix('dataCC1.txt');
 LF = data(:, 1:6);
@@ -54,6 +69,7 @@ hold on
 plot(LF_id(:,3))
 plot(RF(:,3))
 plot(RF_id(:,3))
+legend()
 
 data = readmatrix('dataCC2.txt');
 torque_sol = data(:, 1:33);

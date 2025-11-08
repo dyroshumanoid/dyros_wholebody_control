@@ -31,6 +31,13 @@
 
     <rosparam command="load" file="$(find tocabi_cc)/setting/setting_cc_param.yaml" ns="/tocabi_controller" />
 
+    <rosparam command="load" file="$(find tocabi_avatar)/setting/setting_simulation_biped_controller.yaml" ns="/tocabi_controller" />
+    <rosparam command="load" file="$(find tocabi_avatar)/setting/setting_simulation_biped_walking.yaml" ns="/tocabi_controller" />
+    <rosparam command="load" file="$(find tocabi_avatar)/setting/setting_simulation_joint.yaml" ns="/tocabi_controller" />
+    <rosparam command="load" file="$(find tocabi_avatar)/setting/setting_simulation_nmpc.yaml" ns="/tocabi_controller" />
+    <rosparam command="load" file="$(find tocabi_avatar)/setting/setting_simulation_wbid.yaml" ns="/tocabi_controller" />
+
+    <rosparam command="load" file="$(find tocabi_cc)/setting/setting_cc_param.yaml" ns="/tocabi_controller" />
 
     <node name="mujoco_ros" pkg="mujoco_ros" type="mujoco_ros" output="screen" required="true" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' ">
         <param name="license" type="string" value="$(env HOME)/mjkey.txt" />

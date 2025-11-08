@@ -113,16 +113,16 @@ void DynWBC::computeDynamicWBC()
 void DynWBC::calcDesiredJointAcceleration()
 {
     rd_.q_ddot_desired_virtual.setZero();
-    rd_.q_ddot_desired_virtual = rd_.Kp_virtual_diag * (rd_.q_desired_virtual - rd_.local_q_virtual_.head(MODEL_DOF_VIRTUAL)) + rd_.Kd_virtual_diag * (rd_.q_dot_desired_virtual - rd_.local_q_dot_virtual_);
+    rd_.q_ddot_desired_virtual = rd_.Kp_virtual_diag * (rd_.q_desired_virtual - rd_.q_virtual_.head(MODEL_DOF_VIRTUAL)) + rd_.Kd_virtual_diag * (rd_.q_dot_desired_virtual - rd_.q_dot_virtual_);
 }
 
 void DynWBC::computeTotalTorqueCommand()
 {
     Eigen::VectorQd torque_inv_dyn; torque_inv_dyn.setZero();
-    torque_inv_dyn = (rd_.local_A * qddot_qp + rd_.local_G - rd_.local_J_C.transpose() * contact_wrench_qp).tail(MODEL_DOF);
+    torque_inv_dyn = (M * qddot_qp + G - J_C_T * contact_wrench_qp).tail(MODEL_DOF);
 
     Eigen::VectorQd torque_pd; torque_pd.setZero();
-    torque_pd = (rd_.Kp_diag / 3.0) * (rd_.q_desired - rd_.q_) + (rd_.Kd_diag / 1.0) * (rd_.q_dot_desired - rd_.q_dot_);
+    torque_pd = (rd_.Kp_diag) * (rd_.q_desired - rd_.q_) + (rd_.Kd_diag) * (rd_.q_dot_desired - rd_.q_dot_);
 
     Eigen::VectorQd torque_sum = torque_inv_dyn + torque_pd;
 
@@ -151,9 +151,9 @@ void DynWBC::computeTotalTorqueCommand()
         }
     }
 
-    torque_id_log << std::setprecision(4) << torque_inv_dyn.transpose() << std::endl;
-    torque_pd_log << std::setprecision(4) << torque_pd.transpose() << std::endl;
-    contact_wrench_id_log << std::setprecision(4) << contact_wrench_qp.transpose() << std::endl;
+    torque_id_log << std::setprecision(6) << torque_inv_dyn.transpose() << std::endl;
+    torque_pd_log << std::setprecision(6) << torque_pd.transpose() << std::endl;
+    contact_wrench_id_log << std::setprecision(6) << contact_wrench_qp.transpose() << std::endl;
 
     rd_.torque_desired = torque_sum;
 }
@@ -165,9 +165,9 @@ void DynWBC::calcCostHess()
 {
     Hess.setZero(contact_dim + MODEL_DOF_VIRTUAL, contact_dim + MODEL_DOF_VIRTUAL);
     
-    Hess.topLeftCorner(contact_dim, contact_dim)                 = W_cwr * Eigen::MatrixXd::Identity(contact_dim, contact_dim);
-    Hess.bottomRightCorner(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL) = W_qddot * Eigen::MatrixXd::Identity(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL);
-    Hess.bottomRightCorner(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL) = W_energy * M;
+    Hess.topLeftCorner(contact_dim, contact_dim)                 += W_cwr * Eigen::MatrixXd::Identity(contact_dim, contact_dim);
+    Hess.bottomRightCorner(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL) += W_qddot * Eigen::MatrixXd::Identity(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL);
+    Hess.bottomRightCorner(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL) += W_energy * M;
 }
 
 void DynWBC::calcCostGrad()
@@ -184,7 +184,7 @@ void DynWBC::calcEqualityConstraint()
     Eigen::VectorXd lbA_fl; lbA_fl.setZero(6);
     Eigen::VectorXd ubA_fl; ubA_fl.setZero(6);
 
-    A_fl.leftCols(contact_dim) = Sf * base_contact_Jac_T;
+    A_fl.leftCols(contact_dim) = Sf * J_C_T;
     A_fl.rightCols(MODEL_DOF_VIRTUAL) = -Sf * M;
     lbA_fl = Sf * G;
     ubA_fl = Sf * G;
@@ -234,22 +234,42 @@ void DynWBC::updateContactState()
     contact_dim_prev = contact_dim;
     contact_dim = rd_.contact_index * 6;
     contact_wrench_cmd.setZero(contact_dim);
+
+    bool local_LF_contact = rd_.ee_[0].contact;
+    bool local_RF_contact = rd_.ee_[1].contact;
+
+    if (local_LF_contact == true && local_RF_contact == true)
+    {
+        contact_wrench_cmd.head(6) = rd_.LF_FT_DES;
+        contact_wrench_cmd.tail(6) = rd_.RF_FT_DES;
+    }
+    else if (local_LF_contact == true || local_RF_contact != true)
+    {
+        contact_wrench_cmd = rd_.LF_FT_DES;
+    }
+    else if (local_LF_contact != true || local_RF_contact == true)
+    {
+        contact_wrench_cmd = rd_.RF_FT_DES;
+    }
+    else
+    {
+        ROS_ERROR("DynWBC::updateContactState() ERROR: No contact detected!");
+    }
 }
 
 void DynWBC::updateRobotStates() 
 {
     //--- Robot States
-    qdot = rd_.local_q_dot_virtual_;
     calcDesiredJointAcceleration();
     qddot_cmd = rd_.q_ddot_desired_virtual;
-    M = rd_.local_A;
-    G = rd_.local_G;
+    M = rd_.A_;
+    G = rd_.G;
 
-    base_contact_Jac.setZero(rd_.local_J_C.rows(), rd_.local_J_C.cols());
-    base_contact_Jac = rd_.local_J_C;
+    J_C.setZero(rd_.J_C.rows(), rd_.J_C.cols());
+    J_C = rd_.J_C;
 
-    base_contact_Jac_T.setZero(rd_.local_J_C.cols(), rd_.local_J_C.rows());
-    base_contact_Jac_T = rd_.local_J_C.transpose();
+    J_C_T.setZero(rd_.J_C.cols(), rd_.J_C.rows());
+    J_C_T = rd_.J_C.transpose();
 
     Sa_T.setZero(MODEL_DOF_VIRTUAL, MODEL_DOF); Sa_T.bottomRows(MODEL_DOF).setIdentity();
     Sa.setZero(MODEL_DOF, MODEL_DOF_VIRTUAL);   Sa = Sa_T.transpose();

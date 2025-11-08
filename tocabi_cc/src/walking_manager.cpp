@@ -4,10 +4,11 @@ ofstream dataWM1("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM1.txt");
 ofstream dataWM2("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM2.txt");
 ofstream dataWM3("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM3.txt");
 ofstream dataWM4("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM4.txt");
+ofstream dataWM5("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM5.txt");
+ofstream dataWM6("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM6.txt");
 
 WalkingManager::WalkingManager(RobotData &rd) : rd_(rd)
 {
-
 }
 
 void WalkingManager::computeWalkingMotion()
@@ -19,12 +20,19 @@ void WalkingManager::computeWalkingMotion()
     step_command = rotZaxis2d(foot_yaw_angle) * step_command;
 
     step_length = step_command(0);
-    step_width  = step_command(1);
+    step_width = step_command(1);
 
     calcFootstepQueue();
-    calcCapturePointQueue();
-    getFootTrajectory();
+    getZmpTrajectory();
     getComTrajectory();
+    contactWrenchCalculator();
+    getFootTrajectory();
+    if(is_ft_sensor_available == true){
+        updateFootPoseFromContactWrench();
+    }
+
+    mapSupportToBase();
+    mapBaseToGlobal();
 
     updateStepTick();
 }
@@ -34,80 +42,140 @@ void WalkingManager::calcFootstepQueue()
     int foot_contact_idx = local_LF_contact ? -1 : +1;
     static bool is_footstep_queue_init = true;
 
-    if (!(local_LF_contact == true && local_RF_contact == true)) // DSP
+    if (is_footstep_queue_init == true)
     {
-        if (is_footstep_queue_init == true)
+        step_queue.clear();
+
+        Eigen::Vector2d step_command_local;
+        step_command_local.setZero();
+        for (int i = 0; i < preview_idx; i++)
         {
-            step_queue.clear();
+            double step_length_local = (i == 0) ? (step_length * 0.5) : step_length;
 
-            Eigen::Vector2d step_command_local; step_command_local.setZero();
-            for (int i = 0; i < preview_idx; i++)
-            {
-                double step_length_local = (i == 0) ? (step_length * 0.5) : step_length;
+            step_command_local += Eigen::Vector2d(step_length_local, foot_contact_idx * step_width);
+            step_queue.push_back(step_command_local);
 
-                step_command_local += Eigen::Vector2d(step_length_local, foot_contact_idx * step_width);
-                step_queue.push_back(step_command_local);
-
-                foot_contact_idx *= -1;
-            }
-
-            is_footstep_queue_init = false;
+            foot_contact_idx *= -1;
         }
-        else
+
+        is_footstep_queue_init = false;
+    }
+    else
+    {
+        if (is_footstep_update == true)
         {
-            if(is_footstep_update == true)
+            int foot_sign = (preview_idx % 2 == 0) ? -1 : ((preview_idx < 0) ? 1 : 0);
+
+            Eigen::Vector2d step_command_first = step_queue.front();
+
+            for (auto iter = step_queue.begin(); iter != step_queue.end(); iter++)
             {
-                Eigen::Vector2d step_command_first = step_queue.front();
-
-                for (auto iter = step_queue.begin(); iter != step_queue.end(); iter++)
-                {
-                    *iter -= step_command_first;
-                }
-
-                step_queue.pop_front();
-
-                Eigen::Vector2d step_command_back = step_queue.back();
-                Eigen::Vector2d step_command_new = step_command_back + Eigen::Vector2d(step_length, foot_contact_idx * step_width);
-
-                step_queue.push_back(step_command_new);
-
-                is_footstep_update = false;
+                *iter -= step_command_first;
             }
+
+            step_queue.pop_front();
+
+            Eigen::Vector2d step_command_back = step_queue.back();
+            Eigen::Vector2d step_command_new = step_command_back + Eigen::Vector2d(step_length, foot_sign * foot_contact_idx * step_width);
+
+            step_queue.push_back(step_command_new);
+
+            is_footstep_update = false;
         }
     }
 }
 
-void WalkingManager::calcCapturePointQueue()
+void WalkingManager::getZmpTrajectory()
 {
-    static bool is_cp_queue_init = true;
-    if (is_cp_queue_init == true)
+    int step_total_ticks = static_cast<int>(step_duration * hz_);
+
+    if ((local_LF_contact == true && local_RF_contact == true)) // DSP
     {
-        cp_end_queue.clear();
-
-        for (int i = 0; i < preview_idx; i++)
+        if (is_zmp_update == true)
         {
-            cp_end_queue.push_back(Eigen::Vector2d(0.0, 0.0));
-        }
+            const double transfer_ticks = trajectory_duration * hz_;
+            const double weight_shift_ticks = 0.5 * hz_;
 
-        is_cp_eos_update = true;
-        is_cp_queue_init = false;
-    }
+            zmp_x_traj.setZero(preview_idx * step_total_ticks + transfer_ticks);
+            zmp_y_traj.setZero(preview_idx * step_total_ticks + transfer_ticks);
 
-    if (!(local_LF_contact == true && local_RF_contact == true)) // DSP
-    {
-        if (is_cp_eos_update == true)
-        {
-            cp_end_queue.back() = step_queue.back();
+            //--- Stand still
+            Eigen::Vector2d p0, p1; 
+            p0 = rd_.link_[COM_id].support_xpos_init.head(2);
 
-            for (int i = preview_idx - 1; i > 0; --i)
+            p1 = rd_.link_[COM_id].support_xpos_init.head(2);
+
+            Eigen::VectorXd s = Eigen::VectorXd::LinSpaced(transfer_ticks - weight_shift_ticks, 0.0, 1.0);
+            Eigen::VectorXd zmp_x_traj_onestep = (1.0 - s.array()) * p0(0) + s.array() * p1(0);
+            Eigen::VectorXd zmp_y_traj_onestep = (1.0 - s.array()) * p0(1) + s.array() * p1(1);
+            zmp_x_traj.segment(0, static_cast<int>(transfer_ticks - weight_shift_ticks)) = zmp_x_traj_onestep;
+            zmp_y_traj.segment(0, static_cast<int>(transfer_ticks - weight_shift_ticks)) = zmp_y_traj_onestep;
+
+            //--- Transfer to first footstep
+            p0 = rd_.link_[COM_id].support_xpos_init.head(2);
+
+            p1.setZero();
+
+            s = Eigen::VectorXd::LinSpaced(weight_shift_ticks, 0.0, 1.0);
+            zmp_x_traj_onestep = (1.0 - s.array()) * p0(0) + s.array() * p1(0);
+            zmp_y_traj_onestep = (1.0 - s.array()) * p0(1) + s.array() * p1(1);
+            zmp_x_traj.segment(static_cast<int>(transfer_ticks - weight_shift_ticks), static_cast<int>(weight_shift_ticks)) = zmp_x_traj_onestep;
+            zmp_y_traj.segment(static_cast<int>(transfer_ticks - weight_shift_ticks), static_cast<int>(weight_shift_ticks)) = zmp_y_traj_onestep;
+
+            //--- Footstep
+            for (int i = 0; i < preview_idx; i++)
             {
-                Eigen::Vector2d cp_end = cp_end_queue[i];
-                Eigen::Vector2d zmp = step_queue[i - 1];
+                if (i == 0)
+                {
+                    p0.setZero();
+                }
+                else
+                {
+                    p0 = step_queue[i - 1];
+                }
+                p1 = step_queue[i];
 
-                cp_end_queue[i - 1] = zmp + exp(-wn * trajectory_duration) * (cp_end - zmp);
+                zmp_x_traj.segment(transfer_ticks + i * step_total_ticks, step_total_ticks).setConstant(p0(0));
+                zmp_y_traj.segment(transfer_ticks + i * step_total_ticks, step_total_ticks).setConstant(p0(1));
             }
 
-            is_cp_eos_update = false;
+            dataWM5 << std::setprecision(3)
+                    << zmp_x_traj.transpose() << std::endl;
+            dataWM6  << std::setprecision(3)
+                    << zmp_y_traj.transpose() << std::endl;
+
+            is_zmp_update = false;
+        }
+    }
+    if (!(local_LF_contact == true && local_RF_contact == true)) // DSP
+    {
+        if (is_zmp_update == true)
+        {
+            zmp_x_traj.setZero(preview_idx * step_total_ticks);
+            zmp_y_traj.setZero(preview_idx * step_total_ticks);
+
+            Eigen::Vector2d p0;
+            p0.setZero();
+            Eigen::Vector2d p1;
+            p1.setZero();
+
+            for (int i = 0; i < preview_idx; i++)
+            {
+                if (i == 0)
+                {
+                    p0.setZero();
+                }
+                else
+                {
+                    p0 = step_queue[i - 1];
+                }
+                p1 = step_queue[i];
+
+                zmp_x_traj.segment(i * step_total_ticks, step_total_ticks).setConstant(p0(0));
+                zmp_y_traj.segment(i * step_total_ticks, step_total_ticks).setConstant(p0(1));
+            }
+            
+            is_zmp_update = false;
         }
     }
 }
@@ -116,17 +184,15 @@ void WalkingManager::getFootTrajectory()
 {
     int support_foot_link_idx, support_hip_link_idx, swing_foot_link_idx, swing_hip_link_idx;
 
-    support_foot_link_idx = local_LF_contact ? Left_Foot  : Right_Foot;
+    support_foot_link_idx = local_LF_contact ? Left_Foot : Right_Foot;
     swing_foot_link_idx   = local_LF_contact ? Right_Foot : Left_Foot;
-    support_hip_link_idx  = local_LF_contact ? 5  : 11;
-    swing_hip_link_idx    = local_LF_contact ? 11 : 5;
 
     //--- Swing & Support Feet Trajectory
-    footstep_des.setZero(); 
+    footstep_des.setZero();
     footstep_des = step_queue.front();
     if (local_LF_contact == true && local_RF_contact == true) // DSP
     {
-        rd_.link_[Left_Foot].x_traj = rd_.link_[Left_Foot].support_xpos_init;
+        rd_.link_[Left_Foot].x_traj  = rd_.link_[Left_Foot].support_xpos_init;
         rd_.link_[Right_Foot].x_traj = rd_.link_[Right_Foot].support_xpos_init;
 
         rd_.link_[Left_Foot].r_traj.setIdentity();
@@ -140,23 +206,24 @@ void WalkingManager::getFootTrajectory()
         rd_.link_[swing_foot_link_idx].x_traj(1) = DyrosMath::QuinticSpline(step_time, 0.0, trajectory_duration, rd_.link_[swing_foot_link_idx].support_xpos_init(1), 0.0, 0.0, footstep_des(1), 0.0, 0.0)(0);
 
         double start_time = 0.0;
-        double end_time   = 0.0;
-        if(step_time <= trajectory_duration / 2.0) {
+        double end_time = 0.0;
+        if (step_time <= trajectory_duration / 2.0)
+        {
             start_time = 0.0;
-            end_time = trajectory_duration / 2.0; 
+            end_time = trajectory_duration / 2.0;
 
             rd_.link_[swing_foot_link_idx].x_traj(2) = DyrosMath::QuinticSpline(step_time, start_time, end_time, rd_.link_[swing_foot_link_idx].support_xpos_init(2), 0.0, 0.0, foot_height, 0.0, 0.0)(0);
         }
-        else {
+        else
+        {
             start_time = trajectory_duration / 2.0;
-            end_time = trajectory_duration;  
+            end_time = trajectory_duration;
 
             rd_.link_[swing_foot_link_idx].x_traj(2) = DyrosMath::QuinticSpline(step_time, start_time, end_time, foot_height, 0.0, 0.0, 0.0, 0.0, 0.0)(0);
         }
 
-
-        rd_.link_[Left_Foot].r_traj.setIdentity();
-        rd_.link_[Right_Foot].r_traj.setIdentity();
+        rd_.link_[support_foot_link_idx].r_traj.setIdentity();
+        rd_.link_[swing_foot_link_idx].r_traj.setIdentity();
     }
 
     dataWM1 << std::setprecision(3)
@@ -168,44 +235,239 @@ void WalkingManager::getFootTrajectory()
             << rd_.link_[Right_Foot].x_traj(0) << "," << rd_.link_[Right_Foot].x_traj(1) << "," << rd_.link_[Right_Foot].x_traj(2) << ","
             << rd_.link_[Right_Foot].support_xpos(0) << "," << rd_.link_[Right_Foot].support_xpos(1) << "," << rd_.link_[Right_Foot].support_xpos(2)
             << std::endl;
-
-    rd_.link_[Left_Foot].x_traj  = rd_.link_[Left_Foot].x_traj - rd_.link_[Pelvis].support_xpos;
-    rd_.link_[Right_Foot].x_traj = rd_.link_[Right_Foot].x_traj - rd_.link_[Pelvis].support_xpos;
 }
 
 void WalkingManager::getComTrajectory()
 {
-    //--- Base Test
-    if (local_LF_contact == true && local_RF_contact == true) // DSP
+    static bool first_com = true;
+    if (first_com == true)
     {
-        rd_.link_[Pelvis].x_desired =  rd_.link_[Pelvis].support_xpos_init;
-        rd_.link_[Pelvis].x_desired(1) =  rd_.link_[Pelvis].support_xpos_init(1) + 0.03;
-        rd_.link_[Pelvis].x_desired(2) = 0.765;
-    }
-    else
-    {
-        int foot_contact_idx = local_LF_contact ? +1 : -1;
+        com_x_dx_ddx << rd_.link_[COM_id].support_xpos(0),
+                        rd_.link_[COM_id].support_v(0),
+                        0.0;
+        com_y_dy_ddy << rd_.link_[COM_id].support_xpos(1),
+                        rd_.link_[COM_id].support_v(1),
+                        0.0;
 
-        rd_.link_[Pelvis].x_desired(0) = footstep_des(0) / 2.0;
-        rd_.link_[Pelvis].x_desired(1) = footstep_des(1) / 2.0 + foot_contact_idx * 0.0;
-        rd_.link_[Pelvis].x_desired(2) = 0.765;
+        first_com = false;
     }
 
-    rd_.link_[Pelvis].SetTrajectoryQuintic(step_time, 0.0, trajectory_duration, rd_.link_[Pelvis].support_xpos_init, rd_.link_[Pelvis].x_desired);
+    int NL = static_cast<int>(1.6 * hz_);
+    Eigen::VectorXd zmp_x_window;
+    zmp_x_window.setZero(NL);
+    Eigen::VectorXd zmp_y_window;
+    zmp_y_window.setZero(NL);
+    
+    zmp_x_window = zmp_x_traj.segment(step_tick, NL);
+    zmp_y_window = zmp_y_traj.segment(step_tick, NL);
 
-    rd_.link_[Pelvis].x_traj = rd_.link_[Pelvis].x_traj - rd_.link_[Pelvis].support_xpos;
+    static Eigen::MatrixXd p_err_sum_x_;
+    static Eigen::MatrixXd p_err_sum_y_;
+    static bool first_integral = true;
+    if (first_integral == true)
+    {
+        p_err_sum_x_.setZero(1, 1);
+        p_err_sum_y_.setZero(1, 1);
+        first_integral = false;
+    }
+
+    Eigen::MatrixXd ux;
+    ux.setZero(1, 1);
+    Eigen::MatrixXd uy;
+    uy.setZero(1, 1);
+    ux = -Gi * p_err_sum_x_ - Gx * com_x_dx_ddx - Gd.transpose() * zmp_x_window;
+    uy = -Gi * p_err_sum_y_ - Gx * com_y_dy_ddy - Gd.transpose() * zmp_y_window;
+
+    Eigen::Vector3d com_x_dx_ddx_next;
+    com_x_dx_ddx_next.setZero();
+    Eigen::Vector3d com_y_dy_ddy_next;
+    com_y_dy_ddy_next.setZero();
+
+    com_x_dx_ddx_next = A * com_x_dx_ddx + B * ux;
+    com_y_dy_ddy_next = A * com_y_dy_ddy + B * uy;
+
+    com_x_dx_ddx = com_x_dx_ddx_next;
+    com_y_dy_ddy = com_y_dy_ddy_next;
+
+    rd_.link_[COM_id].x_traj(0) = com_x_dx_ddx_next(0);
+    rd_.link_[COM_id].x_traj(1) = com_y_dy_ddy_next(0);
+    rd_.link_[COM_id].x_traj(2) = com_height;
+
+    p_err_sum_x_(0) += ((C * com_x_dx_ddx_next)(0) - zmp_x_traj(step_tick + 1));
+    p_err_sum_y_(0) += ((C * com_y_dy_ddy_next)(0) - zmp_y_traj(step_tick + 1));
+
     rd_.link_[Pelvis].r_traj.setIdentity();
+    dataWM3 << std::setprecision(3)
+            << rd_.link_[COM_id].x_traj(0) << "," << rd_.link_[COM_id].x_traj(1) << "," << rd_.link_[COM_id].x_traj(2) << ","
+            << rd_.link_[COM_id].support_xpos(0) << "," << rd_.link_[COM_id].support_xpos(1) << "," << rd_.link_[COM_id].support_xpos(2)
+            << std::endl;
+
+    // Calc Capture Point
+    cp_desired_(0) = com_x_dx_ddx(0) + com_x_dx_ddx(1) / wn;
+    cp_desired_(1) = com_y_dy_ddy(0) + com_y_dy_ddy(1) / wn;
+
+    dataWM4 << std::setprecision(3)
+            << cp_desired_(0) << "," << cp_desired_(1) << ","
+            << cp_measured_(0) << "," << cp_measured_(1)
+            << std::endl;
+}
+
+void WalkingManager::contactWrenchCalculator()
+{
+    cp_measured_ = (rd_.link_[COM_id].support_xpos + rd_.link_[COM_id].support_v / wn).head(2);
+
+    ////// CONTACT WRENCH CALCULATION //////
+    lfoot_contact_wrench.setZero(6);
+    rfoot_contact_wrench.setZero(6);
+    Eigen::Vector2d del_zmp = 1.4 * (cp_measured_ - cp_desired_);
+    double alpha = 0.0;
+    double F_R = 0.0, F_L = 0.0;
+    double Tau_all_y = 0.0, Tau_R_y = 0.0, Tau_L_y = 0.0;
+    double Tau_all_x = 0.0, Tau_R_x = 0.0, Tau_L_x = 0.0;
+
+    Eigen::Vector2d pL_sharp; pL_sharp.setZero(); pL_sharp = rd_.link_[Left_Foot].support_xpos.segment(0, 2); // pL_sharp(1) -= 0.09;
+    Eigen::Vector2d pR_sharp; pR_sharp.setZero(); pR_sharp = rd_.link_[Right_Foot].support_xpos.segment(0, 2); // pR_sharp(1) += 0.09;
+
+    double zmp_x_ref = zmp_x_traj(step_tick);
+    double zmp_y_ref = zmp_y_traj(step_tick);
+
+    alpha = (zmp_y_ref + del_zmp(1) - pR_sharp(1)) / (pL_sharp(1) - pR_sharp(1));
+    alpha = DyrosMath::minmax_cut(alpha, 0.0, 1.0);
+
+    F_R = -(1 - alpha) * (rd_.link_[COM_id].mass) * GRAVITY;
+    F_L =     - alpha  * (rd_.link_[COM_id].mass) * GRAVITY;
+
+    //////////// TORQUE ////////////
+    Eigen::Vector2d pL; pL.setZero(); pL = rd_.link_[Left_Foot].support_xpos.segment(0, 2);
+    Eigen::Vector2d pR; pR.setZero(); pR = rd_.link_[Right_Foot].support_xpos.segment(0, 2);
+
+    Tau_all_x = -((pR(1) - (zmp_y_ref + del_zmp(1))) * F_R + (pL(1) - (zmp_y_ref + del_zmp(1))) * F_L);
+
+    Tau_all_y = +((pR(0) - (zmp_x_ref + del_zmp(0))) * F_R + (pL(0) - (zmp_x_ref + del_zmp(0))) * F_L);
+
+    Tau_R_x =(1 - alpha) * Tau_all_x;
+    Tau_R_y =(1 - alpha) * Tau_all_y;
+    Tau_L_x =     alpha  * Tau_all_x;
+    Tau_L_y =     alpha  * Tau_all_y;
+
+    lfoot_contact_wrench << 0.0, 0.0, F_L, Tau_L_x, Tau_L_y, 0.0;
+    rfoot_contact_wrench << 0.0, 0.0, F_R, Tau_R_x, Tau_R_y, 0.0;
+
+    lfoot_contact_wrench *= (-1.0);
+    rfoot_contact_wrench *= (-1.0);
+
+    rd_.LF_FT_DES = lfoot_contact_wrench;
+    rd_.RF_FT_DES = rfoot_contact_wrench;
+}
+
+void WalkingManager::updateFootPoseFromContactWrench()
+{
+    constexpr double LPF_CUTOFF = 50.0;
+    constexpr double FORCE_KP   = 1e-4;
+    constexpr double FORCE_KD   = 1e-8;
+    constexpr double FORCE_DAMPING   = 3.0;
+    constexpr double MOMENT_KP  = -0.040;
+    constexpr double MOMENT_KD  = -0.0005;
+    constexpr double MOMENT_DAMPING  = 10.0;
+
+    Eigen::Vector6d lfoot_ft = (-1.0) * rd_.LF_FT;
+    Eigen::Vector6d rfoot_ft = (-1.0) * rd_.RF_FT;
+
+    static Eigen::Vector6d lfoot_ft_lpf = lfoot_ft;
+    static Eigen::Vector6d rfoot_ft_lpf = rfoot_ft;
+
+    for (int i = 0; i < 6; i++)
+    {
+        lfoot_ft_lpf(i) = DyrosMath::lpf(lfoot_ft(i), lfoot_ft_lpf(i), hz_, LPF_CUTOFF);
+        rfoot_ft_lpf(i) = DyrosMath::lpf(rfoot_ft(i), rfoot_ft_lpf(i), hz_, LPF_CUTOFF);
+    }
+
+    //--- Contact Force
+    updateMomentControl(cf_error, 
+                        cf_error_pre, 
+                        cf_input,
+                        lfoot_ft_lpf(2) - rfoot_ft_lpf(2),
+                        lfoot_contact_wrench(2) - rfoot_contact_wrench(2),
+                        FORCE_KP,
+                        FORCE_KD,
+                        FORCE_DAMPING,
+                        hz_);
+
+    rd_.link_[Left_Foot].x_traj(2)  -= cf_input * 0.5;
+    rd_.link_[Right_Foot].x_traj(2) += cf_input * 0.5;
+
+    //--- Contact Moment
+    updateMomentControl(cm_lfoot_roll_error,
+                        cm_lfoot_roll_error_pre,
+                        cm_lfoot_roll_input,
+                        lfoot_ft_lpf(3),
+                        lfoot_contact_wrench(3),
+                        MOMENT_KP,
+                        MOMENT_KD,
+                        MOMENT_DAMPING,
+                        hz_);
+
+    updateMomentControl(cm_lfoot_pitch_error,
+                        cm_lfoot_pitch_error_pre,
+                        cm_lfoot_pitch_input,
+                        lfoot_ft_lpf(4),
+                        lfoot_contact_wrench(4),
+                        MOMENT_KP,
+                        MOMENT_KD,
+                        MOMENT_DAMPING,
+                        hz_);
+
+    updateMomentControl(cm_rfoot_roll_error,
+                        cm_rfoot_roll_error_pre,
+                        cm_rfoot_roll_input,
+                        rfoot_ft_lpf(3),
+                        rfoot_contact_wrench(3),
+                        MOMENT_KP,
+                        MOMENT_KD,
+                        MOMENT_DAMPING,
+                        hz_);
+
+    updateMomentControl(cm_rfoot_pitch_error,
+                        cm_rfoot_pitch_error_pre,
+                        cm_rfoot_pitch_input,
+                        rfoot_ft_lpf(4),
+                        rfoot_contact_wrench(4),
+                        MOMENT_KP,
+                        MOMENT_KD,
+                        MOMENT_DAMPING,
+                        hz_);
+
+    rd_.link_[Left_Foot].r_traj = DyrosMath::rotateWithZ(0.0) 
+                                * DyrosMath::rotateWithY(cm_lfoot_pitch_input) 
+                                * DyrosMath::rotateWithX(cm_lfoot_roll_input);
+    rd_.link_[Right_Foot].r_traj = DyrosMath::rotateWithZ(0.0) 
+                                * DyrosMath::rotateWithY(cm_rfoot_pitch_input) 
+                                * DyrosMath::rotateWithX(cm_rfoot_roll_input);
+}
+
+void WalkingManager::mapSupportToBase()
+{
+    rd_.link_[Left_Foot].x_traj -= rd_.link_[Pelvis].support_xpos;
+    rd_.link_[Right_Foot].x_traj -= rd_.link_[Pelvis].support_xpos;
+    rd_.link_[COM_id].x_traj -= rd_.link_[Pelvis].support_xpos;
+}
+
+void WalkingManager::mapBaseToGlobal()
+{
+    //--- Map Trajectory from Base frame to Global frame
+    Eigen::Vector3d base_pos = rd_.link_[Pelvis].xpos;
+    Eigen::Matrix3d base_rot = DyrosMath::rotateWithZ(DyrosMath::rot2Euler(rd_.link_[Pelvis].rotm)(2));
+
+    for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
+    {
+        rd_.link_[idx].x_traj = base_rot * (rd_.link_[idx].x_traj + base_pos);
+        rd_.link_[idx].r_traj = base_rot * rd_.link_[idx].r_traj;
+    }
 }
 
 //--- State Initialization
 void WalkingManager::updateSupportInitialState()
 {
-    for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
-    {
-        rd_.link_[idx].x_traj = rd_.link_[idx].local_xpos_init;
-        rd_.link_[idx].r_traj = rd_.link_[idx].local_rotm_init;
-    }
-
     if (is_support_transition == true)
     {
         for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
@@ -238,6 +500,7 @@ void WalkingManager::updateStepTick()
             if (local_LF_contact == true && local_RF_contact == true)
             {
                 rd_.is_left_contact_transition = true;
+                is_zmp_update = true;
                 is_support_transition = true;
             }
             else
@@ -261,7 +524,8 @@ void WalkingManager::updateStepTick()
 
                 is_support_transition = true;
                 is_footstep_update = true;
-                is_cp_eos_update = true;
+                is_zmp_update = true;
+                is_com_frame_transition = true;
             }
             else if (local_LF_contact == true && local_RF_contact != true)
             {
@@ -269,7 +533,8 @@ void WalkingManager::updateStepTick()
 
                 is_support_transition = true;
                 is_footstep_update = true;
-                is_cp_eos_update = true;
+                is_zmp_update = true;
+                is_com_frame_transition = true;
             }
             else
             {
@@ -280,8 +545,15 @@ void WalkingManager::updateStepTick()
             step_cnt++;
         }
     }
-}
 
+    if(is_com_frame_transition)
+    {
+        com_x_dx_ddx(0) -= step_queue[0](0);
+        com_y_dy_ddy(0) -= step_queue[0](1);    
+        
+        is_com_frame_transition = false;
+    }
+}
 
 //--- Class Setter
 void WalkingManager::setControlFrequency(const double &hz)
@@ -295,7 +567,7 @@ void WalkingManager::setCenterOfMassHeight(const double &com_height_)
     wn = sqrt(GRAVITY / com_height);
 }
 
-void WalkingManager::setTransferDuration(const double& transfer_duration_)
+void WalkingManager::setTransferDuration(const double &transfer_duration_)
 {
     transfer_duration = transfer_duration_;
 }
@@ -309,16 +581,160 @@ void WalkingManager::updateContactState(const bool &local_LF_contact_, const boo
 void WalkingManager::setWalkingParameter(const double &step_length_, const double &foot_yaw_angle_, const double &foot_height_)
 {
     step_length = step_length_;
-    step_width     = 0.22;
+    step_width = 0.22;
     foot_yaw_angle = foot_yaw_angle_;
     foot_height = foot_height_;
 }
 
-void WalkingManager::setStepDuration(const double& step_duration_)
+void WalkingManager::setStepDuration(const double &step_duration_)
 {
     step_duration = step_duration_;
 
-    trajectory_duration =  (local_LF_contact == true && local_RF_contact == true) ? transfer_duration : step_duration;
+    trajectory_duration = (local_LF_contact == true && local_RF_contact == true) ? transfer_duration : step_duration;
 
     step_time = static_cast<double>(step_tick) / hz_;
+}
+
+void WalkingManager::isForceTorqueSensorAvailable(const bool &is_ft_sensor_available_)
+{
+    is_ft_sensor_available = is_ft_sensor_available_;
+}
+
+double WalkingManager::getPreviewStepNumber()
+{
+    return static_cast<double>(preview_idx);
+}
+
+
+void WalkingManager::findPreviewParameter(double dt, int NL)
+{
+    A.resize(3, 3);
+    A(0, 0) = 1.0;
+    A(0, 1) = dt;
+    A(0, 2) = dt * dt * 0.5;
+    A(1, 0) = 0;
+    A(1, 1) = 1.0;
+    A(1, 2) = dt;
+    A(2, 0) = 0;
+    A(2, 1) = 0;
+    A(2, 2) = 1;
+
+    B.resize(3);
+    B(0) = dt * dt * dt / 6;
+    B(1) = dt * dt / 2;
+    B(2) = dt;
+
+    C.resize(1, 3);
+    C(0, 0) = 1;
+    C(0, 1) = 0;
+    C(0, 2) = -0.71 / 9.81;
+
+    Eigen::MatrixXd A_bar;
+    Eigen::VectorXd B_bar;
+
+    B_bar.resize(4);
+    B_bar.segment(0, 1) = C * B;
+    B_bar.segment(1, 3) = B;
+
+    Eigen::Matrix1x4d B_bar_tran;
+    B_bar_tran = B_bar.transpose();
+
+    Eigen::MatrixXd I_bar;
+    Eigen::MatrixXd F_bar;
+    A_bar.resize(4, 4);
+    I_bar.resize(4, 1);
+    F_bar.resize(4, 3);
+    F_bar.setZero();
+
+    F_bar.block<1, 3>(0, 0) = C * A;
+    F_bar.block<3, 3>(1, 0) = A;
+
+    I_bar.setZero();
+    I_bar(0, 0) = 1.0;
+
+    A_bar.block<4, 1>(0, 0) = I_bar;
+    A_bar.block<4, 3>(0, 1) = F_bar;
+
+    Eigen::MatrixXd Qe;
+    Qe.resize(1, 1);
+    Qe(0, 0) = 1.0;
+
+    Eigen::MatrixXd R;
+    R.resize(1, 1);
+    R(0, 0) = 0.000001;
+
+    Eigen::MatrixXd Qx;
+    Qx.resize(3, 3);
+    Qx.setZero();
+
+    Eigen::MatrixXd Q_bar;
+    Q_bar.resize(3, 3);
+    Q_bar.setZero();
+    Q_bar(0, 0) = Qe(0, 0);
+
+    Eigen::Matrix4d K;
+
+    K(0, 0) = 1083.572780788710;
+    K(0, 1) = 586523.188429418020;
+    K(0, 2) = 157943.283121116518;
+    K(0, 3) = 41.206077691894;
+    K(1, 0) = 586523.188429418020;
+    K(1, 1) = 319653984.254277825356;
+    K(1, 2) = 86082274.531361579895;
+    K(1, 3) = 23397.754069026785;
+    K(2, 0) = 157943.283121116518;
+    K(2, 1) = 86082274.531361579895;
+    K(2, 2) = 23181823.112113621086;
+    K(2, 3) = 6304.466397614751;
+    K(3, 0) = 41.206077691894;
+    K(3, 1) = 23397.754069026785;
+    K(3, 2) = 6304.466397614751;
+    K(3, 3) = 2.659250532188;
+
+    Eigen::MatrixXd Temp_mat;
+    Eigen::MatrixXd Temp_mat_inv;
+    Eigen::MatrixXd Ac_bar;
+    Temp_mat.resize(1, 1);
+    Temp_mat.setZero();
+    Temp_mat_inv.resize(1, 1);
+    Temp_mat_inv.setZero();
+    Ac_bar.setZero();
+    Ac_bar.resize(4, 4);
+
+    Temp_mat = R + B_bar_tran * K * B_bar;
+    Temp_mat_inv = Temp_mat.inverse();
+
+    Ac_bar = A_bar - B_bar * Temp_mat_inv * B_bar_tran * K * A_bar;
+
+    Eigen::MatrixXd Ac_bar_tran(4, 4);
+    Ac_bar_tran = Ac_bar.transpose();
+
+    Gi.resize(1, 1);
+    Gx.resize(1, 3);
+    Gi(0, 0) = 872.3477; 
+    Gx(0, 0) = 945252.1760702;
+    Gx(0, 1) = 256298.6905049;
+    Gx(0, 2) = 542.0544196;
+    Eigen::MatrixXd X_bar;
+    Eigen::Vector4d X_bar_col;
+    X_bar.resize(4, NL);
+    X_bar.setZero();
+    X_bar_col.setZero();
+    X_bar_col = -Ac_bar_tran * K * I_bar;
+
+    for (int i = 0; i < NL; i++)
+    {
+        X_bar.block<4, 1>(0, i) = X_bar_col;
+        X_bar_col = Ac_bar_tran * X_bar_col;
+    }
+
+    Gd.resize(NL);
+    Eigen::VectorXd Gd_col(1);
+    Gd_col(0) = -Gi(0, 0);
+
+    for (int i = 0; i < NL; i++)
+    {
+        Gd.segment(i, 1) = Gd_col;
+        Gd_col = Temp_mat_inv * B_bar_tran * X_bar.col(i);
+    }
 }

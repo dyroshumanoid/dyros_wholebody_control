@@ -22,6 +22,7 @@ public:
   void setStepStride(double &step_length_);
   void setFootHeight(double &foot_height_);
   void setStepDuration(double &step_duration_);
+  void isForceTorqueSensorAvailable(const bool &is_ft_sensor_available_);
 
 private:
   void movePelvHandPose();
@@ -33,10 +34,15 @@ private:
   RobotData &rd_;
   double hz_ = 2000.0;
 
+  Eigen::Vector3d base_pos;
+  Eigen::Matrix3d base_rot;
+
   double traj_time = 0.0;
   double pelv_dist = 0.0;
   double hand_dist = 0.0;
   double step_length = 0.0;
   double foot_height = 0.0;
   double step_duration = 0.0;
+
+  bool is_ft_sensor_available = false;
 };

@@ -89,6 +89,7 @@ public:
     void runTestMotion(const double& traj_time, const double& pelv_dist, const double& hand_dist, const double& foot_height, const double& step_duration);
     TaskMotionType motion_mode_ = TaskMotionType::None;
 
+    bool is_kinematic_control = true;
 
 private:
     Eigen::VectorQd ControlVal_;
