@@ -16,26 +16,34 @@ com= data(:, 1:6);
 data = readmatrix('dataWM4.txt');
 cp= data(:, 1:4);
 
-figure()
 
 w = sqrt(9.81 / 0.73)
 
-start_cnt = 0;
-for cnt = 1:1:2
-    subplot(2,1,cnt)
-    
-    plot(left_foot_pos(:,start_cnt + cnt));
-    hold on
-    plot(left_foot_pos(:,start_cnt + cnt + 3));
-    plot(right_foot_pos(:, start_cnt + cnt))
-    plot(right_foot_pos(:, start_cnt + cnt + 3))
-    % plot(com(:, start_cnt + cnt))
-    % plot(com(:, start_cnt + cnt + 3))
-    plot(cp(:, start_cnt + cnt))
-    plot(cp(:, start_cnt + cnt + 2))
-     
-    legend('lfoot traj', 'lfoot cur', 'rfoot traj', 'rfoot cur', 'com traj', 'com cur');
-end
+start_cnt = 1;
+
+figure()
+plot(left_foot_pos(:,start_cnt));
+hold on
+plot(left_foot_pos(:,start_cnt + 3));
+plot(right_foot_pos(:,start_cnt));
+plot(right_foot_pos(:,start_cnt + 3));
+plot(com(:, start_cnt))
+plot(com(:, start_cnt + 3))
+plot(cp(:, start_cnt))
+plot(cp(:, start_cnt + 2))
+
+
+start_cnt = 2;
+figure()
+plot(left_foot_pos(:,start_cnt));
+hold on
+plot(left_foot_pos(:,start_cnt + 3));
+plot(right_foot_pos(:,start_cnt));
+plot(right_foot_pos(:,start_cnt + 3));
+plot(com(:, start_cnt))
+plot(com(:, start_cnt + 3))
+plot(cp(:, start_cnt))
+plot(cp(:, start_cnt + 2))
 
 %%
 clc
@@ -44,21 +52,33 @@ close all
 
 preview_tick = 1
 
-data = load('dataWM4.txt');
-zmp_x = data(:, :);
-data = load('dataWM5.txt');
-zmp_y = data(:, :);
+data = readmatrix('dataWM5.txt');
+com= data(:, 1:6);
+data = readmatrix('dataWM6.txt');
+lf= data(:, 1:6);
 
 figure()
-
 subplot(2,1,1)
-plot(zmp_x(preview_tick,:));
+plot(com(:,1));
+hold on
+plot(com(:,4));
+plot(lf(:,1));
+plot(lf(:,4));
+legend('com tra', 'com cur', 'lfoot traj', 'lfoot pos')
+
 subplot(2,1,2)
-plot(zmp_y(preview_tick,:));
+plot(com(:,2));
+hold on
+plot(com(:,5));
+plot(lf(:,2));
+plot(lf(:,5));
+legend('com tra', 'com cur', 'lfoot traj', 'lfoot pos')
 %%
-data = readmatrix('dataCC1.txt');
+data = readmatrix('contact_wrench_id.txt');
 LF = data(:, 1:6);
 RF = data(:, 7:12);
+
+%%
 data = readmatrix('contact_wrench_id.txt');
 LF_id = data(:, 1:6);
 RF_id = data(:, 7:12);
@@ -69,37 +89,41 @@ hold on
 plot(LF_id(:,3))
 plot(RF(:,3))
 plot(RF_id(:,3))
-
+legend()
+%%
+clc
+clear all
+close all
 data = readmatrix('dataCC2.txt');
 torque_sol = data(:, 1:33);
 
 data = readmatrix('torque_id.txt');
 torque_id = data(:, 1:33);
 
-
+% 
 data = readmatrix('torque_pd.txt');
 torque_pd = data(:, 1:33);
 
 figure()
 sgtitle('TORQUE LEG')
-for cnt = 1:1:12
+for cnt = 1:1:6
     plot(torque_sol(:,cnt))    
     hold on 
 end
 
-figure()
-sgtitle('TORQUE WAIST')
-for cnt = 13:1:15
-    plot(torque_sol(:,cnt))    
-    hold on
-end
-
-figure()
-sgtitle('TORQUE UPPER')
-for cnt = 16:1:33
-    plot(torque_sol(:,cnt))    
-    hold on 
-end
+% figure()
+% sgtitle('TORQUE WAIST')
+% for cnt = 13:1:15
+%     plot(torque_sol(:,cnt))    
+%     hold on
+% end
+% 
+% figure()
+% sgtitle('TORQUE UPPER')
+% for cnt = 16:1:33
+%     plot(torque_sol(:,cnt))    
+%     hold on 
+% end
 
 %%
 figure()

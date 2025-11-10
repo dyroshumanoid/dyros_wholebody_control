@@ -8,6 +8,8 @@ using namespace qpOASES;
 ofstream torque_id_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_id.txt");
 ofstream torque_pd_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd.txt");
 ofstream contact_wrench_id_log("/home/kwan/catkin_ws/src/tocabi_cc/data/contact_wrench_id.txt");
+ofstream contact_wrench_des_log("/home/kwan/catkin_ws/src/tocabi_cc/data/contact_wrench_des.txt");
+ofstream contact_wrench_ft_log("/home/kwan/catkin_ws/src/tocabi_cc/data/contact_wrench_ft.txt");
 
 DynWBC::DynWBC(RobotData& rd) : rd_(rd) { }
 
@@ -15,8 +17,11 @@ void DynWBC::computeDynamicWBC()
 {
     std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
 
-    bool local_LF_contact = rd_.ee_[0].contact;
-    bool local_RF_contact = rd_.ee_[1].contact;
+    local_LF_contact = rd_.ee_[0].contact;
+    local_RF_contact = rd_.ee_[1].contact;
+
+    local_LF_contact = true;    // TODO
+    local_RF_contact = true;    // TODO
     
     updateContactState();
     updateRobotStates();
@@ -113,13 +118,13 @@ void DynWBC::computeDynamicWBC()
 void DynWBC::calcDesiredJointAcceleration()
 {
     rd_.q_ddot_desired_virtual.setZero();
-    rd_.q_ddot_desired_virtual = rd_.Kp_virtual_diag * (rd_.q_desired_virtual - rd_.q_virtual_.head(MODEL_DOF_VIRTUAL)) + rd_.Kd_virtual_diag * (rd_.q_dot_desired_virtual - rd_.q_dot_virtual_);
+    rd_.q_ddot_desired_virtual = rd_.Kp_virtual_diag * (rd_.q_desired_virtual - rd_.local_q_virtual_.head(MODEL_DOF_VIRTUAL)) + rd_.Kd_virtual_diag * (rd_.q_dot_desired_virtual - rd_.local_q_dot_virtual_);
 }
 
 void DynWBC::computeTotalTorqueCommand()
 {
     Eigen::VectorQd torque_inv_dyn; torque_inv_dyn.setZero();
-    torque_inv_dyn = (M * qddot_qp + G - J_C_T * contact_wrench_qp).tail(MODEL_DOF);
+    torque_inv_dyn = (rd_.local_A * qddot_qp + rd_.local_G - J_C_T * contact_wrench_qp).tail(MODEL_DOF);
 
     Eigen::VectorQd torque_pd; torque_pd.setZero();
     torque_pd = (rd_.Kp_diag) * (rd_.q_desired - rd_.q_) + (rd_.Kd_diag) * (rd_.q_dot_desired - rd_.q_dot_);
@@ -153,7 +158,14 @@ void DynWBC::computeTotalTorqueCommand()
 
     torque_id_log << std::setprecision(6) << torque_inv_dyn.transpose() << std::endl;
     torque_pd_log << std::setprecision(6) << torque_pd.transpose() << std::endl;
-    contact_wrench_id_log << std::setprecision(6) << contact_wrench_qp.transpose() << std::endl;
+    contact_wrench_id_log << std::setprecision(6) 
+                          << contact_wrench_qp.transpose() << std::endl;
+    contact_wrench_des_log << std::setprecision(6) 
+                           << rd_.LF_FT_DES.transpose() << " "
+                           << rd_.RF_FT_DES.transpose() << std::endl;
+    contact_wrench_ft_log  <<  rd_.LF_FT.transpose() << " "
+                           << rd_.RF_FT.transpose() << " "
+                           << std::endl;
 
     rd_.torque_desired = torque_sum;
 }
@@ -233,10 +245,8 @@ void DynWBC::updateContactState()
 {
     contact_dim_prev = contact_dim;
     contact_dim = rd_.contact_index * 6;
+    contact_dim = 12;    // TODO
     contact_wrench_cmd.setZero(contact_dim);
-
-    bool local_LF_contact = rd_.ee_[0].contact;
-    bool local_RF_contact = rd_.ee_[1].contact;
 
     if (local_LF_contact == true && local_RF_contact == true)
     {
@@ -262,14 +272,18 @@ void DynWBC::updateRobotStates()
     //--- Robot States
     calcDesiredJointAcceleration();
     qddot_cmd = rd_.q_ddot_desired_virtual;
-    M = rd_.A_;
-    G = rd_.G;
+    M = rd_.local_A;
+    G = rd_.local_G;
 
-    J_C.setZero(rd_.J_C.rows(), rd_.J_C.cols());
-    J_C = rd_.J_C;
+    // J_C.setZero(rd_.local_J_C.rows(), rd_.local_J_C.cols());
+    // J_C = rd_.local_J_C;
 
-    J_C_T.setZero(rd_.J_C.cols(), rd_.J_C.rows());
-    J_C_T = rd_.J_C.transpose();
+    J_C.setZero(12, MODEL_DOF_VIRTUAL);  // TODO
+    J_C.topRows(6) = rd_.ee_[0].jac_contact.cast<double>();
+    J_C.bottomRows(6) = rd_.ee_[1].jac_contact.cast<double>();
+
+    J_C_T.setZero(J_C.cols(), J_C.rows());
+    J_C_T = J_C.transpose();
 
     Sa_T.setZero(MODEL_DOF_VIRTUAL, MODEL_DOF); Sa_T.bottomRows(MODEL_DOF).setIdentity();
     Sa.setZero(MODEL_DOF, MODEL_DOF_VIRTUAL);   Sa = Sa_T.transpose();
@@ -299,9 +313,6 @@ void DynWBC::updateRobotStates()
                   -Y, +X, -(X + Y) * mu, -mu, +mu, +1;
     U_fric_dsp.topLeftCorner(17, 6) = U_fric_ssp;
     U_fric_dsp.bottomRightCorner(17, 6) = U_fric_ssp;
-
-    bool local_LF_contact = rd_.ee_[0].contact;
-    bool local_RF_contact = rd_.ee_[1].contact;
 
     if (local_LF_contact == true && local_RF_contact == true)
     {

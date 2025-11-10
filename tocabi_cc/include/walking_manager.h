@@ -32,6 +32,10 @@ void contactWrenchCalculator();
 Eigen::Vector2d cp_desired_;
 Eigen::Vector2d cp_measured_;
 
+double zmp_x_ref = 0.0;
+double zmp_y_ref = 0.0;
+double wn = 0.0;
+
 private:
 RobotData &rd_;
 double hz_;
@@ -60,6 +64,8 @@ void updateMomentControl(double &error,
     double input_dot = kp * error + kd * error_dot - damping * input;
     input += input_dot / hz;
 }
+void footstepOptimizer();
+CQuadraticProgram QP_stepping;
 
 void mapSupportToBase();
 void mapBaseToGlobal();
@@ -83,7 +89,6 @@ double transfer_duration = 0.0;
 double trajectory_duration = 0;
 
 double com_height = 0.0;
-double wn = 0.0;
 double T = 0.0;
 
 Eigen::MatrixXd A;
@@ -112,6 +117,6 @@ bool local_RF_contact = true;
 bool is_support_transition = false;
 bool is_footstep_update = false;
 bool is_zmp_update = true;
-bool is_com_frame_transition = false;
+bool is_preview_transition = false;
 bool is_ft_sensor_available = false;
 };

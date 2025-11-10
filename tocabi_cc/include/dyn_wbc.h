@@ -81,6 +81,9 @@ private:
 
     int contact_dim = 12;
     int contact_dim_prev = 12;
+
+    bool local_LF_contact = false;
+    bool local_RF_contact = false;
 };
 
 #endif  // DYN_WBC_H
