@@ -4,18 +4,32 @@ using namespace TOCABI;
 
 KinWBC::KinWBC(RobotData& rd) : rd_(rd) 
 {
-    // task_hierarchy = {
-    //     {{COM_id, TaskType::Position}, {Pelvis, TaskType::Orientation}},
-    //     {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}},
-    //     {{Upper_Body, TaskType::Orientation}},
-    //     {{Head, TaskType::Orientation}},
-    //     {{Left_Hand, TaskType::Position}, {Left_Hand, TaskType::Orientation}, {Right_Hand, TaskType::Position}, {Right_Hand, TaskType::Orientation}}};
-
     task_hierarchy = {
         {{COM_id, TaskType::Position}, {Pelvis, TaskType::Orientation}},
         {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}},
         {{Upper_Body, TaskType::Orientation}},
         {{Head, TaskType::Orientation}}};
+}
+
+void KinWBC::setTaskHierarchy(const TaskMotionType& motion_mode)
+{
+    if(motion_mode == TaskMotionType::Walking)
+    {
+        task_hierarchy = {
+            {{COM_id, TaskType::Position}, {Pelvis, TaskType::Orientation}},
+            {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}},
+            {{Upper_Body, TaskType::Orientation}},
+            {{Head, TaskType::Orientation}}};
+    }
+    else
+    {
+        task_hierarchy = {
+            {{COM_id, TaskType::Position}, {Pelvis, TaskType::Orientation}},
+            {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}},
+            {{Upper_Body, TaskType::Orientation}},
+            {{Head, TaskType::Orientation}},
+            {{Left_Hand, TaskType::Position}, {Left_Hand, TaskType::Orientation}, {Right_Hand, TaskType::Position}, {Right_Hand, TaskType::Orientation}}};
+    }
 }
 
 void KinWBC::computeTaskSpaceKinematicWBC()

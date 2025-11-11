@@ -68,6 +68,22 @@ void CustomController::computeSlow()
             dyn_wbc_.computeTotalTorqueCommand();
         }
 
+        // maximum absolute value tracker
+        static Eigen::VectorQd max_abs_q    = Eigen::VectorQd::Zero();
+        static Eigen::VectorQd max_abs_qdot = Eigen::VectorQd::Zero();
+
+        Eigen::VectorQd abs_q    = rd_.q_desired.cwiseAbs();
+        Eigen::VectorQd abs_qdot = rd_.q_dot_desired.cwiseAbs();
+
+        max_abs_q    = max_abs_q.cwiseMax(abs_q);
+        max_abs_qdot = max_abs_qdot.cwiseMax(abs_qdot);
+
+        std::cout << "Max |q_desired| over all timesteps:" << std::endl;
+        std::cout << max_abs_q.transpose() << std::endl;
+
+        std::cout << "Max |q_dot_desired| over all timesteps:" << std::endl;
+        std::cout << max_abs_qdot.transpose() << std::endl;
+
         dataCC1 << -rd_.LF_FT.transpose() << " " << -rd_.RF_FT.transpose() << std::endl;
         dataCC2 << rd_.torque_desired.transpose() << std::endl;
 
@@ -227,6 +243,14 @@ void CustomController::loadParams()
         ROS_ERROR("Joint position upper limit vector size mismatch: got %lu, expected %d", pos_high_deg.size(), MODEL_DOF);
     assert(pos_high_deg.size() == MODEL_DOF);
 
+    // if (pos_low.size() != MODEL_DOF)
+    //     ROS_ERROR("Joint position lower limit vector size mismatch: got %lu, expected %d", pos_low_deg.size(), MODEL_DOF);
+    // assert(pos_low.size() == MODEL_DOF);
+
+    // if (pos_high.size() != MODEL_DOF)
+    //     ROS_ERROR("Joint position upper limit vector size mismatch: got %lu, expected %d", pos_high_deg.size(), MODEL_DOF);
+    // assert(pos_high.size() == MODEL_DOF);
+
     if (vel_low.size() != MODEL_DOF)
         ROS_ERROR("Joint velocity lower limit vector size mismatch: got %lu, expected %d", pos_low_deg.size(), MODEL_DOF);
     assert(vel_low.size() == MODEL_DOF);
@@ -244,7 +268,7 @@ void CustomController::loadParams()
     for (int i = 0; i < MODEL_DOF_VIRTUAL; ++i)
     {
         Kp_virtual(i) = kp_dyn_vec[i];
-        Kd_virtual(i) = kd_dyn_vec[i] * 1.5;
+        Kd_virtual(i) = kd_dyn_vec[i];
     }
 
     rd_.Kp_virtual_diag = Kp_virtual.asDiagonal();
@@ -257,6 +281,8 @@ void CustomController::loadParams()
     {
         rd_.q_pos_l_lim(i) = pos_low_deg[i] * DEG2RAD;
         rd_.q_pos_h_lim(i) = pos_high_deg[i] * DEG2RAD;
+        // rd_.q_pos_l_lim(i) = pos_low[i] * DEG2RAD;
+        // rd_.q_pos_h_lim(i) = pos_high[i] * DEG2RAD;
         rd_.q_vel_l_lim(i) = vel_low[i];
         rd_.q_vel_h_lim(i) = vel_high[i];
     }
@@ -278,6 +304,21 @@ void CustomController::loadParams()
       : (motion_mode_ == TaskMotionType::Taichi)   ? "Taichi"
       : (motion_mode_ == TaskMotionType::Walking)  ? "Walking"
       : "Unknown";
+
+    kin_wbc_.setTaskHierarchy(motion_mode_);
+
+    if (motion_mode_ == TaskMotionType::Walking)
+    {
+        rd_.q_pos_l_lim.segment(12, MODEL_DOF - 12).setZero();
+        rd_.q_pos_h_lim.segment(12, MODEL_DOF - 12).setZero();
+        rd_.q_vel_l_lim.segment(12, MODEL_DOF - 12).setZero();
+        rd_.q_vel_h_lim.segment(12, MODEL_DOF - 12).setZero();
+
+        std::cout << "rd_.q_pos_l_lim: " << rd_.q_pos_l_lim.transpose() << std::endl;
+        std::cout << "rd_.q_pos_h_lim: " << rd_.q_pos_h_lim.transpose() << std::endl; 
+        std::cout << "rd_.q_vel_l_lim: " << rd_.q_vel_l_lim.transpose() << std::endl;
+        std::cout << "rd_.q_vel_h_lim: " << rd_.q_vel_h_lim.transpose() << std::endl;
+    }
 
     std::cout << "=====================================" << std::endl;
     std::cout << "===== Motion Mode : " << mode_name << " =====" << std::endl;

@@ -12,7 +12,8 @@ public:
     KinWBC(RobotData& rd);
 
     void computeTaskSpaceKinematicWBC();
-
+    void setTaskHierarchy(const TaskMotionType& motion_mode);
+    
 private:
     RobotData &rd_;
     std::vector<std::vector<TaskInfo>> task_hierarchy;
