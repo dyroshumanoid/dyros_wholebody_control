@@ -60,7 +60,35 @@ void CustomController::computeSlow()
 
         if(is_kinematic_control == true)
         {
-            rd_.torque_desired = (rd_.Kp_diag * (rd_.q_desired - rd_.q_)) + (rd_.Kd_diag * (rd_.q_dot_desired -  rd_.q_dot_));
+            Eigen::VectorQd torque_pd; torque_pd.setZero();
+            torque_pd = (rd_.Kp_diag) * (rd_.q_desired - rd_.q_) + (rd_.Kd_diag) * (rd_.q_dot_desired - rd_.q_dot_);
+
+            // --- Torque initialization
+            static bool is_torque_save_init = true;
+            if(is_torque_save_init == true)
+            {
+                rd_.torque_init = rd_.torque_desired;
+
+                is_torque_save_init = false;
+            }
+
+            static bool is_torque_desired_init = true;
+            static int tick_torque_desired_init = 0;
+            if(is_torque_desired_init == true)
+            {
+                for (int i = 0; i < MODEL_DOF; i++) {
+                    torque_pd(i) = DyrosMath::cubic(tick_torque_desired_init, 0, 1000, rd_.torque_init(i), torque_pd(i), 0.0, 0.0);
+                }
+
+                tick_torque_desired_init++;
+
+                if(tick_torque_desired_init >= 1000) {
+                    is_torque_desired_init = false;
+                    std::cout << "========== INFO: INITIAL TORQUE SMOOTHING COMPLETE ==========" << std::endl;
+                }
+            }
+
+            rd_.torque_desired = torque_pd;
         }
         else
         {
@@ -68,21 +96,21 @@ void CustomController::computeSlow()
             dyn_wbc_.computeTotalTorqueCommand();
         }
 
-        // maximum absolute value tracker
-        static Eigen::VectorQd max_abs_q    = Eigen::VectorQd::Zero();
-        static Eigen::VectorQd max_abs_qdot = Eigen::VectorQd::Zero();
+        // // maximum absolute value tracker
+        // static Eigen::VectorQd max_abs_q    = Eigen::VectorQd::Zero();
+        // static Eigen::VectorQd max_abs_qdot = Eigen::VectorQd::Zero();
 
-        Eigen::VectorQd abs_q    = rd_.q_desired.cwiseAbs();
-        Eigen::VectorQd abs_qdot = rd_.q_dot_desired.cwiseAbs();
+        // Eigen::VectorQd abs_q    = rd_.q_desired.cwiseAbs();
+        // Eigen::VectorQd abs_qdot = rd_.q_dot_desired.cwiseAbs();
 
-        max_abs_q    = max_abs_q.cwiseMax(abs_q);
-        max_abs_qdot = max_abs_qdot.cwiseMax(abs_qdot);
+        // max_abs_q    = max_abs_q.cwiseMax(abs_q);
+        // max_abs_qdot = max_abs_qdot.cwiseMax(abs_qdot);
 
-        std::cout << "Max |q_desired| over all timesteps:" << std::endl;
-        std::cout << max_abs_q.transpose() << std::endl;
+        // std::cout << "Max |q_desired| over all timesteps:" << std::endl;
+        // std::cout << max_abs_q.transpose() << std::endl;
 
-        std::cout << "Max |q_dot_desired| over all timesteps:" << std::endl;
-        std::cout << max_abs_qdot.transpose() << std::endl;
+        // std::cout << "Max |q_dot_desired| over all timesteps:" << std::endl;
+        // std::cout << max_abs_qdot.transpose() << std::endl;
 
         dataCC1 << -rd_.LF_FT.transpose() << " " << -rd_.RF_FT.transpose() << std::endl;
         dataCC2 << rd_.torque_desired.transpose() << std::endl;
