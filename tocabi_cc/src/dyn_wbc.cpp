@@ -5,8 +5,9 @@
 using namespace Eigen;
 using namespace qpOASES;
 
-ofstream torque_id_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_id.txt");
-ofstream torque_pd_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd.txt");
+ofstream torque_id_log( "/home/dyros/data/kwan/torque_id.txt");
+ofstream torque_pd_log( "/home/dyros/data/kwan/torque_pd.txt");
+ofstream torque_sum_log("/home/dyros/data/kwan/torque_sum.txt");
 ofstream contact_wrench_id_log("/home/kwan/catkin_ws/src/tocabi_cc/data/contact_wrench_id.txt");
 ofstream contact_wrench_des_log("/home/kwan/catkin_ws/src/tocabi_cc/data/contact_wrench_des.txt");
 ofstream contact_wrench_ft_log("/home/kwan/catkin_ws/src/tocabi_cc/data/contact_wrench_ft.txt");
@@ -156,8 +157,9 @@ void DynWBC::computeTotalTorqueCommand()
         }
     }
 
-    torque_id_log << std::setprecision(6) << torque_inv_dyn.transpose() << std::endl;
-    torque_pd_log << std::setprecision(6) << torque_pd.transpose() << std::endl;
+    torque_id_log << std::setprecision(4) << torque_inv_dyn.transpose() << std::endl;
+    torque_pd_log << std::setprecision(4) << torque_pd.transpose() << std::endl;
+    torque_sum_log << std::setprecision(4) << torque_sum.transpose() << std::endl;
     contact_wrench_id_log << std::setprecision(6) 
                           << contact_wrench_qp.transpose() << std::endl;
     contact_wrench_des_log << std::setprecision(6) 

@@ -94,6 +94,11 @@ void CustomController::computeSlow()
         {
             dyn_wbc_.computeDynamicWBC();
             dyn_wbc_.computeTotalTorqueCommand();
+        
+            // for(int i = 12; i < MODEL_DOF; i++)
+            // {
+            //     rd_.torque_desired(i) = rd_.Kp_diag(i, i) * (q_init_des(i) - rd_.q_(i)) + rd_.Kd_diag(i, i) * (-rd_.q_dot_(i));
+            // }
         }
 
         // // maximum absolute value tracker
