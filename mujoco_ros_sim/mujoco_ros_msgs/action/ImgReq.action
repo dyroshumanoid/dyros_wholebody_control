@@ -1,0 +1,9 @@
+# goal
+bool request
+---
+# result
+sensor_msgs/Image image
+sensor_msgs/Image dimage
+---
+# feedback
+bool isDone

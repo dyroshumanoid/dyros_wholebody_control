@@ -59,7 +59,7 @@ void ControlManager::mapGlobalToBase()
     for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
     {
         //--- Base frame
-        rd_.link_[idx].local_Jac_v             = base_rot.transpose() * rd_.link_[idx].Jac().topRows(3);    // TODO : Change Dynamics Library from RBDL to Pinocchio 
+        rd_.link_[idx].local_Jac_v             = base_rot.transpose() * rd_.link_[idx].Jac().topRows(3);
         rd_.link_[idx].local_Jac_w             = base_rot.transpose() * rd_.link_[idx].Jac().bottomRows(3); 
         rd_.link_[idx].local_Jac.topRows(3)    =                        rd_.link_[idx].local_Jac_v;
         rd_.link_[idx].local_Jac.bottomRows(3) =                        rd_.link_[idx].local_Jac_w;

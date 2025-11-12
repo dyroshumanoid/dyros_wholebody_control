@@ -165,9 +165,9 @@ void DynWBC::calcCostHess()
 {
     Hess.setZero(contact_dim + MODEL_DOF_VIRTUAL, contact_dim + MODEL_DOF_VIRTUAL);
     
-    Hess.topLeftCorner(contact_dim, contact_dim)                 = W_cwr * Eigen::MatrixXd::Identity(contact_dim, contact_dim);
-    Hess.bottomRightCorner(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL) = W_qddot * Eigen::MatrixXd::Identity(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL);
-    Hess.bottomRightCorner(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL) = W_energy * M;
+    Hess.topLeftCorner(contact_dim, contact_dim)                 += W_cwr * Eigen::MatrixXd::Identity(contact_dim, contact_dim);
+    Hess.bottomRightCorner(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL) += W_qddot * Eigen::MatrixXd::Identity(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL);
+    Hess.bottomRightCorner(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL) += W_energy * M;
 }
 
 void DynWBC::calcCostGrad()

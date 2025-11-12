@@ -8,6 +8,45 @@
 */
 
 #include "mjros.h"
+#include "mujoco_rgbd_camera.hpp"
+
+#include <image_transport/image_transport.h>
+#include <opencv2/highgui/highgui.hpp>
+#include <cv_bridge/cv_bridge.h>
+#include <std_msgs/Bool.h>
+#include <geometry_msgs/Pose.h>
+#include <geometry_msgs/Point.h>
+#include <mujoco_ros_msgs/ImageRequest.h>
+#include <mujoco_ros_msgs/ImgReqAction.h>
+#include "actionlib/server/simple_action_server.h"
+#include "actionlib/server/action_server.h"
+
+// MuJoCo basic data structures
+mjModel* model_ = NULL;
+mjData* data_ = NULL;
+
+mjvCamera camera;
+mjvScene scene;
+mjvOption option;
+
+image_transport::Publisher camera_image_pub;
+image_transport::Publisher depth_image_pub;
+cv::Mat pub_img;
+cv::Mat depth_img;
+
+ros::Publisher color_cloud_pub;
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr color_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+sensor_msgs::ImagePtr img_msg;
+sensor_msgs::ImagePtr depth_msg;
+sensor_msgs::PointCloud2 color_cloud_msg;
+bool img_updated = false;
+
+ros::Publisher obj_pose_pub;
+geometry_msgs::Pose obj_pose_msg_;
+int body_id;
+int body_id1;
+
+int geomIndex;
 
 // drop file callback
 void drop(GLFWwindow *window, int count, const char **paths)
@@ -115,6 +154,209 @@ void loadmodel(void)
     mujoco_ros_connector_init();
     std::cout << " MODEL LOADED " << std::endl;
 }
+
+// void RGBD_sensor(mjModel* model, mjData* data, string* camera_name, string* pub_topic_name, string* sub_topic_name)
+void RGBD_sensor(mjModel* model, mjData* data)
+{
+  glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+  GLFWwindow* cam_window = glfwCreateWindow(1280, 720, "Camera", NULL, NULL);
+  // glfwSetWindowAttrib(window, GLFW_RESIZABLE, GLFW_FALSE);
+  glfwMakeContextCurrent(cam_window);
+  glfwSwapInterval(1);
+
+  // setup camera
+  mjvCamera rgbd_camera;
+  rgbd_camera.type = mjCAMERA_FIXED;
+  rgbd_camera.fixedcamid = mj_name2id(model, mjOBJ_CAMERA, "camera");
+
+//   std::cout << "debugging111" << std::endl;
+  
+  mjvOption sensor_option;
+  mjvPerturb sensor_perturb;
+  mjvScene sensor_scene;
+  mjrContext sensor_context;
+
+  mjv_defaultOption(&sensor_option);
+  mjv_defaultScene(&sensor_scene);
+  mjr_defaultContext(&sensor_context);
+
+  // create scene and context
+  mjv_makeScene(model, &sensor_scene, 1000);
+  mjr_makeContext(model, &sensor_context, mjFONTSCALE_150);
+
+  RGBD_mujoco mj_RGBD;
+
+  while (!glfwWindowShouldClose(cam_window))
+  {
+    ros::Time init_ = ros::Time::now();
+    // get framebuffer viewport
+    mjrRect viewport = {0,0,0,0};
+    glfwGetFramebufferSize(cam_window, &viewport.width, &viewport.height);
+    
+    mj_RGBD.set_camera_intrinsics(model, rgbd_camera, viewport);
+
+    // update scene and render
+    mjv_updateScene(model, data, &sensor_option, NULL, &rgbd_camera, mjCAT_ALL, &sensor_scene);
+    mjr_render(viewport, &sensor_scene, &sensor_context);
+
+    mj_RGBD.get_RGBD_buffer(model, viewport, &sensor_context);
+
+    mtx.lock();
+
+
+    pub_img = mj_RGBD.get_color_image();
+    depth_img = mj_RGBD.get_depth_image();
+    ros::Time img_capture_time = ros::Time::now();
+    if(pub_img.empty())
+    {
+        ROS_ERROR("Could not read the image.");
+        // return -1;
+    }
+    else
+    {
+        ////CAMERA img publish
+        // cv::Mat resized_img;
+        // cv::Size desired_size(1280, 720); // 원하는 크기 지정하세요 FOV는 .xml에서..
+        // cv::resize(pub_img, resized_img, desired_size);
+        // img_msg = cv_bridge::CvImage(std_msgs::Header(), "rgb8", resized_img).toImageMsg();
+        img_msg = cv_bridge::CvImage(std_msgs::Header(), "rgb8", pub_img).toImageMsg();
+        depth_msg = cv_bridge::CvImage(std_msgs::Header(), "32FC1", depth_img).toImageMsg();
+        img_msg->header.stamp = img_capture_time;
+        depth_msg->header.stamp = img_capture_time;
+        camera_image_pub.publish(img_msg);
+        depth_image_pub.publish(depth_msg);
+        img_updated = true;
+    }
+
+    ////OBJ POSE
+    // body_id = -1;
+    // body_id = mj_name2id(model, mjOBJ_BODY, "obj");
+
+
+    // if (body_id >= 0)
+    // {
+    //     geomIndex = model->body_geomadr[body_id];
+
+    //     obj_pose_msg_.position.x = data->geom_xpos[3*geomIndex];
+    //     obj_pose_msg_.position.y = data->geom_xpos[3*geomIndex + 1];
+    //     obj_pose_msg_.position.z = data->geom_xpos[3*geomIndex + 2];
+
+    //     double rot_vec[9];  // column vectors
+    //     for(int i = 0; i < 9; i++){
+    //         rot_vec[i] = data->geom_xmat[9*geomIndex + i];
+    //     }
+    //     Eigen::Map<Eigen::Matrix3d> rotationMatrix(rot_vec);
+    //     Eigen::Quaterniond quaternion(rotationMatrix.transpose());  // eigen uses row vectors, so transpose
+    //     obj_pose_msg_.orientation.x = quaternion.coeffs()[0];
+    //     obj_pose_msg_.orientation.y = quaternion.coeffs()[1];
+    //     obj_pose_msg_.orientation.z = quaternion.coeffs()[2];
+    //     obj_pose_msg_.orientation.w = quaternion.coeffs()[3];
+    // }
+    // else
+    // {
+    //     ROS_WARN("NO OBJ POS");
+    // }
+    // obj_pose_pub.publish(obj_pose_msg_);
+
+    mtx.unlock();
+
+    mtx.lock();
+    *color_cloud = mj_RGBD.generate_color_pointcloud();
+    pcl::toROSMsg(*color_cloud, color_cloud_msg);
+    color_cloud_msg.header.frame_id = "Camera";
+    color_cloud_msg.header.stamp = img_capture_time;
+    color_cloud_pub.publish(color_cloud_msg);
+    mtx.unlock();
+
+    // Swap OpenGL buffers
+    glfwSwapBuffers(cam_window);
+
+    // process pending GUI events, call GLFW callbacks
+    glfwPollEvents();
+
+    int elapsed_time_nano = int((ros::Time::now() - init_).toSec() * 1e9);
+    int dt = int(1e9/30);
+    std::this_thread::sleep_for(std::chrono::nanoseconds(dt - elapsed_time_nano));
+
+    // Do not forget to release buffer to avoid memory leak
+    mj_RGBD.release_buffer();
+  }
+
+  // Destroy GLFW window to close camera window properly
+  glfwDestroyWindow(cam_window);
+
+  mjv_freeScene(&sensor_scene);
+  mjr_freeContext(&sensor_context);
+}
+
+class ImageRequestAction {
+    protected:
+        ros::NodeHandle nh_;
+
+        actionlib::SimpleActionServer<mujoco_ros_msgs::ImgReqAction> as_;
+
+        std::string action_name_;
+
+        mujoco_ros_msgs::ImgReqResult result_;
+        mujoco_ros_msgs::ImgReqFeedback feedback_;
+    public:
+        bool isSuccess = false;
+        bool action_called = false;
+
+        mujoco_ros_msgs::ImgReqGoal goal_;
+
+        ImageRequestAction(std::string name) :
+            as_(nh_, name, boost::bind(&ImageRequestAction::executeCB, this, _1), false), action_name_(name)
+        {
+            as_.start();
+        }
+
+        ~ImageRequestAction(){
+        }
+
+        void executeCB(const mujoco_ros_msgs::ImgReqGoalConstPtr &goal){
+            ROS_INFO("action called");
+            ros::Rate r(1);
+            mujoco_ros_msgs::ImgReqFeedback feedback;
+            mujoco_ros_msgs::ImgReqResult result;
+
+            if (goal->request==true){
+                img_updated = false;
+            } 
+            
+            while(!isSuccess){
+                // Check that preempt has not been requested by the client
+                // if(!ros::ok()) ROS_INFO("ROS:: NOT OK");
+                if (as_.isPreemptRequested() || !ros::ok()){
+                    ROS_INFO("NONONONONO");
+                    as_.setPreempted();
+                    isSuccess = false;
+                    break;
+                }
+
+                if(img_updated!=true){
+                    feedback.isDone = false;
+                }
+                else{
+                    feedback.isDone = true;
+                    isSuccess = true;
+                    img_updated = false;
+                }
+                feedback.isDone = false;
+                as_.publishFeedback(feedback);
+                r.sleep();
+            }
+
+            if(isSuccess){
+                ROS_INFO("Before Succeeded");
+                result.image = *img_msg;
+                result.dimage = *depth_msg;
+                ROS_INFO("Succeeded");
+                as_.setSucceeded(result);
+            }
+        }
+};
+
 // run event loop
 int main(int argc, char **argv)
 {
@@ -127,10 +369,24 @@ int main(int argc, char **argv)
     nh.param("use_shm", use_shm, false);
     sim_command_sub = nh.subscribe<std_msgs::String>("/mujoco_ros_interface/sim_command_con2sim", 100, sim_command_callback);
     sim_command_pub = nh.advertise<std_msgs::String>("/mujoco_ros_interface/sim_command_sim2con", 1);
+
     force_apply_sub = nh.subscribe("/tocabi_avatar/applied_ext_force", 10, &force_apply_callback);
-    
+
+    aruco_pose_sub = nh.subscribe("/tocabi_cc/aruco_pose", 10, QRPoseCallback);
+
+    image_transport::ImageTransport it(nh);
+    camera_image_pub = it.advertise("/mujoco_ros_interface/camera/image", 1);
+    depth_image_pub = it.advertise("/mujoco_ros_interface/camera/depth", 1);
+    color_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/mujoco_ros_interface/camera/color_cloud", 1);
+
+    std::string actionServerName = "/imageRequestAction";
+    ImageRequestAction action(actionServerName);
+
+    // obj_pose_pub = nh.advertise<geometry_msgs::Pose>("/obj_pose", 1);
+    // new_obj_pose_sub = nh.subscribe<geometry_msgs::Pose>("/new_obj_pose", 1, NewObjPoseCallback);
+
     if (!use_shm)
-    {        
+    {
         nh.param("pub_mode", pub_total_mode, false);
         std::cout<<"Name Space: " << ros::this_node::getNamespace() << std::endl;
 
@@ -164,7 +420,9 @@ int main(int argc, char **argv)
         joint_set = nh.subscribe<mujoco_ros_msgs::JointSet>(joint_set_name, 1, jointset_callback, ros::TransportHints().tcpNoDelay(true));
 
         if (pub_total_mode)
+        {
             sim_status_pub = nh.advertise<mujoco_ros_msgs::SimStatus>(sim_status_name, 1);
+        }
         else
         {
             joint_state_pub = nh.advertise<sensor_msgs::JointState>(joint_state_name, 1);
@@ -197,7 +455,11 @@ int main(int argc, char **argv)
     }
 
     // start simulation thread
+    ROS_INFO("debugging--Hi");
+    // // start simulation thread
     std::thread simthread(simulate);
+    std::thread visual_thread;
+    // std::thread visual_thread2;
 
     // event loop
     while ((!glfwWindowShouldClose(window) && !settings.exitrequest) && ros::ok())
@@ -209,11 +471,11 @@ int main(int argc, char **argv)
         {
             ROS_INFO("Load Request");
             loadmodel();
+            // uncomment the line below if using the camera
+            // visual_thread = std::thread(RGBD_sensor, m, d);
         }
         else if (settings.loadrequest > 1)
             settings.loadrequest = 1;
-
-        // std::cout <<  cam.lookat[0] << " " <<  cam.lookat[1] << " "  << cam.lookat[2] << " " <<  cam.distance  << " " << cam.elevation << " " << cam.azimuth << std::endl;
 
         // handle events (calls all callbacks)
         glfwPollEvents();
@@ -230,10 +492,14 @@ int main(int argc, char **argv)
         // render while simulation is running
         render(window);
     }
+    
+    glfwDestroyWindow(window);
 
     // stop simulation thread
     settings.exitrequest = 1;
     simthread.join();
+    visual_thread.join();
+    // visual_thread2.join();
 
     // delete everything we allocated
     uiClearCallback(window);

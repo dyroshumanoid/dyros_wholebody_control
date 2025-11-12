@@ -5,7 +5,7 @@ using namespace TOCABI;
 ofstream dataCC1("/home/kwan/catkin_ws/src/tocabi_cc/data/dataCC1.txt");
 ofstream dataCC2("/home/kwan/catkin_ws/src/tocabi_cc/data/dataCC2.txt");
 
-CustomController::CustomController(RobotData &rd) : rd_(rd), cm_(rd), tm_(rd), kin_wbc_(rd), dyn_wbc_(rd)
+CustomController::CustomController(RobotData &rd) : rd_(rd), col_mgr_(rd), cm_(rd), tm_(rd), kin_wbc_(rd, col_mgr_), dyn_wbc_(rd)
 {
     //--- ROS Node Handle
     nh_cc_.setCallbackQueue(&queue_cc_);
@@ -28,6 +28,10 @@ Eigen::VectorQd CustomController::getControl()
  * Real-time Control Thread
  * Control Frequency : 2 kHz
  * 
+ * Collision Manager (col_mgr_) :
+ *      - Manage Environment Information,
+ *      - Update Robot Collision Objects
+ * 
  * Control Manager (cm_) : 
  *      - Update Robot Model,
  *      - Manage Robot State, Contact State, Dynamics
@@ -44,7 +48,7 @@ Eigen::VectorQd CustomController::getControl()
 void CustomController::computeSlow()
 {
     queue_cc_.callAvailable(ros::WallDuration());
-    
+
     if (rd_.tc_.mode == 6)
     {   
         CustomControllerInit();

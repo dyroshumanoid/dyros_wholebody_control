@@ -1,3 +1,7 @@
+// Must inlude while using Pinocchio in noetic
+// to avoid compilation errors from differing Boost-variant sizes.
+#include <pinocchio/fwd.hpp>
+
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <Eigen/Geometry>
@@ -10,7 +14,7 @@
 #include "tocabi_lib/robot_data.h"
 #include "wholebody_functions.h"
 
-
+#include "collision_manager.h"
 #include "control_manager.h"
 #include "task_manager.h"
 #include "kin_wbc.h"
@@ -47,6 +51,7 @@ public:
 
     //--- Robot Model
     RigidBodyDynamics::Model model_;  
+    CollisionManager col_mgr_;
     ControlManager cm_;
     TaskManager tm_;
     KinWBC kin_wbc_;  

@@ -2,7 +2,7 @@
 
 using namespace TOCABI;
 
-KinWBC::KinWBC(RobotData& rd) : rd_(rd) 
+KinWBC::KinWBC(RobotData& rd, CollisionManager &col_mgr) : rd_(rd), col_mgr_(col_mgr)
 {
     task_hierarchy = {
         {{Pelvis, TaskType::Position}, {Pelvis, TaskType::Orientation}},
@@ -30,14 +30,14 @@ void KinWBC::computeTaskSpaceKinematicWBC()
 
             if (type == TaskType::Position)
             {
-                J.block(3 * i, 0, 3, MODEL_DOF_VIRTUAL) = rd_.link_[idx].local_Jac_v;
+                J.block<3, MODEL_DOF_VIRTUAL>(3 * i, 0) = rd_.link_[idx].local_Jac_v;
                 Eigen::Vector3d pos_err = rd_.link_[idx].x_traj - rd_.link_[idx].local_xpos;
 
                 de.segment<3>(3 * i) = pos_err;
             }
             else if (type == TaskType::Orientation)
             {
-                J.block(3 * i, 0, 3, MODEL_DOF_VIRTUAL) = rd_.link_[idx].local_Jac_w;
+                J.block<3, MODEL_DOF_VIRTUAL>(3 * i, 0) = rd_.link_[idx].local_Jac_w;
                 Eigen::Vector3d ori_err = -DyrosMath::getPhi(rd_.link_[idx].local_rotm, rd_.link_[idx].r_traj);
 
                 de.segment<3>(3 * i) = ori_err;
@@ -169,23 +169,27 @@ void KinWBC::calcEqualityConstraint()
 
 void KinWBC::calcInequalityConstraint()
 {
-    //--- (1) Joint position constraints
+    // --- (1) Joint position constraints
     Eigen::MatrixXd A_qpos; A_qpos.setZero(MODEL_DOF, MODEL_DOF_VIRTUAL);
     A_qpos.rightCols(MODEL_DOF).setIdentity();
 
     double alpha_qpos = 1.0;
     double eps_qpos = 50.0;
+
     Eigen::VectorXd lbA_qpos; lbA_qpos.setZero(MODEL_DOF); 
     Eigen::VectorXd ubA_qpos; ubA_qpos.setZero(MODEL_DOF); 
+
     for(int i = 0; i < MODEL_DOF; i++)
     {
         lbA_qpos(i) = min(max(alpha_qpos * (rd_.q_pos_l_lim(i) - rd_.q_(i)) + (1.0 / eps_qpos), rd_.q_vel_l_lim(i)), rd_.q_vel_h_lim(i));
         ubA_qpos(i) = max(min(alpha_qpos * (rd_.q_pos_h_lim(i) - rd_.q_(i)) - (1.0 / eps_qpos), rd_.q_vel_h_lim(i)), rd_.q_vel_l_lim(i));
     }
     
-    constraints_.push_back({A_qpos, lbA_qpos, ubA_qpos}); 
+    constraints_.push_back({A_qpos, 
+                            lbA_qpos, 
+                            ubA_qpos}); 
 
-    //--- (2) Reachability constraints
+    // --- (2) Reachability constraints
     // const int m = static_cast<int>(grad_reachability_.size()); 
     // double alpha_reachability = 1.0;
     // double eps_reachability = 50.0;
@@ -202,6 +206,25 @@ void KinWBC::calcInequalityConstraint()
     //     lbA_reachability,
     //     Eigen::VectorXd::Constant(A_reachability.rows(), std::numeric_limits<double>::infinity())
     // });
+
+    // --- (3) Self-collision avoidance constraints
+    col_mgr_.updateRobotCObjsTF();
+    col_mgr_.computeSelfColAvoidJac();
+
+    double alpha_self_col = 20.0;
+    double eps_self_col = 50.0;
+
+    Eigen::VectorXd lbA_self_col; lbA_self_col.setZero(col_mgr_.num_pairs_); 
+    Eigen::VectorXd ubA_self_col; ubA_self_col.setZero(col_mgr_.num_pairs_);
+
+    lbA_self_col = -alpha_self_col * col_mgr_.min_distances_;
+                   + (1.0 / eps_self_col) * col_mgr_.J_self_col_.rowwise().squaredNorm();
+    ubA_self_col.setConstant(1e8);
+    
+    constraints_.push_back({col_mgr_.J_self_col_,
+                            lbA_self_col,
+                            ubA_self_col});
+
 
     // ---self, environment, reachability, ... + alpha (singularity)
 } 

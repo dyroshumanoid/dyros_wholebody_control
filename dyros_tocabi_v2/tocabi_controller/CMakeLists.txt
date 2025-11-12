@@ -21,6 +21,8 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(tocabi_cc QUIET)
 find_package(tocabi_avatar QUIET)
 
+find_package(pinocchio REQUIRED)
+
 ###################################
 ## catkin specific configuration ##
 ###################################
@@ -98,6 +100,7 @@ target_link_libraries(${PROJECT_NAME}_lib
   ${catkin_LIBRARIES}
   ${tocabi_cc_LIBRARIES}
   ${tocabi_avatar_LIBRARIES}
+  pinocchio::pinocchio
   -lpthread
 )
 

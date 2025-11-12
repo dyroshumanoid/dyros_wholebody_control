@@ -26,6 +26,7 @@
 #include <std_msgs/Float32MultiArray.h>
 #include <sensor_msgs/JointState.h>
 #include <tf/transform_datatypes.h>
+#include <geometry_msgs/Point.h>
 
 #include <deque>
 
@@ -292,9 +293,11 @@ ros::Subscriber joint_init;
 ros::Subscriber sim_command_sub;
 ros::Publisher sim_command_pub;
 ros::Publisher sim_status_pub;
+ros::Subscriber new_obj_pose_sub;
+// ros::Publisher obj_pose_pub;
+ros::Subscriber force_apply_sub;    // apply external force
+ros::Subscriber aruco_pose_sub;     // move a QR code(ArUCo) attached obstacle
 
-// apply external force
-ros::Subscriber force_apply_sub;
 // std_msgs::Float32MultiArray ext_force_msg_;
 mujoco_ros_msgs::applyforce ext_force_msg_;
 bool ext_force_applied_ = false;
@@ -303,7 +306,12 @@ unsigned int force_appiedd_link_idx_;
 mjvGeom* arrow;
 void arrowshow(mjvGeom* arrow);
 void makeArrow(mjvGeom* arrow);
-void force_apply_callback(const std_msgs::Float32MultiArray &msg);
+
+//QR(aruco) box related variables
+const int mocap_aruco_id = 0;
+double pos_aruco_desired[3];
+double quat_aruco_desired[4];
+bool aruco_pos_cmd_applied = false;
 
 //mujoco_ros_msgs::JointState joint_state_msg_;
 //mujoco_ros_msgs::JointSet joint_set_msg_;
@@ -312,6 +320,7 @@ mujoco_ros_msgs::SimStatus sim_status_msg_;
 sensor_msgs::JointState joint_state_msg_;
 //sensor_msgs::JointState joint_set_msg_;
 mujoco_ros_msgs::JointSet joint_set_msg_;
+// geometry_msgs::Point obj_pose_msg_;
 std_msgs::Float32 sim_time;
 ros::Publisher sim_time_pub;
 
@@ -354,6 +363,9 @@ std::deque<std::vector<float>> ctrl_cmd_que_;
 mjtNum *ctrl_command;
 mjtNum *ctrl_command2;
 
+float obj_x_;
+float obj_y_;
+float obj_z_;
 bool cmd_rcv = false;
 
 // user state for pub
@@ -376,5 +388,8 @@ void state_publisher_init();
 void state_publisher();
 void mujoco_ros_connector_init();
 void mycontroller(const mjModel *m, mjData *d);
+void NewObjPoseCallback(const geometry_msgs::PoseConstPtr &msg);
+void force_apply_callback(const std_msgs::Float32MultiArray &msg);
+void QRPoseCallback(const geometry_msgs::PoseStamped & msg);            // get the desired pos.&ori. of a QR code(ArUCo) attached obstacle
 
 #endif

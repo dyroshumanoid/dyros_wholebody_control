@@ -10,6 +10,7 @@ tocabi_msgs
 eigen_conversions
 )
 
+find_package(pinocchio REQUIRED)  # SH add (FOR PINOCCHIO)
 # find_package(casadi REQUIRED)   # KW add (FOR CASADI)
 
 catkin_package(
@@ -33,6 +34,7 @@ include_directories(
 
 add_library(${PROJECT_NAME}
   src/cc.cpp
+  src/collision_manager.cpp
   src/control_manager.cpp
   src/task_manager.cpp
   src/walking_manager.cpp
@@ -45,6 +47,7 @@ add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EX
 target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES}
   # ${LIBRARY_DIRS}/libcasadi.so  # KW add (FOR CASADI)
+  pinocchio::pinocchio            # SH add (FOR PINOCCHIO)
 )
 
 install(TARGETS ${PROJECT_NAME}

@@ -24,6 +24,15 @@ void c_reset()
     sim_time_now_ros = ros::Duration(d->time);
 
     mujoco_ros_connector_init();
+    // //     int body_id = -1;
+    // // body_id = mj_name2id(m, mjOBJ_BODY, "obj");
+    // // std::cout<<"Obj Callback"<<std::endl;
+    // // int geomIndex = m->body_geomadr[body_id];
+
+    // d->geom_xpos[3*geomIndex] = obj_x_;
+    // d->geom_xpos[3*geomIndex + 1] = obj_y_;
+    // d->geom_xpos[3*geomIndex + 2] = obj_z_;
+
     mj_forward(m, d);
 
     sim_time_ros = ros::Duration(d->time);
@@ -128,8 +137,41 @@ void sim_command_callback(const std_msgs::StringConstPtr &msg)
     }
 }
 
+void NewObjPoseCallback(const geometry_msgs::PoseConstPtr &msg)
+{
+    ////OBJ POSE
+    int body_id = -1;
+    body_id = mj_name2id(m, mjOBJ_BODY, "obj");
+    std::cout<<"Obj Callback"<<std::endl;
+
+    if (body_id >= 0)
+    {
+        int qposadr = m->jnt_qposadr[m->body_jntadr[body_id]];
+
+        obj_x_ = m->key_qpos[settings.key * m->nq + qposadr] + msg->position.x;
+        obj_y_ = m->key_qpos[settings.key * m->nq + qposadr + 1] + msg->position.y;
+        obj_z_ = m->key_qpos[settings.key * m->nq + qposadr + 2] + msg->position.z;
+
+        std::cout<< "MSG: " << obj_x_ <<"\t"<< obj_y_ <<"\t" << obj_z_ <<std::endl;
+        // relative position wrt initial position
+        d->qpos[qposadr] = obj_x_;
+        d->qpos[qposadr+1] = obj_y_;
+        d->qpos[qposadr+2] = obj_z_;
+        d->qpos[qposadr+3] = msg->orientation.w;
+        d->qpos[qposadr+4] = msg->orientation.x;
+        d->qpos[qposadr+5] = msg->orientation.y;
+        d->qpos[qposadr+6] = msg->orientation.z;
+    }
+    else
+    {
+        ROS_WARN("NO OBJ POS");
+    }
+
+}
+
 void force_apply_callback(const std_msgs::Float32MultiArray &msg)
 {
+
     applied_ext_force_[0] = msg.data[0];
     applied_ext_force_[1] = msg.data[1];
     applied_ext_force_[2] = msg.data[2];
@@ -140,6 +182,23 @@ void force_apply_callback(const std_msgs::Float32MultiArray &msg)
     force_appiedd_link_idx_ = msg.data[6];
 
     ext_force_applied_ = true;
+}
+
+void QRPoseCallback(const geometry_msgs::PoseStamped & msg)
+{
+    // position(x,y,z)
+    pos_aruco_desired[0] = (msg.pose.position.x);
+    pos_aruco_desired[1] = (msg.pose.position.y);
+    pos_aruco_desired[2] = (msg.pose.position.z);
+
+
+    // orientation[EulerZYX](roll, pitch, yaw) 
+    quat_aruco_desired[0] = (msg.pose.orientation.w);
+    quat_aruco_desired[1] = (msg.pose.orientation.x);
+    quat_aruco_desired[2] = (msg.pose.orientation.y);
+    quat_aruco_desired[3] = (msg.pose.orientation.z);
+
+    aruco_pos_cmd_applied = true;
 }
 
 void rosPollEvents()
@@ -249,7 +308,6 @@ void state_publisher_init()
 
     sim_status_msg_.sensor = sensor_state_msg_.sensor;
 
-    applied_ext_force_.resize(6);    
     // std::cout << "force range " << std::endl;
     // for (int i = 0; i < m->nu; i++)
     // {
@@ -275,7 +333,6 @@ void state_publisher()
 
         if (m->jnt_type[0] == 0)
         {
-
             for (int i = 0; i < m->nu; i++)
             {
                 joint_state_msg_.position[i + 6] = d->qpos[i + 7];
@@ -340,7 +397,6 @@ void state_publisher()
         static int cnt = 0;
 
         mj_shm_->statusWriting = true;
-
         std::copy(d->qpos + 7, d->qpos + 40, mj_shm_->pos);
         std::copy(d->qvel + 6, d->qvel + 39, mj_shm_->vel);
         std::copy(d->qacc + 6, d->qacc + 39, mj_shm_->torqueActual);
@@ -493,6 +549,7 @@ void mujoco_ros_connector_init()
     }
 
     controller_reset_check = true;
+    command;
     controller_init_check = true;
 }
 
@@ -505,34 +562,12 @@ void mycontroller(const mjModel *m, mjData *d)
         if (ros_sim_started)
         {
             state_publisher();
-            double ros_time_now, ros_time_avatar_mode11;
-            ros_time_now = ros::Time::now().toSec();
-            // ros::param::get("tocabi_avatar_thread11_start_time", ros_time_avatar_mode11);
-            //apply force (dg add)
-            int link_idx = 6*force_appiedd_link_idx_;
-            if( ext_force_applied_ )
+
+            if (aruco_pos_cmd_applied)
             {
-                // force on the pelvis in global frame
-                // d->qfrc_applied[0] = 100; // x-axis
-                // d->qfrc_applied[1] = 10; // y-axis
-
-                // d->qfrc_applied[2] = -50;
-                // d->xfrc_applied[0] = 50;
-                // d->xfrc_applied[1] = 20;
-
-                //L_Shoulder1_Link
-                // d->xfrc_applied[6*19+0] = 00;
-                // d->xfrc_applied[6*19+1] = 00;
-                // d->xfrc_applied[6*19+2] = -50;
-                // d->qfrc_applied[9] = 1;
-                // d->qfrc_applied[15] = 1;
-
-                d->xfrc_applied[link_idx+0] = applied_ext_force_[0];
-                d->xfrc_applied[link_idx+1] = applied_ext_force_[1];
-                d->xfrc_applied[link_idx+2] = applied_ext_force_[2];
-                d->xfrc_applied[link_idx+3] = applied_ext_force_[3];
-                d->xfrc_applied[link_idx+4] = applied_ext_force_[4];
-                d->xfrc_applied[link_idx+5] = applied_ext_force_[5];
+                // Mocap 바디에 적용
+                memcpy(&d->mocap_pos[3*mocap_aruco_id], pos_aruco_desired, 3 * sizeof(double));
+                memcpy(&d->mocap_quat[4*mocap_aruco_id], quat_aruco_desired, 4 * sizeof(double));
             }
 
             if (use_shm)
@@ -545,8 +580,9 @@ void mycontroller(const mjModel *m, mjData *d)
                 }
                 cmd_rcv = true;
                 //std::copy(mj_shm_->torqueCommand, mj_shm_->torqueCommand + m->nu, ctrl_command);
-                for (int i = 0; i < m->nu; i++)
+                for (int i = 0; i < MODEL_DOF; i++)
                     ctrl_command_temp_[i] = mj_shm_->torqueCommand[i];
+            
 #else
                 std::cout << "WARNING : Getting command, while SHM_NOT_COMPILED " << std::endl;
 #endif
@@ -1363,27 +1399,11 @@ void makesections(void)
 void alignscale(void)
 {
     // autoscale
-    // cam.lookat[0] = m->stat.center[0];
-    // cam.lookat[1] = m->stat.center[1];
-    // cam.lookat[2] = m->stat.center[2];
-    // cam.distance = 1.5 * m->stat.extent;
+    cam.lookat[0] = m->stat.center[0];
+    cam.lookat[1] = m->stat.center[1];
+    cam.lookat[2] = m->stat.center[2];
+    cam.distance = 1.5 * m->stat.extent;
 
-    cam.lookat[0] = 0.00224878;
-    cam.lookat[1] =-0.00837562;
-    cam.lookat[2] = 0.705718;
-    cam.distance  = 4.45479;
-    cam.elevation =-14.25;
-    cam.azimuth   = 177.188;
-
-    // Straight walking
-    // cam.lookat[0] = 1.08429;
-    // cam.lookat[1] =-0.0048252;
-    // cam.lookat[2] = 0.803591;
-    // cam.distance  = 4.19392;
-    // cam.elevation =-16.1457;
-    // cam.azimuth   =-163.428;
-         
-   
     // set to free camera
     cam.type = mjCAMERA_FREE;
 }
@@ -2168,8 +2188,6 @@ void render(GLFWwindow *window)
 
         return;
     }
-
-    arrowshow(arrow);
 
     // render scene
     mjr_render(rect, &scn, &con);

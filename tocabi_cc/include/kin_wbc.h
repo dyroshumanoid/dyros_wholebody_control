@@ -1,20 +1,28 @@
+// Must inlude while using Pinocchio in noetic
+// to avoid compilation errors from differing Boost-variant sizes.
+#include <pinocchio/fwd.hpp>
+
 #pragma once
 
 #include <eigen3/Eigen/Core>
 #include <map>
 #include <vector>
 #include <string>
+#include "collision_manager.h"
 #include "wholebody_functions.h"
 #include "utils.h"
 
 class KinWBC {
 public:
-    KinWBC(RobotData& rd);
+    KinWBC(RobotData& rd, CollisionManager& col_mgr);
 
     void computeTaskSpaceKinematicWBC();
 
 private:
     RobotData &rd_;
+
+    CollisionManager &col_mgr_;
+
     std::vector<std::vector<TaskInfo>> task_hierarchy;
 
     bool is_cannot_solve_qp_ = true;

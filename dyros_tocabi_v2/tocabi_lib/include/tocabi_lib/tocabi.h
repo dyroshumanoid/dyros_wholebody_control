@@ -161,11 +161,17 @@ namespace TOCABI
 
     const int Pelvis = 0;
     const int Upper_Body = 3;
-    const int Left_Hip = 5;
+    const int Left_Thigh = 6;
+    const int Left_Knee = 7;
     const int Left_Foot = 9;
-    const int Right_Hip = 11;
+    const int Right_Thigh = 12;
+    const int Right_Knee = 13;
     const int Right_Foot = 15;
+    const int Left_Upper_Arm = 19;
+    const int Left_Forearm = 21;
     const int Left_Hand = 23;
+    const int Right_Upper_Arm = 27;
+    const int Right_Forearm= 29;
     const int Right_Hand = 31;
     const int Head = 33;
     const int COM_id = 34;

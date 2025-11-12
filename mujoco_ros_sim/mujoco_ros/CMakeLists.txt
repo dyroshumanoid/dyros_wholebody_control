@@ -1,16 +1,24 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(mujoco_ros)
 
-add_compile_options(-Ofast -std=c++11)
+add_compile_options(-Ofast -std=c++14)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   mujoco_ros_msgs
   eigen_conversions
+  sensor_msgs
+  cv_bridge
+  image_transport
+  geometry_msgs
+  pcl_ros
 )
 
 find_package(tocabi_lib COMPONENTS)
+
+find_package(OpenCV REQUIRED) 
+
 IF(tocabi_lib_FOUND)
  message(" -- shm mode enabled" )
    ADD_DEFINITIONS(-DCOMPILE_SHAREDMEMORY)
@@ -30,6 +38,7 @@ include_directories(
   ${MUJOCO_PATH}/include
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
 link_directories(
@@ -49,6 +58,7 @@ file(GLOB UI_SRC "${MUJOCO_PATH}/include/uitools.c")
 add_library(mujoco_ros_lib
     ${UI_SRC}
     src/mjros.cpp
+    src/mujoco_rgbd_camera.cpp
     )
 
 add_executable(mujoco_ros src/main.cpp)
@@ -64,6 +74,8 @@ target_link_libraries(mujoco_ros
    
    ${MUJOCO_PATH}/bin/libglew.so
    ${MUJOCO_PATH}/bin/libglfw.so.3
+   
+   ${OpenCV_LIBS}
  )
 
 add_dependencies(mujoco_ros_lib ${catkin_EXPORTED_TARGETS})
