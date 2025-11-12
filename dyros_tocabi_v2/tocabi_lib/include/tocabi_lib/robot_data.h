@@ -265,6 +265,7 @@ struct RobotData
 
     bool is_left_contact_transition = false;
     bool is_right_contact_transition = false;
+    bool is_double_contact_transition = false;
 };
 
 struct DataContainer

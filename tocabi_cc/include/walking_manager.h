@@ -13,20 +13,22 @@ public:
 WalkingManager(RobotData &rd);
 
 void computeWalkingMotion();
+void updateSupportPhaseIndicator();
 
 //---Setter
 void updateContactState(const bool &local_LF_contact_, const bool &local_RF_contact_);
 void setControlFrequency(const double &hz);
 void setCenterOfMassHeight(const double &com_height_);
 void setWalkingParameter(const double &step_length_, const double &foot_yaw_angle_, const double &foot_height_);
-void setTimeInformation(const int &step_tick_, const int &trajectory_duration_);
 void setStepDuration(const double &step_duration_);
+void setDspDuration(const double &dsp_duration_);
 void setTransferDuration(const double &transfer_duration_);
 void isForceTorqueSensorAvailable(const bool &is_ft_sensor_available_);
 void findPreviewParameter(double dt, int NL);   
 
 //---Getter
 double getPreviewStepNumber();
+ContactIndicator getSupportPhaseIndicator();
 
 void contactWrenchCalculator();
 Eigen::Vector2d cp_desired_;
@@ -64,11 +66,11 @@ void updateMomentControl(double &error,
     double input_dot = kp * error + kd * error_dot - damping * input;
     input += input_dot / hz;
 }
+
 void footstepOptimizer();
 CQuadraticProgram QP_stepping;
 
 void mapSupportToBase();
-void mapBaseToGlobal();
 
 Eigen::Vector2d footstep_des;
 
@@ -85,8 +87,10 @@ int step_tick = 0;
 double step_time = 0.0;
 int step_cnt = 0;
 double step_duration = 0.0;
+double dsp_duration = 0.0;
 double transfer_duration = 0.0;
-double trajectory_duration = 0;
+
+ContactIndicator support_phase_indicator_;
 
 double com_height = 0.0;
 double T = 0.0;
@@ -115,6 +119,7 @@ bool local_LF_contact = true;
 bool local_RF_contact = true;
 
 bool is_support_transition = false;
+bool is_phase_indicator_transition = false;
 bool is_footstep_update = false;
 bool is_zmp_update = true;
 bool is_preview_transition = false;

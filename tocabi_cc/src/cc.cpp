@@ -354,13 +354,14 @@ void CustomController::loadParams()
     std::cout << " " << std::endl;
 
     //--- Task Parameter
-    double traj_time_, pelv_dist_, hand_dist_, step_length_, foot_height_, step_duration_;
+    double traj_time_, pelv_dist_, hand_dist_, step_length_, foot_height_, step_duration_, dsp_duration_;
     nh_cc_.getParam("/tocabi_controller/task_param/traj_time", traj_time_);
     nh_cc_.getParam("/tocabi_controller/task_param/pelv_dist", pelv_dist_);
     nh_cc_.getParam("/tocabi_controller/task_param/hand_dist", hand_dist_);
     nh_cc_.getParam("/tocabi_controller/task_param/step_length", step_length_);
     nh_cc_.getParam("/tocabi_controller/task_param/foot_height", foot_height_);
     nh_cc_.getParam("/tocabi_controller/task_param/step_duration", step_duration_);
+    nh_cc_.getParam("/tocabi_controller/task_param/dsp_duration", dsp_duration_);
 
     tm_.setTrajectoryDuration(traj_time_);
     tm_.setPelvisDistance(pelv_dist_);
@@ -368,6 +369,7 @@ void CustomController::loadParams()
     tm_.setStepStride(step_length_);
     tm_.setFootHeight(foot_height_);
     tm_.setStepDuration(step_duration_);
+    tm_.setDspDuration(dsp_duration_);
 
     std::cout << "====================================" << std::endl;
     std::cout << "======== Task Parameters ========== " << std::endl;
@@ -377,6 +379,7 @@ void CustomController::loadParams()
     std::cout << "Step Length : " << step_length_ << " m" << std::endl;
     std::cout << "Foot Height : " << foot_height_ << " m" << std::endl;
     std::cout << "Step Duration : " << step_duration_ << " sec" << std::endl;
+    std::cout << "Double Support Duration : " << dsp_duration_ << " sec" << std::endl;
     std::cout << "====================================" << std::endl;
     std::cout << " " << std::endl;
 

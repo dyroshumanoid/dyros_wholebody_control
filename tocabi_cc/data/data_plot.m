@@ -31,7 +31,7 @@ plot(com(:, start_cnt))
 plot(com(:, start_cnt + 3))
 plot(cp(:, start_cnt))
 plot(cp(:, start_cnt + 2))
-
+legend()
 
 start_cnt = 2;
 figure()
@@ -44,11 +44,12 @@ plot(com(:, start_cnt))
 plot(com(:, start_cnt + 3))
 plot(cp(:, start_cnt))
 plot(cp(:, start_cnt + 2))
+legend()
 
 %%
-clc
-clear all
-close all
+% clc
+% clear all
+% close all
 
 preview_tick = 1
 
@@ -129,10 +130,17 @@ end
 % end
 
 %%
+clc; clear all; close all;
+
+preview_tick = 4
+
+data = load('dataWM7.txt');
+zmp_x = data(preview_tick, :);
+data = load('dataWM8.txt');
+zmp_y = data(preview_tick, :);
+
 figure()
-cnt = 5
-plot(torque_sol(:,cnt))    
-hold on
-plot(torque_id(:,cnt))  
-plot(torque_pd(:,cnt))
-legend("torque sum", "torque id", "torque pd")
+subplot(2,1,1)
+plot(zmp_x);
+subplot(2,1,2)
+plot(zmp_y);

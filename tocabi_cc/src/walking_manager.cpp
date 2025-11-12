@@ -6,6 +6,8 @@ ofstream dataWM3("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM3.txt");
 ofstream dataWM4("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM4.txt");
 ofstream dataWM5("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM5.txt");
 ofstream dataWM6("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM6.txt");
+ofstream dataWM7("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM7.txt");
+ofstream dataWM8("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM8.txt");
 
 WalkingManager::WalkingManager(RobotData &rd) : rd_(rd)
 {
@@ -26,14 +28,12 @@ void WalkingManager::computeWalkingMotion()
     getZmpTrajectory();
     getComTrajectory();
     contactWrenchCalculator();
-    // footstepOptimizer();
     getFootTrajectory();
     if(is_ft_sensor_available == true){
         updateFootPoseFromContactWrench();
     }
 
     mapSupportToBase();
-    // mapBaseToGlobal();
 
     dataWM5 << std::setprecision(3)
             << rd_.link_[COM_id].x_traj(0) << "," << rd_.link_[COM_id].x_traj(1) << "," << rd_.link_[COM_id].x_traj(2) << ","
@@ -97,29 +97,28 @@ void WalkingManager::calcFootstepQueue()
 
 void WalkingManager::getZmpTrajectory()
 {
-    int step_total_ticks = static_cast<int>(step_duration * hz_);
+    int total_ticks = static_cast<int>(step_duration* hz_) + static_cast<int>(dsp_duration * hz_);
     int foot_contact_idx = local_LF_contact ? -1 : +1;
 
     double zmp_offset_y = 0.0;
 
-    if ((local_LF_contact == true && local_RF_contact == true)) // DSP
+    if (step_cnt == 0) // DSP
     {
         if (is_zmp_update == true)
         {
-            const double transfer_ticks = trajectory_duration * hz_;
+            const double transfer_ticks = transfer_duration * hz_;
             const double weight_shift_ticks = 0.5 * hz_;
 
-            zmp_x_traj.setZero(preview_idx * step_total_ticks + transfer_ticks);
-            zmp_y_traj.setZero(preview_idx * step_total_ticks + transfer_ticks);
+            zmp_x_traj.setZero(static_cast<int>(transfer_ticks + preview_idx * total_ticks));
+            zmp_y_traj.setZero(static_cast<int>(transfer_ticks + preview_idx * total_ticks));
 
             //--- Stand still
             Eigen::Vector2d p0, p1; 
             p0 = rd_.link_[COM_id].support_xpos_init.head(2);
-            p1 = rd_.link_[COM_id].support_xpos_init.head(2);
 
             zmp_x_traj.segment(0, static_cast<int>(transfer_ticks - weight_shift_ticks)).setConstant(p0(0));
             zmp_y_traj.segment(0, static_cast<int>(transfer_ticks - weight_shift_ticks)).setConstant(p0(1));
-            
+
             //--- Transfer to first footstep
             p0 = rd_.link_[COM_id].support_xpos_init.head(2);
             p1.setZero();
@@ -145,24 +144,42 @@ void WalkingManager::getZmpTrajectory()
 
                 p0(1) += foot_contact_idx * zmp_offset_y;
 
-                zmp_x_traj.segment(transfer_ticks + i * step_total_ticks, step_total_ticks).setConstant(p0(0));
-                zmp_y_traj.segment(transfer_ticks + i * step_total_ticks, step_total_ticks).setConstant(p0(1));
-            
+                p1 = step_queue[i];
+
+                // SSP
+                zmp_x_traj.segment(transfer_ticks + i * total_ticks, static_cast<int>(step_duration * hz_)).setConstant(p0(0));
+                zmp_y_traj.segment(transfer_ticks + i * total_ticks, static_cast<int>(step_duration * hz_)).setConstant(p0(1));
+
+                // DSP
+                s.setZero(static_cast<int>(dsp_duration * hz_));
+                zmp_x_traj_onestep.setZero(static_cast<int>(dsp_duration * hz_));
+                zmp_y_traj_onestep.setZero(static_cast<int>(dsp_duration * hz_));
+                s = Eigen::VectorXd::LinSpaced(static_cast<int>(dsp_duration * hz_), 0.0, 1.0);
+                zmp_x_traj_onestep = (1.0 - s.array()) * p0(0) + s.array() * p1(0);
+                zmp_y_traj_onestep = (1.0 - s.array()) * p0(1) + s.array() * p1(1);
+
+                zmp_x_traj.segment(transfer_ticks + i * total_ticks + static_cast<int>(step_duration * hz_), static_cast<int>(dsp_duration * hz_)) = zmp_x_traj_onestep;
+                zmp_y_traj.segment(transfer_ticks + i * total_ticks + static_cast<int>(step_duration * hz_), static_cast<int>(dsp_duration * hz_)) = zmp_y_traj_onestep;
+
                 foot_contact_idx *= -1;
             }
 
             is_zmp_update = false;
+
+            // dataWM7 << std::setprecision(5) << zmp_x_traj.transpose() << std::endl;
+            // dataWM8 << std::setprecision(5) << zmp_y_traj.transpose() << std::endl;
         }
     }
-    if (!(local_LF_contact == true && local_RF_contact == true)) // DSP
+    else
     {
         if (is_zmp_update == true)
         {
-            zmp_x_traj.setZero(preview_idx * step_total_ticks);
-            zmp_y_traj.setZero(preview_idx * step_total_ticks);
+            zmp_x_traj.setZero(static_cast<int>(preview_idx * total_ticks));
+            zmp_y_traj.setZero(static_cast<int>(preview_idx * total_ticks));
 
-            Eigen::Vector2d p0;
+            Eigen::Vector2d p0, p1;
             p0.setZero();
+            p1.setZero();
 
             for (int i = 0; i < preview_idx; i++)
             {
@@ -175,15 +192,27 @@ void WalkingManager::getZmpTrajectory()
                     p0 = step_queue[i - 1];
                 }
 
-                // p0(1) += foot_contact_idx * zmp_offset_y;
+                p1 = step_queue[i];
 
-                zmp_x_traj.segment(i * step_total_ticks, step_total_ticks).setConstant(p0(0));
-                zmp_y_traj.segment(i * step_total_ticks, step_total_ticks).setConstant(p0(1));
+                // SSP
+                zmp_x_traj.segment(i * total_ticks, static_cast<int>(step_duration * hz_)).setConstant(p0(0));
+                zmp_y_traj.segment(i * total_ticks, static_cast<int>(step_duration * hz_)).setConstant(p0(1));
+
+                // DSP
+                Eigen::VectorXd s = Eigen::VectorXd::LinSpaced(static_cast<int>(dsp_duration * hz_), 0.0, 1.0);
+                Eigen::VectorXd zmp_x_traj_onestep = (1.0 - s.array()) * p0(0) + s.array() * p1(0);
+                Eigen::VectorXd zmp_y_traj_onestep = (1.0 - s.array()) * p0(1) + s.array() * p1(1);
+
+                zmp_x_traj.segment(i * total_ticks + static_cast<int>(step_duration * hz_), static_cast<int>(dsp_duration * hz_)) = zmp_x_traj_onestep;
+                zmp_y_traj.segment(i * total_ticks + static_cast<int>(step_duration * hz_), static_cast<int>(dsp_duration * hz_)) = zmp_y_traj_onestep;
              
                 foot_contact_idx *= -1;
             }
             
             is_zmp_update = false;
+
+            dataWM7 << std::setprecision(5) << zmp_x_traj.transpose() << std::endl;
+            dataWM8 << std::setprecision(5) << zmp_y_traj.transpose() << std::endl;
         }
     }
 }
@@ -192,46 +221,63 @@ void WalkingManager::getFootTrajectory()
 {
     int support_foot_link_idx, swing_foot_link_idx;
 
-    support_foot_link_idx = local_LF_contact ? Left_Foot : Right_Foot;
-    swing_foot_link_idx   = local_LF_contact ? Right_Foot : Left_Foot;
+    support_foot_link_idx = (support_phase_indicator_ == ContactIndicator::LeftSingleSupport) ? Left_Foot : Right_Foot;
+    swing_foot_link_idx = (support_phase_indicator_ == ContactIndicator::LeftSingleSupport) ? Right_Foot : Left_Foot;
 
     //--- Swing & Support Feet Trajectory
     footstep_des.setZero();
     footstep_des = step_queue.front();
-    if (local_LF_contact == true && local_RF_contact == true) // DSP
-    {
-        rd_.link_[Left_Foot].x_traj  = rd_.link_[Left_Foot].support_xpos_init;
-        rd_.link_[Right_Foot].x_traj = rd_.link_[Right_Foot].support_xpos_init;
 
-        rd_.link_[Left_Foot].r_traj.setIdentity();
-        rd_.link_[Right_Foot].r_traj.setIdentity();
+    if (step_cnt == 0)
+    {
+        if (local_LF_contact && local_RF_contact) // DSP
+        {
+            rd_.link_[Left_Foot].x_traj  = rd_.link_[Left_Foot].support_xpos_init;
+            rd_.link_[Right_Foot].x_traj = rd_.link_[Right_Foot].support_xpos_init;
+
+            rd_.link_[Left_Foot].r_traj.setIdentity();
+            rd_.link_[Right_Foot].r_traj.setIdentity();
+        }
     }
-    else // SSP
+    else
     {
-        rd_.link_[support_foot_link_idx].x_traj = rd_.link_[support_foot_link_idx].support_xpos_init;
-
-        rd_.link_[swing_foot_link_idx].x_traj(0) = DyrosMath::QuinticSpline(step_time, 0.0, trajectory_duration, rd_.link_[swing_foot_link_idx].support_xpos_init(0), 0.0, 0.0, footstep_des(0), 0.0, 0.0)(0);
-        rd_.link_[swing_foot_link_idx].x_traj(1) = DyrosMath::QuinticSpline(step_time, 0.0, trajectory_duration, rd_.link_[swing_foot_link_idx].support_xpos_init(1), 0.0, 0.0, footstep_des(1), 0.0, 0.0)(0);
-
-        double start_time = 0.0;
-        double end_time = 0.0;
-        if (step_time <= trajectory_duration / 2.0)
+        if (!(local_LF_contact && local_RF_contact)) // SSP
         {
-            start_time = 0.0;
-            end_time = trajectory_duration / 2.0;
+            rd_.link_[support_foot_link_idx].x_traj = rd_.link_[support_foot_link_idx].support_xpos_init;
 
-            rd_.link_[swing_foot_link_idx].x_traj(2) = DyrosMath::QuinticSpline(step_time, start_time, end_time, rd_.link_[swing_foot_link_idx].support_xpos_init(2), 0.0, 0.0, foot_height, 0.0, 0.0)(0);
+            rd_.link_[swing_foot_link_idx].x_traj(0) = DyrosMath::QuinticSpline(step_time, 0.0, step_duration, rd_.link_[swing_foot_link_idx].support_xpos_init(0), 0.0, 0.0, footstep_des(0), 0.0, 0.0)(0);
+            rd_.link_[swing_foot_link_idx].x_traj(1) = DyrosMath::QuinticSpline(step_time, 0.0, step_duration, rd_.link_[swing_foot_link_idx].support_xpos_init(1), 0.0, 0.0, footstep_des(1), 0.0, 0.0)(0);
+
+            double start_time = 0.0;
+            double end_time = 0.0;
+            if (step_time <= step_duration / 2.0)
+            {
+                start_time = 0.0;
+                end_time = step_duration / 2.0;
+
+                rd_.link_[swing_foot_link_idx].x_traj(2) = DyrosMath::QuinticSpline(step_time, start_time, end_time, rd_.link_[swing_foot_link_idx].support_xpos_init(2), 0.0, 0.0, foot_height, 0.0, 0.0)(0);
+            }
+            else
+            {
+                start_time = step_duration / 2.0;
+                end_time = step_duration;
+
+                rd_.link_[swing_foot_link_idx].x_traj(2) = DyrosMath::QuinticSpline(step_time, start_time, end_time, foot_height, 0.0, 0.0, 0.0, 0.0, 0.0)(0);
+            }
+
+            rd_.link_[support_foot_link_idx].r_traj.setIdentity();
+            rd_.link_[swing_foot_link_idx].r_traj.setIdentity();
         }
-        else
+        else // DSP
         {
-            start_time = trajectory_duration / 2.0;
-            end_time = trajectory_duration;
+            rd_.link_[support_foot_link_idx].x_traj = rd_.link_[support_foot_link_idx].support_xpos_init;
+            rd_.link_[swing_foot_link_idx].x_traj(0) = footstep_des(0);
+            rd_.link_[swing_foot_link_idx].x_traj(1) = footstep_des(1);
+            rd_.link_[swing_foot_link_idx].x_traj(2) = 0.0;
 
-            rd_.link_[swing_foot_link_idx].x_traj(2) = DyrosMath::QuinticSpline(step_time, start_time, end_time, foot_height, 0.0, 0.0, 0.0, 0.0, 0.0)(0);
+            rd_.link_[support_foot_link_idx].r_traj.setIdentity();
+            rd_.link_[swing_foot_link_idx].r_traj.setIdentity();
         }
-
-        rd_.link_[support_foot_link_idx].r_traj.setIdentity();
-        rd_.link_[swing_foot_link_idx].r_traj.setIdentity();
     }
 
     dataWM1 << std::setprecision(3)
@@ -396,12 +442,6 @@ void WalkingManager::footstepOptimizer()
     double b_nom_x = L_nom / (exp(wn*T_nom) - 1.0); 
     double b_nom_y = W_nom / (exp(wn*T_nom) - 1.0); 
 
-    std::cout << "L_nom: " << L_nom << std::endl;
-    std::cout << "W_nom: " << W_nom << std::endl;
-    std::cout << "T_nom: " << T_nom << std::endl;
-    std::cout << "b_nom_x: " << b_nom_x << std::endl;
-    std::cout << "b_nom_y: " << b_nom_y << std::endl;
-
     double u0_x = 0.0;
     double u0_y = 0.0;
 
@@ -562,20 +602,32 @@ void WalkingManager::mapSupportToBase()
     rd_.link_[COM_id].x_traj -= rd_.link_[Pelvis].support_xpos;
 }
 
-void WalkingManager::mapBaseToGlobal()
+//--- State Initialization
+void WalkingManager::updateSupportPhaseIndicator()
 {
-    //--- Map Trajectory from Base frame to Global frame
-    Eigen::Vector3d base_pos = rd_.link_[Pelvis].xpos;
-    Eigen::Matrix3d base_rot = DyrosMath::rotateWithZ(DyrosMath::rot2Euler(rd_.link_[Pelvis].rotm)(2));
-
-    for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
+    /*
+    This variable stores the initial contact (support) state of the robot 
+    at the moment when a new walking phase (support transition) begins.      
+    */
+    if (is_phase_indicator_transition == true)
     {
-        rd_.link_[idx].x_traj = base_rot * (rd_.link_[idx].x_traj + base_pos);
-        rd_.link_[idx].r_traj = base_rot * rd_.link_[idx].r_traj;
+        if(local_LF_contact == true && local_RF_contact == true)
+        {
+            support_phase_indicator_ = ContactIndicator::DoubleSupport;
+        }
+        if(local_LF_contact == true && local_RF_contact == false)
+        {
+            support_phase_indicator_ = ContactIndicator::LeftSingleSupport;
+        }
+        else if (local_LF_contact == false && local_RF_contact == true)
+        {
+            support_phase_indicator_ = ContactIndicator::RightSingleSupport;
+        }
+
+        is_phase_indicator_transition = false;
     }
 }
 
-//--- State Initialization
 void WalkingManager::updateSupportInitialState()
 {
     if (is_support_transition == true)
@@ -595,6 +647,8 @@ void WalkingManager::updateSupportInitialState()
     {
         // Do nothing
     }
+
+    
 }
 
 //--- Tick Update
@@ -605,12 +659,13 @@ void WalkingManager::updateStepTick()
     static bool is_transfer_phase = true;
     if (is_transfer_phase == true)
     {
-        if (step_tick >= static_cast<int>(trajectory_duration * hz_))
+        if (step_tick >= static_cast<int>(transfer_duration * hz_))
         {
-            if (local_LF_contact == true && local_RF_contact == true)
+            if (support_phase_indicator_ == ContactIndicator::DoubleSupport)
             {
                 rd_.is_left_contact_transition = true;
                 is_zmp_update = true;
+                is_phase_indicator_transition = true;
                 is_support_transition = true;
             }
             else
@@ -620,51 +675,59 @@ void WalkingManager::updateStepTick()
             }
 
             step_tick = 0;
+            step_cnt++;
 
             is_transfer_phase = false;
         }
     }
     else
     {
-        if (step_tick >= static_cast<int>(trajectory_duration * hz_))
+        if(!(local_LF_contact && local_RF_contact)) // SSP
         {
-            if (local_LF_contact != true && local_RF_contact == true)
+            if (step_tick >= static_cast<int>(step_duration * hz_))
             {
-                rd_.is_left_contact_transition = true;
-
-                is_support_transition = true;
-                is_footstep_update = true;
-                is_zmp_update = true;
-                is_preview_transition = true;
+                rd_.is_double_contact_transition = true;
+                std::cout << "step_tick: " << step_tick << std::endl;
             }
-            else if (local_LF_contact == true && local_RF_contact != true)
+        }
+        else    // DSP
+        {
+            if (step_tick >= static_cast<int>(step_duration * hz_) + static_cast<int>(dsp_duration * hz_))
             {
-                rd_.is_right_contact_transition = true;
+                if (support_phase_indicator_ == ContactIndicator::RightSingleSupport)
+                {
+                    rd_.is_left_contact_transition = true;
+                    std::cout << "step_cnt: " << step_cnt << std::endl;
+                    std::cout << "step_tick: " << step_tick << std::endl;
 
-                is_support_transition = true;
-                is_footstep_update = true;
-                is_zmp_update = true;
-                is_preview_transition = true;
-            }
-            else
-            {
-                ROS_ERROR("Contact Indicator are assigned with something wrong value.");
-            }
+                    is_phase_indicator_transition = true;
+                    is_support_transition = true;
+                    is_footstep_update = true;
+                    is_zmp_update = true;
+                    is_preview_transition = true;
+                }
+                else if (support_phase_indicator_ == ContactIndicator::LeftSingleSupport)
+                {
+                    rd_.is_right_contact_transition = true;
+                    std::cout << "step_cnt: " << step_cnt << std::endl;
+                    std::cout << "step_tick: " << step_tick << std::endl;
 
-            step_tick = 0;
-            step_cnt++;
+                    is_phase_indicator_transition = true;
+                    is_support_transition = true;
+                    is_footstep_update = true;
+                    is_zmp_update = true;
+                    is_preview_transition = true;
+                }
+                else
+                {
+                    ROS_ERROR("Contact Indicator are assigned with something wrong value.");
+                }
+
+                step_tick = 0;
+                step_cnt++;
+            }
         }
     }
-    // int swing_foot_link_idx = -1;
-
-    // swing_foot_link_idx   = local_LF_contact ? Right_Foot : Left_Foot;
-    // if(is_preview_transition)
-    // {
-    //     // com_x_dx_ddx(0) -= step_queue[0](0);
-    //     // com_y_dy_ddy(0) -= step_queue[0](1);    
-
-    //     is_preview_transition = false;
-    // }
 }
 
 //--- Class Setter
@@ -702,9 +765,12 @@ void WalkingManager::setStepDuration(const double &step_duration_)
 {
     step_duration = step_duration_;
 
-    trajectory_duration = (local_LF_contact == true && local_RF_contact == true) ? transfer_duration : step_duration;
-
     step_time = static_cast<double>(step_tick) / hz_;
+}
+
+void WalkingManager::setDspDuration(const double &dsp_duration_)
+{
+    dsp_duration = dsp_duration_;
 }
 
 void WalkingManager::isForceTorqueSensorAvailable(const bool &is_ft_sensor_available_)
@@ -717,6 +783,10 @@ double WalkingManager::getPreviewStepNumber()
     return static_cast<double>(preview_idx);
 }
 
+ContactIndicator WalkingManager::getSupportPhaseIndicator()
+{
+    return (support_phase_indicator_);
+}
 
 void WalkingManager::findPreviewParameter(double dt, int NL)
 {

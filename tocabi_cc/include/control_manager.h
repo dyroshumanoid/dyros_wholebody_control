@@ -21,7 +21,6 @@ private:
 
     void contactStateMachine();
     void mapGlobalToBase();
-    void mapBaseToSupport();
     void updateDynamics();
     void updateContact();
     
