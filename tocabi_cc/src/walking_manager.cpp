@@ -35,12 +35,10 @@ void WalkingManager::computeWalkingMotion()
 
     mapSupportToBase();
 
-    dataWM5 << std::setprecision(3)
-            << rd_.link_[COM_id].x_traj(0) << "," << rd_.link_[COM_id].x_traj(1) << "," << rd_.link_[COM_id].x_traj(2) << ","
+    dataWM5 << rd_.link_[COM_id].x_traj(0) << "," << rd_.link_[COM_id].x_traj(1) << "," << rd_.link_[COM_id].x_traj(2) << ","
             << rd_.link_[COM_id].local_xpos(0) << "," << rd_.link_[COM_id].local_xpos(1) << "," << rd_.link_[COM_id].local_xpos(2)
             << std::endl;
-    dataWM6 << std::setprecision(3)
-            << rd_.link_[Left_Foot].x_traj(0) << "," << rd_.link_[Left_Foot].x_traj(1) << "," << rd_.link_[Left_Foot].x_traj(2) << ","
+    dataWM6 << rd_.link_[Left_Foot].x_traj(0) << "," << rd_.link_[Left_Foot].x_traj(1) << "," << rd_.link_[Left_Foot].x_traj(2) << ","
             << rd_.link_[Left_Foot].local_xpos(0) << "," << rd_.link_[Left_Foot].local_xpos(1) << "," << rd_.link_[Left_Foot].local_xpos(2)
             << std::endl;
 

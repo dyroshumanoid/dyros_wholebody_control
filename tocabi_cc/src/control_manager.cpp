@@ -13,8 +13,8 @@ void ControlManager::update()
 {
     contactStateMachine();
     mapGlobalToBase();
-    updateDynamics();
-    updateContact();
+    // updateDynamics();
+    // updateContact();
 
     static bool is_cm_init = true;
     if(is_cm_init == true)
@@ -132,6 +132,14 @@ void ControlManager::updateContact()
             || (local_LF_contact == true && local_RF_contact != true)
             || (local_LF_contact != true && local_RF_contact == true));
     }
+
+    rd_.local_lambda_C.setZero(rd_.contact_index * 6, rd_.contact_index * 6);
+    rd_.local_J_C_INV_T.setZero(MODEL_DOF_VIRTUAL, rd_.contact_index * 6);
+    rd_.local_N_C.setZero();
+
+    rd_.local_lambda_C = (rd_.local_J_C * rd_.local_A * rd_.local_J_C.transpose()).inverse();
+    rd_.local_J_C_INV_T = rd_.local_lambda_C * rd_.local_J_C * rd_.local_A;
+    rd_.local_N_C = MatrixXd::Identity(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL) - rd_.local_J_C.transpose() * rd_.local_J_C_INV_T;
 }
 
 void ControlManager::saveInitialState()

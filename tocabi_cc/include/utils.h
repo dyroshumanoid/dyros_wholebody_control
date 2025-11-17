@@ -25,7 +25,8 @@ enum class TaskMotionType {
     None,
     PelvHand,
     Taichi,
-    Walking
+    Walking,
+    TeleOperation
 };
 
 Eigen::Vector3d AngvelToEulerRates(const Eigen::Vector3d& angVel, const Eigen::Vector3d& EulerAngle);

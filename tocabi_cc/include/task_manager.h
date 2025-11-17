@@ -6,6 +6,7 @@
 #include "wholebody_functions.h"
 #include "utils.h"
 #include "walking_manager.h"
+#include "teleop_manager.h"
 
 class TaskManager
 {
@@ -31,6 +32,7 @@ private:
   void movePelvHandPose();
   void moveTaichiMotion();
   void bipedalWalkingController();
+  void teleOperationController();
 
 
 private:

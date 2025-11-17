@@ -15,14 +15,15 @@ public:
 
     //--- QP WBC 
 
-    void computeDynamicWBC();
-    void computeTotalTorqueCommand();
+    Eigen::VectorQd computeDynamicWBC();
+    void updateControlCommands(const Eigen::Vector12d &contact_wrench_cmd_, const Eigen::VectorVQd &qddot_cmd_);
 
     //--- Setter
     void setFrictionCoefficient(const double& mu_);
     void setFootDimension(const double& foot_size_, const double& foot_width_);
     void setJointTrackingWeight(const double& W_qddot_);
-    void setContactWrenchRegularizationWeight(const double& W_cwr_);
+    void setContactWrenchTrackingWeight(const double& W_cwr_);
+    void setTorqueMinimizationWeight(const double &W_torque_);
     void setAccelEnergyMinimizationWeight(const double& W_energy_);
 
 
@@ -38,7 +39,8 @@ private:
 
         void updateContactState();
         void updateRobotStates();
-        void calcDesiredJointAcceleration();
+        
+        void calcNominalTorque();
 
         Eigen::MatrixXd Hess;  // HESSIAN
         Eigen::VectorXd grad;  // GRADIENT
@@ -49,10 +51,13 @@ private:
         int total_num_state = 0;
         int total_num_constraints = 0;
 
-    Eigen::VectorXd contact_wrench_cmd;
+    Eigen::VectorXd  contact_wrench_cmd;
     Eigen::VectorVQd qddot_cmd;
+    Eigen::VectorQd  torque_prev;
+
     Eigen::VectorXd contact_wrench_qp; 
     Eigen::VectorXd qddot_qp; 
+    Eigen::VectorXd torque_qp; 
 
     bool is_gradhess_init_ = true;
     bool is_wbc_init_ = true;
@@ -64,8 +69,10 @@ private:
 
     //--- Local eigen variables
     Eigen::MatrixVVd M; 
+    Eigen::MatrixVVd M_inv; 
     Eigen::VectorVQd G; 
     Eigen::MatrixXd J_C;
+    Eigen::MatrixVVd N_C; 
     Eigen::MatrixXd J_C_T;
     Eigen::MatrixXd Sa_T;
     Eigen::MatrixXd Sa;  
@@ -77,6 +84,7 @@ private:
 
     double W_qddot = 1.0;
     double W_cwr = 1e-5;
+    double W_torque = 1.0;
     double W_energy = 1.0;
 
     int contact_dim = 12;

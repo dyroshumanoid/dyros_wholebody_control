@@ -30,6 +30,9 @@ void TaskManager::runTestMotion(const TaskMotionType& motion_mode)
         case TaskMotionType::Walking:
             bipedalWalkingController();
             break;
+        case TaskMotionType::TeleOperation:
+            teleOperationController();
+            break;
         case TaskMotionType::None:
             break;
         default:
@@ -57,8 +60,8 @@ void TaskManager::movePelvHandPose()
     static WalkingManager wm_(rd_); 
     wm_.setCenterOfMassHeight(rd_.link_[COM_id].support_xpos_init(2));
     wm_.cp_desired_ = rd_.link_[COM_id].x_traj.head(2) + rd_.link_[COM_id].v_traj.head(2) / wm_.wn;
-    wm_.zmp_x_ref = rd_.link_[COM_id].support_xpos_init(0);
-    wm_.zmp_y_ref = rd_.link_[COM_id].support_xpos_init(1);
+    wm_.zmp_x_ref = rd_.link_[COM_id].x_traj(0);
+    wm_.zmp_y_ref = rd_.link_[COM_id].x_traj(1);
     wm_.contactWrenchCalculator();
 
     //--- COM_id Trajectory (Base Frame)
@@ -186,6 +189,27 @@ void TaskManager::bipedalWalkingController()
 
     wm_.computeWalkingMotion();
 }
+
+void TaskManager::teleOperationController()
+{    
+    static WalkingManager wm_(rd_); 
+    static TeleOperationManager teleop_(rd_); 
+
+    for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
+    {
+        rd_.link_[idx].x_traj = rd_.link_[idx].local_xpos_init;
+        rd_.link_[idx].r_traj = rd_.link_[idx].local_rotm_init;
+    }
+
+    teleop_.motionRetargeting();
+
+    wm_.setCenterOfMassHeight(rd_.link_[COM_id].support_xpos_init(2));
+    wm_.cp_desired_ = rd_.link_[COM_id].x_traj.head(2) + rd_.link_[COM_id].v_traj.head(2) / wm_.wn;
+    wm_.zmp_x_ref = rd_.link_[COM_id].x_traj(0);
+    wm_.zmp_y_ref = rd_.link_[COM_id].x_traj(1);
+    wm_.contactWrenchCalculator();
+}
+
 
 //--- Frame Transformation
 void TaskManager::mapBaseToSupport()

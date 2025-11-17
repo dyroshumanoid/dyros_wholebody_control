@@ -88,32 +88,36 @@ LF_id = data(:, 1:6);
 RF_id = data(:, 7:12);
 
 figure()
-plot(LF(:,3))
+plot(LF_id(:,3))
 hold on
-plot(LF_des(:,3))
-plot(RF(:,3))
-plot(RF_des(:,3))
+% plot(LF_des(:,3))
+plot(RF_id(:,3))
+% plot(RF_des(:,3))
 legend('lf mea', 'lf des', 'rf mea', 'rf des')
 %%
 clc
 clear all
 close all
-data = readmatrix('dataCC2.txt');
+data = readmatrix('torque_sum_log.txt');
 torque_sol = data(:, 1:33);
 
-data = readmatrix('torque_id.txt');
+data = readmatrix('torque_idn_log.txt');
 torque_id = data(:, 1:33);
 
 % 
-data = readmatrix('torque_pd.txt');
+data = readmatrix('torque_pd_log.txt');
 torque_pd = data(:, 1:33);
 
 figure()
 sgtitle('TORQUE LEG')
-for cnt = 1:1:6
-    plot(torque_sol(:,cnt))    
-    hold on 
-end
+% for cnt = 1:1:6
+cnt = 3
+% plot(torque_sol(:,cnt))    
+hold on 
+plot(torque_id(:,cnt))
+% plot(torque_pd(:,cnt))
+legend()
+% end
 
 % figure()
 % sgtitle('TORQUE WAIST')

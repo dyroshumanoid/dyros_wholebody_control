@@ -46,10 +46,14 @@
         <material name='MatPlane' reflectance='0.3' texture="texplane" texrepeat="1 1" texuniform="true"/>
         <material name='MatPlane2' reflectance='0.3' />
     </asset>
+    <asset>
+        <hfield name="bumpy_field" size="2 1 0.04 0.01" file="/home/kwan/catkin_ws/src/dyros_tocabi_v2/tocabi_description/mujoco_model/bumpy.png"/>
+    </asset>
 
     <worldbody>
-        <!-- <geom name="ground" type="plane" pos="0 0 -0.2" size="10 10 .05" rgba="0.7 0.6 0.5 1" material="MatPlane2" friction="0.8 0.8 0.8" group="3"/> -->
         <geom name="ground" type="plane" pos="0 0 0" size="10 10 .05" rgba="0.7 0.6 0.5 1" material="MatPlane2" friction="0.8 0.8 0.8" group="3"/>
+        <!-- <geom name="soft_ground" type="plane" pos="0 0 0" size="10 10 .05" rgba="0.7 0.6 0.5 1" solref="0.16 1" material="MatPlane2" friction="0.8 0.8 0.8" group="3"/> -->
+        <!-- <geom name="bumpy_ground" type="hfield" hfield="bumpy_field" pos="0.5 0 0.0"/> -->
         <light directional="true" diffuse=".8 .8 .8" pos="0 0 10" dir="0 0 -10"/>
         <light directional="true" diffuse=".3 .3 .3" pos="10 -10 5" dir="-10 10 -5"/>
         <body name="base_link">
@@ -415,7 +419,7 @@
 								-0.3 -0.3 -1.5 1.27 1 0 1 0"
                                 /-->
 
-        <key name="front" time="0" qpos ="0 0 0.92983 1 0 0 0 
+        <key name="front" time="0" qpos ="0 0 0.92683 1 0 0 0 
 								0.0 0.0 -0.24 0.6 -0.36 0.0 
 								0.0 0.0 -0.24 0.6 -0.36 0.0
 								0 0 0
@@ -423,12 +427,5 @@
                                 0 0
 								-0.3 -0.3 -1.5 1.27 1 0 1 0"/>
 
-        <key name="side" time="0" qpos ="0 0 0.92683 0.8660254 0 0 0.5 
-								0.0 0.1 -0.45 1.0 -0.55 -0.1 
-								0.0 -0.1 -0.45 1.0 -0.55 0.1
-								0 0 0
-								0.2 0.3 1.5 -1.27 -1 0 -1 0
-                                0 0
-								-0.2 -0.3 -1.5 1.27 1 0 1 0"/>
     </keyframe>
 </mujoco>

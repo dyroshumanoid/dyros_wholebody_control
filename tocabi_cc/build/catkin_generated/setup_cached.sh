@@ -8,8 +8,8 @@
 
 # modified environment variables
 export CMAKE_PREFIX_PATH="/home/kwan/catkin_ws/src/tocabi_cc/build/devel:$CMAKE_PREFIX_PATH"
-export LD_LIBRARY_PATH='/home/kwan/catkin_ws/src/tocabi_cc/build/devel/lib:/home/kwan/catkin_ws/devel/lib:/opt/ros/noetic/lib:/usr/local/cuda/lib64'
-export PATH='/home/kwan/catkin_ws/devel/bin:/opt/ros/noetic/bin:/home/kwan/.local/bin:/usr/local/cuda/bin:/home/kwan/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin'
+export LD_LIBRARY_PATH='/home/kwan/catkin_ws/src/tocabi_cc/build/devel/lib:/home/kwan/catkin_ws/devel/lib:/opt/ros/noetic/lib:/usr/local/lib:/usr/local/cuda-12.6/extras/CUPTI/lib64:/usr/local/cuda/lib64:/home/kwan/.mujoco/mujoco210/bin:/usr/lib/nvidia'
+export PATH='/home/kwan/catkin_ws/devel/bin:/opt/ros/noetic/bin:/home/kwan/.local/bin:/usr/bin/python3.8:/usr/local/cuda/bin:/home/kwan/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin'
 export PKG_CONFIG_PATH="/home/kwan/catkin_ws/src/tocabi_cc/build/devel/lib/pkgconfig:$PKG_CONFIG_PATH"
 export PWD='/home/kwan/catkin_ws/src/tocabi_cc/build'
 export ROSLISP_PACKAGE_DIRECTORIES="/home/kwan/catkin_ws/src/tocabi_cc/build/devel/share/common-lisp:$ROSLISP_PACKAGE_DIRECTORIES"
