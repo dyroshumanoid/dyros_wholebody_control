@@ -77,12 +77,13 @@ void KinWBC::computeTaskSpaceKinematicWBC()
         Ni *= (Eigen::MatrixVVd::Identity() - J_pinv * J_pre);
     }
 
-    qdot_des = safetyFilter();
+    // qdot_des = safetyFilter();
 
     rd_.q_dot_desired_virtual = qdot_des;
     rd_.q_dot_desired = rd_.q_dot_desired_virtual.tail(MODEL_DOF);
 
     rd_.q_desired_virtual = rd_.local_q_virtual_.head(MODEL_DOF_VIRTUAL) + rd_.q_dot_desired_virtual;
+    rd_.q_desired_virtual.tail(MODEL_DOF - 12) = q_init_des.tail(MODEL_DOF - 12);
     rd_.q_desired = rd_.q_desired_virtual.tail(MODEL_DOF);
 
     rd_.q_ddot_desired_virtual.setZero();
@@ -281,4 +282,10 @@ void KinWBC::checkGradHessSize()
 
         is_gradhess_init_ = false;
     }
+}
+
+void KinWBC::setInitialConfiguration(const Eigen::VectorQd &q_init_des_)
+{
+    q_init_des.setZero();
+    q_init_des = q_init_des_;
 }

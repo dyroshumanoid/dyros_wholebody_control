@@ -13,6 +13,7 @@ public:
 
     void computeTaskSpaceKinematicWBC();
     void setTaskHierarchy(const TaskMotionType& motion_mode);
+    void setInitialConfiguration(const Eigen::VectorQd &q_init_des_);
     
 private:
     RobotData &rd_;
@@ -44,4 +45,7 @@ private:
 
     Eigen::VectorVQd qdot_des;
     Eigen::VectorVQd qdot_safety;
+
+    Eigen::VectorQd q_init_des;
+
 };

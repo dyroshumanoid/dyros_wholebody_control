@@ -2,9 +2,9 @@
 
 using namespace TOCABI;
 
-ofstream torque_pd_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
-ofstream torque_idn_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
-ofstream torque_sum_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
+ ofstream torque_pd_log("/home/dyros/data/kwan/torque_pd_log.txt");
+ofstream torque_idn_log("/home/dyros/data/kwan/torque_idn_log.txt");
+ofstream torque_sum_log("/home/dyros/data/kwan/torque_sum_log.txt");
 
 CustomController::CustomController(RobotData &rd) : rd_(rd), cm_(rd), tm_(rd), kin_wbc_(rd), dyn_wbc_(rd), teleop_(rd)
 {
@@ -76,7 +76,7 @@ void CustomController::computeSlow()
         }
 
         torque_pd.setZero();
-        torque_pd = (rd_.Kp_diag) * (rd_.q_desired - rd_.q_) + (rd_.Kd_diag) * (rd_.q_dot_desired - rd_.q_dot_);
+        torque_pd = (rd_.Kd_diag) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
 
         torque_idn.setZero();
         if(!is_kinematic_control)
@@ -248,6 +248,8 @@ void CustomController::moveInitialPose()
         q_init_des(31) = -0.4;
         q_init_des(32) = 0.2;
     }
+
+    kin_wbc_.setInitialConfiguration(q_init_des);
     
     rd_.q_desired = DyrosMath::cubicVector<MODEL_DOF>(initial_tick, 0, 2.0 * hz_, q_init_, q_init_des, Eigen::VectorQd::Zero(), Eigen::VectorQd::Zero()); 
     rd_.torque_desired = (rd_.Kp_diag * (rd_.q_desired - rd_.q_)) - (rd_.Kd_diag * rd_.q_dot_);

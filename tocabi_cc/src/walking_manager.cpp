@@ -98,7 +98,7 @@ void WalkingManager::getZmpTrajectory()
     int total_ticks = static_cast<int>(step_duration* hz_) + static_cast<int>(dsp_duration * hz_);
     int foot_contact_idx = local_LF_contact ? -1 : +1;
 
-    double zmp_offset_y = 0.0;
+    double zmp_offset_y = 0.03;
 
     if (step_cnt == 0) // DSP
     {
