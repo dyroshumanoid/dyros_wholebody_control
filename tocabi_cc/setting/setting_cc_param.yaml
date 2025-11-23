@@ -60,7 +60,7 @@ task_param:
   traj_time: 3.0
   pelv_dist: 0.12
   hand_dist: 0.2
-  step_length: 0.1
+  step_length: 0.0
   foot_height: 0.055
   step_duration: 0.6
   dsp_duration: 0.3

@@ -2,9 +2,15 @@
 
 using namespace TOCABI;
 
- ofstream torque_pd_log("/home/dyros/data/kwan/torque_pd_log.txt");
-ofstream torque_idn_log("/home/dyros/data/kwan/torque_idn_log.txt");
-ofstream torque_sum_log("/home/dyros/data/kwan/torque_sum_log.txt");
+ ofstream torque_pd_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
+ofstream torque_idn_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
+ofstream torque_sum_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
+ofstream joint_pos_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_pos_log.txt");
+ofstream joint_pos_des_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_pos_des_log.txt");
+ofstream joint_vel_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_vel_log.txt");
+ofstream joint_vel_des_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_vel_des_log.txt");
+ofstream joint_acc_des_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_acc_des_log.txt");
+ofstream contact_wrench_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/contact_wrench_log.txt");
 
 CustomController::CustomController(RobotData &rd) : rd_(rd), cm_(rd), tm_(rd), kin_wbc_(rd), dyn_wbc_(rd), teleop_(rd)
 {
@@ -119,9 +125,15 @@ void CustomController::computeSlow()
 
         rd_.torque_desired = torque_sum;
 
-        torque_pd_log  << torque_pd.transpose() << std::endl;
-        torque_idn_log << torque_idn.transpose() << std::endl;
-        torque_sum_log << torque_sum.transpose() << std::endl;
+        torque_pd_log  << std::fixed << std::setprecision(4) << torque_pd.transpose() << std::endl;
+        torque_idn_log << std::fixed << std::setprecision(4) << torque_idn.transpose() << std::endl;
+        torque_sum_log << std::fixed << std::setprecision(4) << torque_sum.transpose() << std::endl;
+        joint_pos_log  << std::fixed << std::setprecision(4) << rd_.local_q_virtual_.transpose() << std::endl;
+        joint_pos_des_log  << std::fixed << std::setprecision(4) << rd_.q_desired_virtual.transpose() << std::endl;
+        joint_vel_log  << std::fixed << std::setprecision(4) << rd_.local_q_dot_virtual_.transpose() << std::endl;
+        joint_vel_des_log  << std::fixed << std::setprecision(4) << rd_.q_dot_desired_virtual.transpose() << std::endl;
+        joint_acc_des_log  << std::fixed << std::setprecision(4) << rd_.q_ddot_desired_virtual.transpose() << std::endl;
+        contact_wrench_log << std::fixed << std::setprecision(4) << rd_.LF_FT_DES.transpose() << " " << rd_.RF_FT_DES.transpose() << std::endl;
     }
     else
     {

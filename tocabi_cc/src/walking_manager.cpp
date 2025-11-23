@@ -1,13 +1,8 @@
 #include "walking_manager.h"
 
-ofstream dataWM1("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM1.txt");
-ofstream dataWM2("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM2.txt");
-ofstream dataWM3("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM3.txt");
-ofstream dataWM4("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM4.txt");
-ofstream dataWM5("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM5.txt");
-ofstream dataWM6("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM6.txt");
-ofstream dataWM7("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM7.txt");
-ofstream dataWM8("/home/kwan/catkin_ws/src/tocabi_cc/data/dataWM8.txt");
+ofstream cp_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/cp_log.txt");
+ofstream zmp_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/zmp_log.txt");
+ofstream com_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/com_log.txt");
 
 WalkingManager::WalkingManager(RobotData &rd) : rd_(rd)
 {
@@ -35,14 +30,15 @@ void WalkingManager::computeWalkingMotion()
 
     mapSupportToBase();
 
-    dataWM5 << rd_.link_[COM_id].x_traj(0) << "," << rd_.link_[COM_id].x_traj(1) << "," << rd_.link_[COM_id].x_traj(2) << ","
-            << rd_.link_[COM_id].local_xpos(0) << "," << rd_.link_[COM_id].local_xpos(1) << "," << rd_.link_[COM_id].local_xpos(2)
-            << std::endl;
-    dataWM6 << rd_.link_[Left_Foot].x_traj(0) << "," << rd_.link_[Left_Foot].x_traj(1) << "," << rd_.link_[Left_Foot].x_traj(2) << ","
-            << rd_.link_[Left_Foot].local_xpos(0) << "," << rd_.link_[Left_Foot].local_xpos(1) << "," << rd_.link_[Left_Foot].local_xpos(2)
-            << std::endl;
-
     updateStepTick();
+
+    if (is_preview_transition == true)
+    {
+        com_x_dx_ddx(0) -= step_queue.front()[0];
+        com_y_dy_ddy(0) -= step_queue.front()[1];      
+
+        is_preview_transition = false;
+    }
 }
 
 void WalkingManager::calcFootstepQueue()
@@ -163,9 +159,6 @@ void WalkingManager::getZmpTrajectory()
             }
 
             is_zmp_update = false;
-
-            // dataWM7 << std::setprecision(5) << zmp_x_traj.transpose() << std::endl;
-            // dataWM8 << std::setprecision(5) << zmp_y_traj.transpose() << std::endl;
         }
     }
     else
@@ -208,9 +201,6 @@ void WalkingManager::getZmpTrajectory()
             }
             
             is_zmp_update = false;
-
-            dataWM7 << std::setprecision(5) << zmp_x_traj.transpose() << std::endl;
-            dataWM8 << std::setprecision(5) << zmp_y_traj.transpose() << std::endl;
         }
     }
 }
@@ -277,16 +267,6 @@ void WalkingManager::getFootTrajectory()
             rd_.link_[swing_foot_link_idx].r_traj.setIdentity();
         }
     }
-
-    dataWM1 << std::setprecision(3)
-            << rd_.link_[Left_Foot].x_traj(0) << "," << rd_.link_[Left_Foot].x_traj(1) << "," << rd_.link_[Left_Foot].x_traj(2) << ","
-            << rd_.link_[Left_Foot].support_xpos(0) << "," << rd_.link_[Left_Foot].support_xpos(1) << "," << rd_.link_[Left_Foot].support_xpos(2)
-            << std::endl;
-
-    dataWM2 << std::setprecision(3)
-            << rd_.link_[Right_Foot].x_traj(0) << "," << rd_.link_[Right_Foot].x_traj(1) << "," << rd_.link_[Right_Foot].x_traj(2) << ","
-            << rd_.link_[Right_Foot].support_xpos(0) << "," << rd_.link_[Right_Foot].support_xpos(1) << "," << rd_.link_[Right_Foot].support_xpos(2)
-            << std::endl;
 }
 
 void WalkingManager::getComTrajectory()
@@ -304,13 +284,6 @@ void WalkingManager::getComTrajectory()
         first_com = false;
     }
 
-    if (is_preview_transition == true)
-    {
-        com_x_dx_ddx(0) = rd_.link_[COM_id].support_xpos(0);
-        com_y_dy_ddy(0) = rd_.link_[COM_id].support_xpos(1);
-
-        is_preview_transition = false;
-    }
     int NL = static_cast<int>(1.6 * hz_);
     Eigen::VectorXd zmp_x_window;
     zmp_x_window.setZero(NL);
@@ -360,20 +333,10 @@ void WalkingManager::getComTrajectory()
     p_err_sum_y_(0) += ((C * com_y_dy_ddy_next)(0) - zmp_y_traj(step_tick + 1));
 
     rd_.link_[Pelvis].r_traj.setIdentity();
-    dataWM3 << std::setprecision(3)
-            << rd_.link_[COM_id].x_traj(0) << "," << rd_.link_[COM_id].x_traj(1) << "," << rd_.link_[COM_id].x_traj(2) << ","
-            << rd_.link_[COM_id].support_xpos(0) << "," << rd_.link_[COM_id].support_xpos(1) << "," << rd_.link_[COM_id].support_xpos(2)
-            << std::endl;
 
     // Calc Capture Point
     cp_desired_(0) = com_x_dx_ddx(0) + com_x_dx_ddx(1) / wn;
     cp_desired_(1) = com_y_dy_ddy(0) + com_y_dy_ddy(1) / wn;
-
-    dataWM4 << std::setprecision(3)
-            << zmp_x_ref << "," << zmp_y_ref << ","
-            << cp_desired_(0) << "," << cp_desired_(1) << ","
-            << cp_measured_(0) << "," << cp_measured_(1)
-            << std::endl;
 }
 
 void WalkingManager::contactWrenchCalculator()
@@ -418,6 +381,10 @@ void WalkingManager::contactWrenchCalculator()
 
     rd_.LF_FT_DES = lfoot_contact_wrench;
     rd_.RF_FT_DES = rfoot_contact_wrench;
+
+    cp_log << cp_measured_.transpose() << " " << cp_desired_.transpose() << std::endl;
+    zmp_log << zmp_x_ref << " " << zmp_y_ref << std::endl;
+    com_log << rd_.link_[COM_id].support_xpos.transpose() << " " << rd_.link_[COM_id].support_v.transpose() << std::endl;
 }
 
 void WalkingManager::footstepOptimizer()
@@ -685,7 +652,6 @@ void WalkingManager::updateStepTick()
             if (step_tick >= static_cast<int>(step_duration * hz_))
             {
                 rd_.is_double_contact_transition = true;
-                std::cout << "step_tick: " << step_tick << std::endl;
             }
         }
         else    // DSP
@@ -695,8 +661,6 @@ void WalkingManager::updateStepTick()
                 if (support_phase_indicator_ == ContactIndicator::RightSingleSupport)
                 {
                     rd_.is_left_contact_transition = true;
-                    std::cout << "step_cnt: " << step_cnt << std::endl;
-                    std::cout << "step_tick: " << step_tick << std::endl;
 
                     is_phase_indicator_transition = true;
                     is_support_transition = true;
@@ -707,8 +671,6 @@ void WalkingManager::updateStepTick()
                 else if (support_phase_indicator_ == ContactIndicator::LeftSingleSupport)
                 {
                     rd_.is_right_contact_transition = true;
-                    std::cout << "step_cnt: " << step_cnt << std::endl;
-                    std::cout << "step_tick: " << step_tick << std::endl;
 
                     is_phase_indicator_transition = true;
                     is_support_transition = true;

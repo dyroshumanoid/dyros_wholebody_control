@@ -12,12 +12,13 @@ public:
     KinWBC(RobotData& rd);
 
     void computeTaskSpaceKinematicWBC();
-    void setTaskHierarchy(const TaskMotionType& motion_mode);
+    void setTaskHierarchy(const TaskMotionType& motion_mode_);
     void setInitialConfiguration(const Eigen::VectorQd &q_init_des_);
     
 private:
     RobotData &rd_;
     std::vector<std::vector<TaskInfo>> task_hierarchy;
+    TaskMotionType motion_mode;
 
     bool is_cannot_solve_qp_ = true;
 

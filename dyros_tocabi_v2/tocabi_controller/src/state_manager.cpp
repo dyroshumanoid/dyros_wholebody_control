@@ -2068,7 +2068,9 @@ void StateManager::StateEstimate()
 
         double dr, dl;
         // dr =
-
+        
+        // KW TEMP TEST
+        // LF_CF_FT.setZero();
         dr = DyrosMath::minmax_cut(RF_CF_FT(2) / (-total_mass_ * GRAVITY), 0.0, 1.0); // * dc.tocabi_.ee_[1].contact_accuracy;
         dl = DyrosMath::minmax_cut(LF_CF_FT(2) / (-total_mass_ * GRAVITY), 0.0, 1.0); // * dc.tocabi_.ee_[0].contact_accuracy;
 

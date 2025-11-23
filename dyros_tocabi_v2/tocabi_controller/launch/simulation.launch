@@ -31,11 +31,11 @@
 
     <rosparam command="load" file="$(find tocabi_cc)/setting/setting_cc_param.yaml" ns="/tocabi_controller" />
 
-    <rosparam command="load" file="$(find tocabi_avatar)/setting/setting_simulation_biped_controller.yaml" ns="/tocabi_controller" />
+    <!-- <rosparam command="load" file="$(find tocabi_avatar)/setting/setting_simulation_biped_controller.yaml" ns="/tocabi_controller" />
     <rosparam command="load" file="$(find tocabi_avatar)/setting/setting_simulation_biped_walking.yaml" ns="/tocabi_controller" />
     <rosparam command="load" file="$(find tocabi_avatar)/setting/setting_simulation_joint.yaml" ns="/tocabi_controller" />
     <rosparam command="load" file="$(find tocabi_avatar)/setting/setting_simulation_nmpc.yaml" ns="/tocabi_controller" />
-    <rosparam command="load" file="$(find tocabi_avatar)/setting/setting_simulation_wbid.yaml" ns="/tocabi_controller" />
+    <rosparam command="load" file="$(find tocabi_avatar)/setting/setting_simulation_wbid.yaml" ns="/tocabi_controller" /> -->
 
     <rosparam command="load" file="$(find tocabi_cc)/setting/setting_cc_param.yaml" ns="/tocabi_controller" />
 

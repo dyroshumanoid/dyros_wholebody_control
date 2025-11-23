@@ -780,7 +780,8 @@ void *TocabiController::Thread1() // Thread1, running with 2Khz.
                     if (rd_.tc_.mode == 11 || rd_.tc_.mode == 13)
                     {
                         static int thread3_count = 1;
-                        static int thread3_goal = static_cast<int>(2000.0 / ac_.getMpcFrequency()); 
+                        // static int thread3_goal = static_cast<int>(2000.0 / ac_.getMpcFrequency()); 
+                        static int thread3_goal = 40; 
 
                         if (thread3_count == thread3_goal)
                         {

@@ -10,7 +10,6 @@
 #include "tocabi_lib/robot_data.h"
 #include "wholebody_functions.h"
 
-
 #include "control_manager.h"
 #include "task_manager.h"
 #include "kin_wbc.h"
@@ -105,7 +104,6 @@ public:
     bool is_kinematic_control = true;
     std::atomic<bool> atb_control_command_update_{false};
     std::atomic<bool> atb_torque_update_{false};
-
 
 private:
     Eigen::VectorQd ControlVal_;

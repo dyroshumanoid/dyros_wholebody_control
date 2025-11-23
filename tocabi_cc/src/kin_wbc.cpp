@@ -11,15 +11,16 @@ KinWBC::KinWBC(RobotData& rd) : rd_(rd)
         {{Head, TaskType::Orientation}}};
 }
 
-void KinWBC::setTaskHierarchy(const TaskMotionType& motion_mode)
+void KinWBC::setTaskHierarchy(const TaskMotionType& motion_mode_)
 {
+    motion_mode = motion_mode_;
+
     if(motion_mode == TaskMotionType::Walking)
     {
         task_hierarchy = {
             {{COM_id, TaskType::Position}, {Pelvis, TaskType::Orientation}},
-            {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}},
-            {{Upper_Body, TaskType::Orientation}},
-            {{Head, TaskType::Orientation}}};
+            {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}}
+        };
     }
     else
     {
@@ -77,17 +78,29 @@ void KinWBC::computeTaskSpaceKinematicWBC()
         Ni *= (Eigen::MatrixVVd::Identity() - J_pinv * J_pre);
     }
 
+    if(motion_mode == TaskMotionType::Walking)
+    {
+        const int UPPERBODY_DOF = MODEL_DOF - 12;
+        Eigen::MatrixXd J; J.setZero(UPPERBODY_DOF, MODEL_DOF_VIRTUAL);
+        J.rightCols(UPPERBODY_DOF).setIdentity();
+
+        Eigen::MatrixXd J_pre = J * Ni;
+        Eigen::MatrixXd J_pinv = DyrosMath::pinv_SVD(J_pre);
+
+        qdot_des += J_pinv * ((q_init_des.tail(UPPERBODY_DOF) - rd_.q_.tail(UPPERBODY_DOF)) - J * qdot_des);
+    }
+
     // qdot_des = safetyFilter();
 
     rd_.q_dot_desired_virtual = qdot_des;
     rd_.q_dot_desired = rd_.q_dot_desired_virtual.tail(MODEL_DOF);
 
     rd_.q_desired_virtual = rd_.local_q_virtual_.head(MODEL_DOF_VIRTUAL) + rd_.q_dot_desired_virtual;
-    rd_.q_desired_virtual.tail(MODEL_DOF - 12) = q_init_des.tail(MODEL_DOF - 12);
     rd_.q_desired = rd_.q_desired_virtual.tail(MODEL_DOF);
 
     rd_.q_ddot_desired_virtual.setZero();
-    rd_.q_ddot_desired_virtual = rd_.Kp_virtual_diag * (rd_.q_desired_virtual - rd_.local_q_virtual_.head(MODEL_DOF_VIRTUAL)) + rd_.Kd_virtual_diag * (rd_.q_dot_desired_virtual - rd_.local_q_dot_virtual_);
+    rd_.q_ddot_desired_virtual = rd_.Kp_virtual_diag * (rd_.q_desired_virtual - rd_.local_q_virtual_.head(MODEL_DOF_VIRTUAL)) 
+                               + rd_.Kd_virtual_diag * (Eigen::VectorVQd::Zero() - rd_.local_q_dot_virtual_);
 
 }
 
