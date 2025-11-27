@@ -1,10 +1,13 @@
-#include "collision_manager.h"
+#include "collision_manager/collision_manager.h"
 
 using namespace TOCABI;
 
+ofstream data1("/home/sanghyuk/MATLAB/data/col_mgr_data1.txt");
+ofstream data2("/home/sanghyuk/MATLAB/data/col_mgr_data2.txt");
+
 CollisionManager::CollisionManager(const RobotData &rd) : rd_(rd)
 {
-    aruco_pose_pub_ = nh_cm_.advertise<geometry_msgs::PoseStamped>("/tocabi_cc/aruco_pose", 10);
+    nh_cm_.setCallbackQueue(&queue_cm_);
 
     // initialize Pinocchio model and data
     std::string urdf_path;
@@ -24,6 +27,28 @@ CollisionManager::CollisionManager(const RobotData &rd) : rd_(rd)
 
     // set DistanceRequest to enable computing nearest points
     request_enable_nearest_point_.enable_nearest_points = true;
+
+
+    base_to_head_pose_pub_ = nh_cm_.advertise<geometry_msgs::PoseStamped>("/tocabi_cc/base_to_head", 1);
+    aruco_detect_sub_ = nh_cm_.subscribe("/camera/qr_pose", 1, &CollisionManager::BasetoQRTransformCallback, this);
+    ros::param::get("/kalman_filter/tracking_duration", tracking_duration);
+    ros::param::get("/kalman_filter/process_variance", process_var);
+    ros::param::get("/kalman_filter/process_rate_variance", process_rate_var);
+    ros::param::get("/kalman_filter/measurement_variance", measurement_var);
+
+    TrackedObstacle::setSamplingTime(1.0/hz_);
+    TrackedObstacle::setCounterSize(static_cast<int>(hz_* tracking_duration));
+    TrackedObstacle::setCovariances(process_var, process_rate_var, measurement_var);
+#ifdef COMPILE_SIMULATION
+    aruco_pose_pub_ = nh_cm_.advertise<geometry_msgs::PoseStamped>("/tocabi_cc/aruco_pose", 10);
+    col_status_pub_ = nh_cm_.advertise<std_msgs::UInt8MultiArray>("/tocabi_cc/collision_status", 10);
+    col_status_msg_.data.resize(Col_Obj_Count);
+#endif
+}
+
+void CollisionManager::queueCallAvailable()
+{
+    queue_cm_.callAvailable(ros::WallDuration());
 }
 
 //========================================== Pinocchio ===========================================//
@@ -39,6 +64,17 @@ void CollisionManager::convertQVirtualRBDLtoPin(const Eigen::VectorQVQd &q_virtu
 
 //====================================== Collision Related =======================================//
 
+void CollisionManager::pubSelfCollisionStatus()
+{
+    for(unsigned int id = 0; id < Col_Obj_Count; id++){
+        col_status_msg_.data[id] = static_cast<uint8_t>(cb_robot_[id].in_collision);
+    }
+    col_status_pub_.publish(col_status_msg_);
+
+    // reset collision flags
+    std::fill(collision_flags_.begin(), collision_flags_.end(), 0);
+}
+
 void CollisionManager::updateRobotCObjsTF()
 {
     for(unsigned int i = Left_Pelvis_Col_ID; i < Col_Obj_Count; i++)
@@ -50,11 +86,71 @@ void CollisionManager::updateRobotCObjsTF()
     }
 }
 
+
 void CollisionManager::computeSelfColAvoidJac()
-{   
+{
     convertQVirtualRBDLtoPin(rd_.q_virtual_);
 
-    for(int i = 0; i < num_pairs_; i++)
+    for(unsigned int i = 0; i < num_pairs_; i++)
+    {
+        CollisionObjectIdx id1 = col_id_pairs_[i].first;
+        CollisionObjectIdx id2 = col_id_pairs_[i].second;
+        
+        Vector3d nearest_point1, nearest_point2;
+
+        if(cb_robot_[id1].type == CollisionBody::Type::Sphere && cb_robot_[id2].type == CollisionBody::Type::Sphere){
+            ColResultSphere2Sphere(id1, id2, min_distances_(i), nearest_point1, nearest_point2);
+        }
+        else if(cb_robot_[id1].type == CollisionBody::Type::Sphere && cb_robot_[id2].type == CollisionBody::Type::Capsule){
+            ColResultSphere2Capsule(id1, id2, min_distances_(i), nearest_point1, nearest_point2);
+        }
+        else if(cb_robot_[id1].type == CollisionBody::Type::Capsule && cb_robot_[id2].type == CollisionBody::Type::Sphere){
+            ColResultSphere2Capsule(id2, id1, min_distances_(i), nearest_point2, nearest_point1);
+        }
+        else if(cb_robot_[id1].type == CollisionBody::Type::Capsule && cb_robot_[id2].type == CollisionBody::Type::Capsule){
+            ColResultCapsule2Capsule(id1, id2, min_distances_(i), nearest_point1, nearest_point2);
+        }
+
+        if (min_distances_(i) < 0.0){
+            collision_flags_[id1] += 1;
+            collision_flags_[id2] += 1;
+        }
+
+        J_self_col_.block<1, MODEL_DOF_VIRTUAL>(i, 0) = computeColPairJac(id1, nearest_point1,
+                                                                          id2, nearest_point2,
+                                                                          DyrosMath::sign(min_distances_(i))
+                                                                          );
+    }
+
+    for(unsigned int id = 0; id < Col_Obj_Count; id++) cb_robot_[id].in_collision = collision_flags_[id] > 0;
+
+}
+
+// using HPP-FCL
+// void CollisionManager::computeSelfColAvoidJac()
+// {   
+//     convertQVirtualRBDLtoPin(rd_.q_virtual_);
+
+//     for(unsigned int i = 0; i < num_pairs_; i++)
+//     {
+//         CollisionObjectIdx id1 = col_id_pairs_[i].first;
+//         CollisionObjectIdx id2 = col_id_pairs_[i].second;
+
+//         hpp::fcl::DistanceResult dist_res_tmp = getDistanceResultBetweenCObjs(id1, id2);
+
+//         min_distances_(i) = dist_res_tmp.min_distance;
+        
+//         J_self_col_.block(i,0, 1,MODEL_DOF_VIRTUAL) = computeColPairJacHPPFCL(id1, dist_res_tmp.nearest_points[0],
+//                                                                               id2, dist_res_tmp.nearest_points[1],
+//                                                                               DyrosMath::sign(min_distances_(i))
+//                                                                               );
+        
+//     }
+// }
+
+void CollisionManager::checkSelfCollision()
+{
+    for(unsigned int i = 0; i < num_pairs_; i++)
     {
         CollisionObjectIdx id1 = col_id_pairs_[i].first;
         CollisionObjectIdx id2 = col_id_pairs_[i].second;
@@ -74,34 +170,15 @@ void CollisionManager::computeSelfColAvoidJac()
             ColResultCapsule2Capsule(id1, id2, min_distances_(i), nearest_point1, nearest_point2);
         }
         
-        J_self_col_.block<1, MODEL_DOF_VIRTUAL>(i, 0) = computeColPairJac(id1, nearest_point1,
-                                                                          id2, nearest_point2,
-                                                                          DyrosMath::sign(min_distances_(i))
-                                                                          );
+        if (min_distances_(i) < 0.0){
+            collision_flags_[id1] += 1;
+            collision_flags_[id2] += 1;
+        }
     }
+
+    for(unsigned int id = 0; id < Col_Obj_Count; id++) cb_robot_[id].in_collision = collision_flags_[id] > 0;
+
 }
-
-// using HPP-FCL
-// void CollisionManager::computeSelfColAvoidJac()
-// {   
-//     convertQVirtualRBDLtoPin(rd_.q_virtual_);
-
-//     for(int i = 0; i < num_pairs_; i++)
-//     {
-//         CollisionObjectIdx id1 = col_id_pairs_[i].first;
-//         CollisionObjectIdx id2 = col_id_pairs_[i].second;
-
-//         hpp::fcl::DistanceResult dist_res_tmp = getDistanceResultBetweenCObjs(id1, id2);
-
-//         min_distances_(i) = dist_res_tmp.min_distance;
-        
-//         J_self_col_.block(i,0, 1,MODEL_DOF_VIRTUAL) = computeColPairJacHPPFCL(id1, dist_res_tmp.nearest_points[0],
-//                                                                               id2, dist_res_tmp.nearest_points[1],
-//                                                                               DyrosMath::sign(min_distances_(i))
-//                                                                               );
-        
-//     }
-// }
 
 void CollisionManager::initColBody()
 {
@@ -114,15 +191,16 @@ void CollisionManager::initColBody()
     cb_robot_[Left_Pelvis_Col_ID].trans_local  = Eigen::Vector3d(0.05, 0.02, 0.1);
     cb_robot_[Left_Pelvis_Col_ID].rot_local = Eigen::Matrix3d::Identity();
     cb_robot_[Left_Pelvis_Col_ID].type = CollisionBody::Type::Capsule;
-    cb_robot_[Left_Pelvis_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.18, 0.025); // radius, height
+    cb_robot_[Left_Pelvis_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.18, 0.05); // radius, height
 
     // Right Pelvis
     cb_robot_[Right_Pelvis_Col_ID].link_name = "Pelvis_Link";
     cb_robot_[Right_Pelvis_Col_ID].link_id = TOCABI::Pelvis;
     cb_robot_[Right_Pelvis_Col_ID].joint_id = model_.frames[model_.getFrameId("Pelvis_Link")].parent;
+    cb_robot_[Left_Pelvis_Col_ID].trans_local  = Eigen::Vector3d(0.05, -0.02, 0.1);
     cb_robot_[Right_Pelvis_Col_ID].rot_local = Eigen::Matrix3d::Identity();
     cb_robot_[Right_Pelvis_Col_ID].type = CollisionBody::Type::Capsule;
-    cb_robot_[Right_Pelvis_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.18, 0.025); // radius, height
+    cb_robot_[Right_Pelvis_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.18, 0.05); // radius, height
 
     // Left Upper Leg
     cb_robot_[Left_Upper_Leg_Col_ID].link_name = "L_Thigh_Link";
@@ -131,7 +209,7 @@ void CollisionManager::initColBody()
     cb_robot_[Left_Upper_Leg_Col_ID].trans_local = Eigen::Vector3d(0.0, 0.0, -0.1323);
     cb_robot_[Left_Upper_Leg_Col_ID].rot_local = Eigen::Matrix3d::Identity();
     cb_robot_[Left_Upper_Leg_Col_ID].type = CollisionBody::Type::Capsule;
-    cb_robot_[Left_Upper_Leg_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.075, 0.17); // radius, height
+    cb_robot_[Left_Upper_Leg_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.075, 0.34); // radius, height
 
     // Left Lower Leg
     cb_robot_[Left_Lower_Leg_Col_ID].link_name = "L_Knee_Link";
@@ -140,7 +218,7 @@ void CollisionManager::initColBody()
     cb_robot_[Left_Lower_Leg_Col_ID].trans_local = Eigen::Vector3d(0.0, 0.0, -0.23);
     cb_robot_[Left_Lower_Leg_Col_ID].rot_local = Eigen::Matrix3d::Identity();
     cb_robot_[Left_Lower_Leg_Col_ID].type = CollisionBody::Type::Capsule;
-    cb_robot_[Left_Lower_Leg_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.075, 0.15); // radius, height
+    cb_robot_[Left_Lower_Leg_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.075, 0.3); // radius, height
 
     // Left Inner Foot
     cb_robot_[Left_Inner_Foot_Col_ID].link_name = "L_Foot_Link";
@@ -149,7 +227,7 @@ void CollisionManager::initColBody()
     cb_robot_[Left_Inner_Foot_Col_ID].trans_local = Eigen::Vector3d(0.03, -0.0455, -0.15);
     cb_robot_[Left_Inner_Foot_Col_ID].rot_local = DyrosMath::rotateWithY(-M_PI / 2.0);
     cb_robot_[Left_Inner_Foot_Col_ID].type = CollisionBody::Type::Capsule;
-    cb_robot_[Left_Inner_Foot_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.0432, 0.12); // radius, height
+    cb_robot_[Left_Inner_Foot_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.0432, 0.24); // radius, height
     
     // Left Outer Foot
     cb_robot_[Left_Outer_Foot_Col_ID].link_name = "L_Foot_Link";
@@ -158,7 +236,7 @@ void CollisionManager::initColBody()
     cb_robot_[Left_Outer_Foot_Col_ID].trans_local = Eigen::Vector3d(0.03, 0.0455, -0.15);
     cb_robot_[Left_Outer_Foot_Col_ID].rot_local = DyrosMath::rotateWithY(-M_PI / 2.0);
     cb_robot_[Left_Outer_Foot_Col_ID].type = CollisionBody::Type::Capsule;
-    cb_robot_[Left_Outer_Foot_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.0432, 0.12); // radius, height
+    cb_robot_[Left_Outer_Foot_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.0432, 0.24); // radius, height
 
     // Right Upper Leg
     cb_robot_[Right_Upper_Leg_Col_ID].link_name = "R_Thigh_Link";
@@ -167,7 +245,7 @@ void CollisionManager::initColBody()
     cb_robot_[Right_Upper_Leg_Col_ID].trans_local = Eigen::Vector3d(0.0, 0.0, -0.1323);
     cb_robot_[Right_Upper_Leg_Col_ID].rot_local = Eigen::Matrix3d::Identity();
     cb_robot_[Right_Upper_Leg_Col_ID].type = CollisionBody::Type::Capsule;
-    cb_robot_[Right_Upper_Leg_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.075, 0.17); // radius, height
+    cb_robot_[Right_Upper_Leg_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.075, 0.34); // radius, height
 
     // Right Lower Leg
     cb_robot_[Right_Lower_Leg_Col_ID].link_name = "R_Knee_Link";
@@ -176,7 +254,7 @@ void CollisionManager::initColBody()
     cb_robot_[Right_Lower_Leg_Col_ID].trans_local = Eigen::Vector3d(0.0, 0.0, -0.23);
     cb_robot_[Right_Lower_Leg_Col_ID].rot_local = Eigen::Matrix3d::Identity();
     cb_robot_[Right_Lower_Leg_Col_ID].type = CollisionBody::Type::Capsule;
-    cb_robot_[Right_Lower_Leg_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.075, 0.15); // radius, height
+    cb_robot_[Right_Lower_Leg_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.075, 0.30); // radius, height
 
     // Right Inner Foot
     cb_robot_[Right_Inner_Foot_Col_ID].link_name = "R_Foot_Link";
@@ -185,7 +263,7 @@ void CollisionManager::initColBody()
     cb_robot_[Right_Inner_Foot_Col_ID].trans_local = Eigen::Vector3d(0.03, 0.0455, -0.15);
     cb_robot_[Right_Inner_Foot_Col_ID].rot_local = DyrosMath::rotateWithY(-M_PI / 2.0);
     cb_robot_[Right_Inner_Foot_Col_ID].type = CollisionBody::Type::Capsule;
-    cb_robot_[Right_Inner_Foot_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.0432, 0.12); // radius, height
+    cb_robot_[Right_Inner_Foot_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.0432, 0.24); // radius, height
 
     // Right Outer Foot
     cb_robot_[Right_Outer_Foot_Col_ID].link_name = "R_Foot_Link";
@@ -194,7 +272,7 @@ void CollisionManager::initColBody()
     cb_robot_[Right_Outer_Foot_Col_ID].trans_local = Eigen::Vector3d(0.03, -0.0455, -0.15);
     cb_robot_[Right_Outer_Foot_Col_ID].rot_local = DyrosMath::rotateWithY(-M_PI / 2.0);
     cb_robot_[Right_Outer_Foot_Col_ID].type = CollisionBody::Type::Capsule;
-    cb_robot_[Right_Outer_Foot_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.0432, 0.12); // radius, height
+    cb_robot_[Right_Outer_Foot_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.0432, 0.24); // radius, height
 
     // // Left Upper Body
     // cb_robot_[Left_Upper_Body_Col_ID].link_name = "Upperbody_Link";
@@ -203,7 +281,7 @@ void CollisionManager::initColBody()
     // cb_robot_[Left_Upper_Body_Col_ID].trans_local = Eigen::Vector3d(0.023, 0.154, 0.19);
     // cb_robot_[Left_Upper_Body_Col_ID].rot_local = Eigen::Matrix3d::Identity();
     // cb_robot_[Left_Upper_Body_Col_ID].type = CollisionBody::Type::Capsule;
-    // cb_robot_[Left_Upper_Body_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.06, 0.015); // radius, height
+    // cb_robot_[Left_Upper_Body_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.06, 0.03); // radius, height
 
     // // Right Upper Body
     // cb_robot_[Right_Upper_Body_Col_ID].link_name = "Upperbody_Link";
@@ -212,7 +290,7 @@ void CollisionManager::initColBody()
     // cb_robot_[Right_Upper_Body_Col_ID].trans_local = Eigen::Vector3d(0.023, -0.154, 0.19);
     // cb_robot_[Right_Upper_Body_Col_ID].rot_local = Eigen::Matrix3d::Identity();
     // cb_robot_[Right_Upper_Body_Col_ID].type = CollisionBody::Type::Capsule;
-    // cb_robot_[Right_Upper_Body_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.06, 0.015); // radius, height
+    // cb_robot_[Right_Upper_Body_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.06, 0.03); // radius, height
 
     // Left Upper Arm
     cb_robot_[Left_Upper_Arm_Col_ID].link_name = "L_Armlink_Link";
@@ -221,7 +299,7 @@ void CollisionManager::initColBody()
     cb_robot_[Left_Upper_Arm_Col_ID].trans_local = Eigen::Vector3d(0.005, 0.12, -0.01);
     cb_robot_[Left_Upper_Arm_Col_ID].rot_local = DyrosMath::rotateWithX(75 * DEG2RAD);
     cb_robot_[Left_Upper_Arm_Col_ID].type = CollisionBody::Type::Capsule;
-    cb_robot_[Left_Upper_Arm_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.062, 0.1); // radius, height
+    cb_robot_[Left_Upper_Arm_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.062, 0.2); // radius, height
 
     // Left ForeArm
     cb_robot_[Left_ForeArm_Col_ID].link_name = "L_Forearm_Link";
@@ -230,7 +308,7 @@ void CollisionManager::initColBody()
     cb_robot_[Left_ForeArm_Col_ID].trans_local = Eigen::Vector3d(0.0, 0.05, 0.0);
     cb_robot_[Left_ForeArm_Col_ID].rot_local = DyrosMath::rotateWithX(M_PI / 2.0);
     cb_robot_[Left_ForeArm_Col_ID].type = CollisionBody::Type::Capsule;
-    cb_robot_[Left_ForeArm_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.055, 0.1); // radius, height
+    cb_robot_[Left_ForeArm_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.055, 0.2); // radius, height
 
     // Left Hand
     cb_robot_[Left_Hand_Col_ID].link_name = "L_Wrist2_Link";
@@ -257,7 +335,7 @@ void CollisionManager::initColBody()
     cb_robot_[Right_Upper_Arm_Col_ID].trans_local = Eigen::Vector3d(0.005, -0.12, -0.01);
     cb_robot_[Right_Upper_Arm_Col_ID].rot_local = DyrosMath::rotateWithX(-75 * DEG2RAD);
     cb_robot_[Right_Upper_Arm_Col_ID].type = CollisionBody::Type::Capsule;
-    cb_robot_[Right_Upper_Arm_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.062, 0.1); // radius, height
+    cb_robot_[Right_Upper_Arm_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.062, 0.2); // radius, height
 
     // Right ForeArm
     cb_robot_[Right_ForeArm_Col_ID].link_name = "R_Forearm_Link";
@@ -266,7 +344,7 @@ void CollisionManager::initColBody()
     cb_robot_[Right_ForeArm_Col_ID].trans_local = Eigen::Vector3d(0.0, -0.05, 0.0);
     cb_robot_[Right_ForeArm_Col_ID].rot_local = DyrosMath::rotateWithX(M_PI / 2.0);
     cb_robot_[Right_ForeArm_Col_ID].type = CollisionBody::Type::Capsule;
-    cb_robot_[Right_ForeArm_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.055, 0.1); // radius, height
+    cb_robot_[Right_ForeArm_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.055, 0.2); // radius, height
 
     // Right Hand
     cb_robot_[Right_Hand_Col_ID].link_name = "R_Wrist2_Link";
@@ -299,6 +377,7 @@ void CollisionManager::assignRobotCObjs()
     }
 }
 
+
 hpp::fcl::DistanceResult CollisionManager::getDistanceResultBetweenCObjs(const CollisionObjectIdx obj_id1, const CollisionObjectIdx obj_id2, DistanceResultOption option)
 {
     hpp::fcl::DistanceResult dist_result;
@@ -313,6 +392,7 @@ hpp::fcl::DistanceResult CollisionManager::getDistanceResultBetweenCObjs(const C
         distance(cb_obstacles_[obj_id1].obj.get(), cb_obstacles_[obj_id2].obj.get(), request_enable_nearest_point_, dist_result);
     }
     cb_obstacles_[obj_id1].obj->getRotation();
+
     // for debugging/verification: print minimum distance and closest points
     // cout << "Minimum distance: " << dist_result.min_distance << endl;
     // cout << "Closest point on object 1: " << dist_result.nearest_points[0].transpose() << endl;
@@ -323,15 +403,21 @@ hpp::fcl::DistanceResult CollisionManager::getDistanceResultBetweenCObjs(const C
 
 void CollisionManager::ColResultSphere2Sphere(const CollisionObjectIdx obj_id1, const CollisionObjectIdx obj_id2, double &min_distance, Eigen::Vector3d &nearest_point1, Eigen::Vector3d &nearest_point2)
 {
-    nearest_point1 = cb_robot_[obj_id1].trans_global;
-    nearest_point2 = cb_robot_[obj_id2].trans_global;
-    min_distance = (nearest_point1 - nearest_point2).norm() - cb_robot_[obj_id1].sphere->radius - cb_robot_[obj_id2].sphere->radius;
+    // center point: center of sphere
+    Vector3d center_point1 = cb_robot_[obj_id1].trans_global;
+    Vector3d center_point2 = cb_robot_[obj_id2].trans_global;
+
+    min_distance = (center_point1 - center_point2).norm() - (cb_robot_[obj_id1].sphere->radius + cb_robot_[obj_id2].sphere->radius);
+
+    nearest_point1= center_point1 + (center_point2 - center_point1).normalized() * cb_robot_[obj_id1].sphere->radius;
+    nearest_point2= center_point2 + (center_point1 - center_point2).normalized() * cb_robot_[obj_id2].sphere->radius;
 }
 
 void CollisionManager::ColResultSphere2Capsule(const CollisionObjectIdx obj_id1, const CollisionObjectIdx obj_id2, double &min_distance, Eigen::Vector3d &nearest_point1, Eigen::Vector3d &nearest_point2)
 {
-    // nearest_point1: center of sphere
-    nearest_point1 = cb_robot_[obj_id1].trans_global;
+    // center_point1: center of sphere, center_point2: position of the nearest point on the centerline(i.e., the central axis) of capsule 
+    Vector3d center_point1, center_point2;
+    center_point1 =  cb_robot_[obj_id1].trans_global;
     // p_capsule1, p_capsule2: endpoints of capsule centerline
     Vector3d p_capsule1 = cb_robot_[obj_id2].trans_global + cb_robot_[obj_id2].rot_global * Eigen::Vector3d(0, 0, cb_robot_[obj_id2].capsule->halfLength);
     Vector3d p_capsule2 = cb_robot_[obj_id2].trans_global + cb_robot_[obj_id2].rot_global * Eigen::Vector3d(0, 0, -cb_robot_[obj_id2].capsule->halfLength);
@@ -342,27 +428,32 @@ void CollisionManager::ColResultSphere2Capsule(const CollisionObjectIdx obj_id1,
 
     // case 1: the sphere center lies to the left of the capsule’s centerline (before the first endpoint)
     if(vec_capsule1_to_sphere.dot(vec_capsule1_to_capsule2) <= 0){
-        min_distance = (nearest_point1 - p_capsule1).norm() - cb_robot_[obj_id1].sphere->radius - cb_robot_[obj_id2].capsule->radius;
-        nearest_point2 = p_capsule1;
+        center_point2 = p_capsule1;
     }
 
     // case 2: the sphere center lies to the right of the capsule’s centerline (beyond the second endpoint)
     else if(vec_capsule2_to_sphere.dot(vec_capsule1_to_capsule2) >= 0){
-        min_distance = (nearest_point1 - p_capsule2).norm() - cb_robot_[obj_id1].sphere->radius - cb_robot_[obj_id2].capsule->radius;
-        nearest_point2 = p_capsule2;
+        center_point2 = p_capsule2;
     }
 
     // case 3: the sphere center lies between the two endpoints of the capsule’s centerline
     else{
-        min_distance = (vec_capsule1_to_sphere.cross(vec_capsule1_to_capsule2).norm() / vec_capsule1_to_capsule2.norm()) - cb_robot_[obj_id1].sphere->radius - cb_robot_[obj_id2].capsule->radius;
-        nearest_point2 = p_capsule1 + (vec_capsule1_to_sphere.dot(vec_capsule1_to_capsule2) / vec_capsule1_to_capsule2.squaredNorm()) * vec_capsule1_to_capsule2;
+        center_point2 = p_capsule1 + (vec_capsule1_to_sphere.dot(vec_capsule1_to_capsule2) / vec_capsule1_to_capsule2.squaredNorm()) * vec_capsule1_to_capsule2;
     }
+
+    min_distance = (center_point1 - center_point2).norm() - (cb_robot_[obj_id1].sphere->radius + cb_robot_[obj_id2].capsule->radius);
+
+    nearest_point1 = center_point1 + (center_point2 - center_point1).normalized() * cb_robot_[obj_id1].sphere->radius;
+    nearest_point2 = center_point2 + (center_point1 - center_point2).normalized() * cb_robot_[obj_id2].capsule->radius;
 }
 
 void CollisionManager::ColResultCapsule2Capsule(const CollisionObjectIdx obj_id1, const CollisionObjectIdx obj_id2, double &min_distance, Eigen::Vector3d &nearest_point1, Eigen::Vector3d &nearest_point2)
 {
     // reference paper: On fast computation of distance between line segments(1985)
     // link: https://www.sciencedirect.com/science/article/pii/0020019085900328
+
+    // center_point: position of the nearest point on the centerline(i.e., the central axis) of capsule
+    Vector3d center_point1, center_point2;
 
     // pA, pB: endpoints of capsule 1 centerline
     // pC, pD: endpoints of capsule 2 centerline
@@ -373,16 +464,16 @@ void CollisionManager::ColResultCapsule2Capsule(const CollisionObjectIdx obj_id1
     pC = cb_robot_[obj_id2].trans_global + cb_robot_[obj_id2].rot_global * Eigen::Vector3d(0, 0, cb_robot_[obj_id2].capsule->halfLength);
     pD = cb_robot_[obj_id2].trans_global + cb_robot_[obj_id2].rot_global * Eigen::Vector3d(0, 0, -cb_robot_[obj_id2].capsule->halfLength);
 
-    // nearest_point1 = pA * (1-t) + pB * t (0 <= t <=1)
-    // nearest_point2 = pC * (1-u) + pD * u (0 <= u <=1)
+    // center_point1 = pA * (1-t) + pB * t (0 <= t <=1)
+    // center_point2 = pC * (1-u) + pD * u (0 <= u <=1)
     double t, u;
 
     double R, S1, S2, D1, D2;
 
     // Step 1
-    R = ((pB - pA).array() * (pD - pC).array()).sum();
-    S1 = ((pB - pA).array() * (pC - pA).array()).sum();
-    S2 = ((pD - pC).array() * (pC - pA).array()).sum();
+    R = (pB - pA).dot(pD - pC);
+    S1 = (pB - pA).dot(pC - pA);
+    S2 = (pD - pC).dot(pC - pA);
     D1 = (pB - pA).squaredNorm();
     D2 = (pD - pC).squaredNorm();
     
@@ -390,7 +481,7 @@ void CollisionManager::ColResultCapsule2Capsule(const CollisionObjectIdx obj_id1
     if((D1 * D2 - pow(R,2)) == 0){
         t = 0;
         // Step 3
-        u = S2 / D2;
+        u = - S2 / D2;
         if(u < 0.0){
             u = 0.0;
             // Step 4                          
@@ -416,10 +507,10 @@ void CollisionManager::ColResultCapsule2Capsule(const CollisionObjectIdx obj_id1
                                   1.0
                                   );
         // Step 3
-        u = t * R - S2;
+        u = (t * R - S2) / D2;
         if(u < 0.0){
             u = 0.0;
-            // Step 4                          
+            // Step 4
             t = DyrosMath::minmax_cut((u * R + S1) / D1,
                                       0.0,
                                       1.0
@@ -436,9 +527,13 @@ void CollisionManager::ColResultCapsule2Capsule(const CollisionObjectIdx obj_id1
     }
 
     // Step 5
-    nearest_point1 = pA * (1 - t) + pB * t;
-    nearest_point2 = pC * (1 - u) + pD * u;
-    min_distance = (nearest_point1 - nearest_point2).norm() - cb_robot_[obj_id1].capsule->radius - cb_robot_[obj_id2].capsule->radius;
+    center_point1 = pA * (1 - t) + pB * t;
+    center_point2 = pC * (1 - u) + pD * u;
+
+    min_distance = (center_point1 - center_point2).norm() - (cb_robot_[obj_id1].capsule->radius + cb_robot_[obj_id2].capsule->radius);
+    
+    nearest_point1 = center_point1 + (center_point2 - center_point1).normalized() * cb_robot_[obj_id1].capsule->radius;
+    nearest_point2 = center_point2 + (center_point1 - center_point2).normalized() * cb_robot_[obj_id2].capsule->radius;
 }
 
 Eigen::MatrixXd CollisionManager::computeColPairJac(const CollisionObjectIdx obj_id1, const Eigen::Vector3d nearest_point1, const CollisionObjectIdx obj_id2, const Eigen::Vector3d nearest_point2, const int sign)
@@ -448,6 +543,8 @@ Eigen::MatrixXd CollisionManager::computeColPairJac(const CollisionObjectIdx obj
 
     pinocchio::computeJointJacobians(model_, data_, q_virtual_pin_);
     pinocchio::framesForwardKinematics(model_, data_, q_virtual_pin_);
+
+    // Matrix3d base_rot = DyrosMath::rotateWithZ(DyrosMath::rot2Euler(rd_.link_[Pelvis].rotm)(2)); 
 
     // Jacobian used for the self-collision avoidance constraint
     MatrixXd J_col_pair;
@@ -469,7 +566,7 @@ Eigen::MatrixXd CollisionManager::computeColPairJac(const CollisionObjectIdx obj
     // transformation matrix contains translation from the joint to the nearest point on the collision object's center
     pinocchio::SE3 placement1(Eigen::Matrix3d::Identity(), trans_joint_to_nearestcenter_local1);
     pinocchio::getFrameJacobian(model_, data_, cb_robot_[obj_id1].joint_id, placement1, pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, J_col_obj1);
-    Jv_col_obj1 = J_col_obj1.block<3, MODEL_DOF_VIRTUAL>(0, 0);
+    Jv_col_obj1 =  J_col_obj1.block<3, MODEL_DOF_VIRTUAL>(0, 0);
 
     // second collision object
     // vector stores local translation vector from the joint to the nearest point on the collision object's center (sphere: center or capsule: axis point)
@@ -492,8 +589,6 @@ Eigen::MatrixXd CollisionManager::computeColPairJacHPPFCL(const CollisionObjectI
     pinocchio::computeJointJacobians(model_, data_, q_virtual_pin_);
     pinocchio::framesForwardKinematics(model_, data_, q_virtual_pin_);
     // pinocchio::updateFramePlacements(model_, data_);
-
-    cout << obj_id1 << "\t" << obj_id2 << endl;
 
     // Jacobian used for the self-collision avoidance constraint
     MatrixXd J_col_pair;
@@ -546,10 +641,6 @@ Eigen::MatrixXd CollisionManager::computeColPairJacHPPFCL(const CollisionObjectI
 
         trans_joint_to_nearestcenter_local = cb_robot_[obj_id2].trans_local + cb_robot_[obj_id2].rot_local * trans_object_to_nearestcenter_local;
     }
-
-    cout << nearest_point2.transpose() << endl;
-    cout << trans_joint_to_nearestcenter_local.transpose() << endl;
-    cout << data_.oMf[cb_robot_[obj_id2].joint_id].toHomogeneousMatrix() << endl;
 
     // transformation matrix contains translation from the joint to the nearest point on the collision object's center
     pinocchio::SE3 placement2(Eigen::Matrix3d::Identity(), trans_joint_to_nearestcenter_local);
@@ -613,26 +704,22 @@ std::shared_ptr<hpp::fcl::CollisionObject> CollisionManager::assignBoxCObj(const
 void CollisionManager::pubBasetoHeadTransform()
 {
     // ts_base_to_head stores the transform data between base_link and head_link
-    base_to_head_tf_msg_.header.stamp = ros::Time::now();
-
-    // frame id
-    base_to_head_tf_msg_.header.frame_id = "base_link";
-    base_to_head_tf_msg_.child_frame_id = "head_link";
+    base_to_head_pose_msg_.header.stamp = ros::Time::now();
 
     // translation
-    base_to_head_tf_msg_.transform.translation.x = rd_.link_[Head].local_xpos(0);
-    base_to_head_tf_msg_.transform.translation.y = rd_.link_[Head].local_xpos(1);
-    base_to_head_tf_msg_.transform.translation.z = rd_.link_[Head].local_xpos(2);
+    base_to_head_pose_msg_.pose.position.x = rd_.link_[Head].local_xpos(0);
+    base_to_head_pose_msg_.pose.position.y = rd_.link_[Head].local_xpos(1);
+    base_to_head_pose_msg_.pose.position.z = rd_.link_[Head].local_xpos(2);
 
     // rotation matrix -> quaternion
     Eigen::Quaterniond quat_head(rd_.link_[Head].local_rotm);
-    base_to_head_tf_msg_.transform.rotation.x = quat_head.x();
-    base_to_head_tf_msg_.transform.rotation.y = quat_head.y();
-    base_to_head_tf_msg_.transform.rotation.z = quat_head.z();
-    base_to_head_tf_msg_.transform.rotation.w = quat_head.w();
+    base_to_head_pose_msg_.pose.orientation.x = quat_head.x();
+    base_to_head_pose_msg_.pose.orientation.y = quat_head.y();
+    base_to_head_pose_msg_.pose.orientation.z = quat_head.z();
+    base_to_head_pose_msg_.pose.orientation.w = quat_head.w();
 
-    // tf_broadcaster publishes the transform data
-    tf_broadcaster_.sendTransform(base_to_head_tf_msg_);
+    // publishes the transform data
+    base_to_head_pose_pub_.publish(base_to_head_pose_msg_);
 }
 
 Eigen::Isometry3d CollisionManager::getBasetoQRTransform()
@@ -664,26 +751,77 @@ Eigen::Isometry3d CollisionManager::getBasetoQRTransform()
     return base_to_qr_transform;
 }
 
-// void CollisionManager::getBasetoHeadTransform(){
-//     world_to_base_rot_yaw_only_ = DyrosMath::rotateWithZ(DyrosMath::rot2Euler(rd_.link_[Pelvis].rotm)(2));
-//     world_to_base_trans_ = rd_.link_[Pelvis].xpos;
+void CollisionManager::BasetoQRTransformCallback(const geometry_msgs::PoseStamped &msg)
+{
+    std::lock_guard<std::mutex> lk(meas_mutex_);
+    
+    base_to_qr_transform_.translation() << msg.pose.position.x,
+                                           msg.pose.position.y,
+                                           msg.pose.position.z;
+    
+    Eigen::Quaterniond quat_qr(msg.pose.orientation.w,
+                               msg.pose.orientation.x,
+                               msg.pose.orientation.y,
+                               msg.pose.orientation.z);
+    
+    base_to_qr_transform_.linear() = quat_qr.toRotationMatrix();                           
 
-//     base_to_head_transform_.linear() = world_to_base_rot_yaw_only_.transpose() * rd_.link_[Head].rotm;
-//     base_to_head_transform_.translation() = world_to_base_rot_yaw_only_.transpose() * (rd_.link_[Head].xpos - rd_.link_[Pelvis].xpos);
-// }
+    has_new_measure_ = true;
+}
+
+void CollisionManager::updateObstacle()
+{
+    if(!tracked_obstacles_.empty()) tracked_obstacles_[0].updateState();
+
+    {
+        std::lock_guard<std::mutex> lk(meas_mutex_);
+        if(has_new_measure_){
+            if(tracked_obstacles_.empty()){
+                TrackedObstacle to(base_to_qr_transform_.translation());
+                tracked_obstacles_.push_back(to);
+            }
+            else{
+                tracked_obstacles_[0].correctState(base_to_qr_transform_.translation());
+            }
+
+            has_new_measure_ = false;
+        }
+    }
+    
+    if(!tracked_obstacles_.empty()){
+        if(tracked_obstacles_[0].hasFaded()){
+            tracked_obstacles_.clear();
+            cb_obstacles_.clear();
+        }
+        else{
+            if(cb_obstacles_.empty()){
+                CollisionBody cb;
+                cb.trans_global = tracked_obstacles_[0].getObstacle().pos_;
+                cb_obstacles_.push_back(cb);
+            }
+            else{
+                cb_obstacles_[0].trans_global = tracked_obstacles_[0].getObstacle().pos_;
+                cb_obstacles_[0].vel_global = tracked_obstacles_[0].getObstacle().vel_;
+                // data1 << cb_obstacles_[0].trans_global(1) << "," << cb_obstacles_[0].vel_global(1) << endl;
+            }
+        }
+    }
+}
 
 //________________________________________________________________________________________________//
 
 //====================================== Obstacle in MuJoCo ======================================//
 
-void CollisionManager::pubQRObstaclePose(const int sim_tick, const double hz){
+void CollisionManager::pubQRObstaclePose(const int sim_tick, const double hz)
+{
     // ts_QR stores the position and orientation data of the QR obstacle in MuJoCo environment
     aruco_pose_msg_.header.stamp = ros::Time::now();
+    aruco_pose_msg_.header.frame_id = "world";
 
     // translation
     aruco_pose_msg_.pose.position.x = 0.7;
-    // aruco_pose_msg_.pose.position.y = 0.5 + 0.2 * sin(M_PI * (sim_tick/hz));
-    aruco_pose_msg_.pose.position.y = 0.5;
+    aruco_pose_msg_.pose.position.y = 0.2 * sin(M_PI * (sim_tick/hz));
+    // aruco_pose_msg_.pose.position.y = 0.5;
     aruco_pose_msg_.pose.position.z = 1.5;
 
     // orientation (Quaternion)
@@ -697,3 +835,11 @@ void CollisionManager::pubQRObstaclePose(const int sim_tick, const double hz){
 }
 
 //________________________________________________________________________________________________//
+
+
+// ugly initialization of static members of tracked obstacles
+int    TrackedObstacle::s_fade_counter_size_     = 0;
+double TrackedObstacle::s_sampling_time_         = 100.0;
+double TrackedObstacle::s_process_variance_      = 0.0;
+double TrackedObstacle::s_process_rate_variance_ = 0.0;
+double TrackedObstacle::s_measurement_variance_  = 0.0;

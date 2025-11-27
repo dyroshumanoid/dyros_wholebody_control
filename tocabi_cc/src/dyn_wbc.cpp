@@ -119,10 +119,10 @@ void DynWBC::calcDesiredJointAcceleration()
 void DynWBC::computeTotalTorqueCommand()
 {
     Eigen::VectorQd torque_inv_dyn; torque_inv_dyn.setZero();
-    torque_inv_dyn = (rd_.local_A * qddot_qp + rd_.local_G - rd_.local_J_C.transpose() * contact_wrench_qp).tail(MODEL_DOF);
+    // torque_inv_dyn = (rd_.local_A * qddot_qp + rd_.local_G - rd_.local_J_C.transpose() * contact_wrench_qp).tail(MODEL_DOF);
 
     Eigen::VectorQd torque_pd; torque_pd.setZero();
-    torque_pd = (rd_.Kp_diag / 3.0) * (rd_.q_desired - rd_.q_) + (rd_.Kd_diag / 1.0) * (rd_.q_dot_desired - rd_.q_dot_);
+    torque_pd = (rd_.Kp_diag) * (rd_.q_desired - rd_.q_) + (rd_.Kd_diag) * (rd_.q_dot_desired - rd_.q_dot_);
 
     Eigen::VectorQd torque_sum = torque_inv_dyn + torque_pd;
 

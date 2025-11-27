@@ -373,6 +373,7 @@ int main(int argc, char **argv)
     force_apply_sub = nh.subscribe("/tocabi_avatar/applied_ext_force", 10, &force_apply_callback);
 
     aruco_pose_sub = nh.subscribe("/tocabi_cc/aruco_pose", 10, QRPoseCallback);
+    collision_sub = nh.subscribe("/tocabi_cc/collision_status", 10, collisionCallback);
 
     image_transport::ImageTransport it(nh);
     camera_image_pub = it.advertise("/mujoco_ros_interface/camera/image", 1);

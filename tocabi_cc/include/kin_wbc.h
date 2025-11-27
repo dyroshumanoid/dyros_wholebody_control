@@ -8,7 +8,7 @@
 #include <map>
 #include <vector>
 #include <string>
-#include "collision_manager.h"
+#include "collision_manager/collision_manager.h"
 #include "wholebody_functions.h"
 #include "utils.h"
 

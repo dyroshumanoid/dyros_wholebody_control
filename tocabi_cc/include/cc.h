@@ -14,7 +14,7 @@
 #include "tocabi_lib/robot_data.h"
 #include "wholebody_functions.h"
 
-#include "collision_manager.h"
+#include "collision_manager/collision_manager.h"
 #include "control_manager.h"
 #include "task_manager.h"
 #include "kin_wbc.h"
@@ -98,4 +98,7 @@ public:
 private:
     Eigen::VectorQd ControlVal_;
     double hz_ = 2000;
+#ifdef COMPILE_SIMULATION
+    unsigned int sim_tick_ = 0;
+#endif
 };

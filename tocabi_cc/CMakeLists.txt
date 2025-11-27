@@ -23,6 +23,18 @@ catkin_package(
 # set(LIBRARY_DIRS /usr/local/lib)  # KW add (FOR CASADI)
 # set(CASADI_INCLUDE_DIR /usr/local/include/casadi) # KW add (FOR CASADI)
 
+execute_process(COMMAND uname -r OUTPUT_VARIABLE UNAME_RES OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+string(FIND ${UNAME_RES} "xenomai" wsloc)
+
+if(${wsloc} EQUAL -1 )
+  message(" Controller : simulation only compile mode ")
+  ADD_DEFINITIONS(-DCOMPILE_SIMULATION)
+else()
+  message(" xenomai detected realrobot compile mode ")
+  ADD_DEFINITIONS(-DCOMPILE_REALROBOT)
+endif() 
+
 ###########
 ## Build ##
 ###########

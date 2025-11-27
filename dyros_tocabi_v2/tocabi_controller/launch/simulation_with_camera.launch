@@ -26,8 +26,10 @@
 
     <param name="mujoco_ros/use_shm" value="true" />
 
-    <rosparam command="load" file="$(find tocabi_description)/setting/setting_simulation_positionPDgain.yaml" ns="/tocabi_controller" />
-    <rosparam command="load" file="$(find tocabi_description)/setting/setting_simulation_parameters.yaml" ns="/tocabi_controller" />
+    <!-- <rosparam command="load" file="$(find tocabi_description)/setting/setting_simulation_positionPDgain.yaml" ns="/tocabi_controller" />
+    <rosparam command="load" file="$(find tocabi_description)/setting/setting_simulation_parameters.yaml" ns="/tocabi_controller" /> -->
+    <rosparam command="load" file="$(find tocabi_cc)/setting/setting_cc_param.yaml" ns="/tocabi_controller" />
+    <rosparam command="load" file="$(find tocabi_cc)/setting/setting_kalman_filter_param.yaml" ns="/kalman_filter" />
     <param name="tocabi_controller/sim_mode" value="true" />
 
     <group if="$(arg controller)">

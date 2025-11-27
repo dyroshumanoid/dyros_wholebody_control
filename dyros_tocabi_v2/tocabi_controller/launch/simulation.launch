@@ -30,6 +30,7 @@
     </group>
 
     <rosparam command="load" file="$(find tocabi_cc)/setting/setting_cc_param.yaml" ns="/tocabi_controller" />
+    <rosparam command="load" file="$(find tocabi_cc)/setting/setting_kalman_filter_param.yaml" ns="/kalman_filter" />
 
 
     <node name="mujoco_ros" pkg="mujoco_ros" type="mujoco_ros" output="screen" required="true" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' ">

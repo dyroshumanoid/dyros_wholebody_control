@@ -52,23 +52,19 @@
 
     <worldbody>
         <!-- plane ground -->
-        <!-- <geom name="ground" type="plane" pos="0 0 0" size="10 10 .05" rgba="0.7 0.6 0.5 1" material="MatPlane2" group="3"/> -->
+        <geom name="ground" type="plane" pos="0 0 0" size="10 10 .05" rgba="0.7 0.6 0.5 1" material="MatPlane2" group="3"/>
 
         <!-- bumpy ground -->
-        <geom name="ground" type="plane" pos="0 0 0" size="1 1 .05" rgba="0.7 0.6 0.5 1" material="MatPlane2" group="3"/>
+        <!-- <geom name="ground" type="plane" pos="0 0 0" size="1 1 .05" rgba="0.7 0.6 0.5 1" material="MatPlane2" group="3"/> -->
         <!-- slope: gentle -->
         <!-- <geom name="bumpy_ground" rgba="0.7 0.6 0.5 1" type="hfield" hfield="bumpy_field" pos="0 0 -0.05"/> -->
         <!-- slope: steep -->
-        <geom name="bumpy_ground" rgba="0.7 0.6 0.5 1" type="hfield" hfield="bumpy_field" pos="0 0 -0.25"/>
+        <!-- <geom name="bumpy_ground" rgba="0.7 0.6 0.5 1" type="hfield" hfield="bumpy_field" pos="0 0 -0.25"/> -->
 
         <light directional="true" diffuse=".8 .8 .8" pos="0 0 10" dir="0 0 -10"/>
         <!-- <light directional="true" diffuse=".3 .3 .3" pos="10 -10 5" dir="-10 10 -5"/> -->
 
         <body name="base_link">
-            <!-- Visualizing a CBF for Self Collision (Left Pelvis) -->
-            <geom class="viz" size = "0.18 0.025" pos="0.05 0.02 0.1" rgba="0 0 1 0.3" type="capsule"/>
-            <!-- Visualizing a CBF for Self Collision (Right Pelvis) -->
-            <geom class="viz" size = "0.18 0.025" pos="0.05 -0.02 0.1" rgba="0 0 1 0.3" type="capsule"/>
             <joint name="virtual_joint" type="free" limited='false' frictionloss="0" damping="0" stiffness="0" armature="0"/>
             <inertial pos="0.07809 0 0.03985" mass="12.19525" fullinertia="0.101833182 0.072400662 0.144478157 -0.000070812 -0.003831096 0.000079272" />
             <geom class="viz" pos="0.11 0 0.02" rgba="0.20313 0.20313 0.20313 1" quat="0.5 0.5 0.5 0.5" mesh="Pelvis_link" />
@@ -78,6 +74,10 @@
             <geom size="0.12 0.1525 0.025" pos="0.052 0 0.02" type="box" class="cls" />
             <geom size="0.05 0.13 0.05" pos="0.01 0 0.05" type="box" group="1"/>
             <site name="Pelvis_IMU" type="cylinder" size="0.005 0.005" group="4" rgba=".1 .1 .9 1"/>
+            <!-- Visualizing a CBF for Self Collision (Left Pelvis) -->
+            <geom class="viz" name="Left_Pelvis" size = "0.18 0.025" pos="0.05 0.02 0.1" rgba="0 0 1 0.3" type="capsule"/>
+            <!-- Visualizing a CBF for Self Collision (Right Pelvis) -->
+            <geom class="viz" name="Right_Pelvis" size = "0.18 0.025" pos="0.05 -0.02 0.1" rgba="0 0 1 0.3" type="capsule"/>
             <body name="L_HipRoll_Link" pos="0.11 0.1025 -0.1025">
                 <inertial pos="-0.06477 0 0.05149" mass="2.679" fullinertia="0.01821 0.03121 0.2928 -1.676E-07 -0.0007745 -4.53E-09" />
                 <joint name="L_HipYaw_Joint" pos="0 0 0" axis="0 0 1" limited="true" range="-3.14 3.14" class="shg20_100_2so"/>
@@ -99,7 +99,7 @@
                         <geom class="cls" size="0.06 0.10875" pos="0 0 -0.1923" type="cylinder"/>
                         <geom class="viz" size="0.033 0.02 0.06875" pos="0 0 -0.1723" type="box" rgba="0.20313 0.20313 0.20313 1" />
                         <!-- Visualizing a CBF for Self Collision (Left Upper Leg) -->
-                        <geom class="viz" size ="0.075 0.17" pos="0 0 -0.1323" rgba="0 0 1 0.3" type="capsule" />
+                        <geom class="viz" name="Left_Upper_Leg" size ="0.075 0.17" pos="0 0 -0.1323" rgba="0 0 1 0.3" type="capsule" />
                         <body name="L_Knee_Link" pos="0 0 -0.35">
                             <inertial pos="0.00429 -0.00214 -0.1428" mass="3.883" fullinertia="0.1506 0.5588 0.007451 -2.887E-05 -0.002607 -0.001486" />
                             <joint name="L_Knee_Joint" pos="0 0 0" axis="0 1 0" limited="true" range="-3.14 3.14" class="shg20_100_2so"/>
@@ -107,7 +107,7 @@
                             <geom class="cls" size="0.06 0.1" pos="0 0 -0.175" type="cylinder"/>
                             <geom class="viz" size="0.028 0.02 0.06875" pos="0 0 -0.1603" type="box" rgba="0.20313 0.20313 0.20313 1" />
                             <!-- Visualizing a CBF for Self Collision (Left Lower Leg) -->
-                            <geom class="viz" size ="0.075 0.15" pos="0 0 -0.23" rgba="0 0 1 0.3" type="capsule" />
+                            <geom class="viz" name="Left_Lower_Leg" size ="0.075 0.15" pos="0 0 -0.23" rgba="0 0 1 0.3" type="capsule" />
                             <body name="L_AnkleCenter_Link" pos="0 0 -0.35">
                                 <inertial pos="-0.00419 0.0018 -0.0003" mass="2.51" fullinertia="0.002857 0.4135 0.003345 -1.422E-07 2.222E-06 4.611E-06" />
                                 <joint name="L_AnklePitch_Joint" pos="0 0 0" axis="0 1 0" limited="true" range="-3.14 3.14" class="shg20_100_2so"/>
@@ -125,9 +125,9 @@
                                         <geom class="cls" size="0.045 0.03125" pos="-0.08875 0 0" quat="0.707107 0 -0.707107 0" type="cylinder"/>
                                         <site class="FTsensor" name="LF_FT" pos="0 0 -0.09"/>
                                         <!-- Visualizing a CBF for Self Collision (Left Inner Foot) -->
-                                        <geom class="viz" size ="0.0432 0.12" pos="0.03 -0.0455 -0.15" quat="0.707107 0 -0.707107 0" rgba="0 0 1 0.3" type="capsule" />
+                                        <geom class="viz" name="Left_Inner_Foot" size ="0.0432 0.12" pos="0.03 -0.0455 -0.15" quat="0.707107 0 -0.707107 0" rgba="0 0 1 0.3" type="capsule" />
                                         <!-- Visualizing a CBF for Self Collision (Left Outer Foot) -->
-                                        <geom class="viz" size ="0.0432 0.12" pos="0.03 0.0455 -0.15" quat="0.707107 0 -0.707107 0" rgba="0 0 1 0.3" type="capsule" />
+                                        <geom class="viz" name="Left_Outer_Foot" size ="0.0432 0.12" pos="0.03 0.0455 -0.15" quat="0.707107 0 -0.707107 0" rgba="0 0 1 0.3" type="capsule" />
                                     </body>
                                 </body>
                             </body>
@@ -157,7 +157,7 @@
                         <geom class="cls" size="0.06 0.10875" pos="0 0 -0.1923" type="cylinder"/>
                         <geom class="viz" size="0.033 0.02 0.06875" pos="0 0 -0.1723" type="box" rgba="0.20313 0.20313 0.20313 1" />
                         <!-- Visualizing a CBF for Self Collision (Right Upper Leg) -->
-                        <geom class="viz" size ="0.075 0.17" pos="0 0 -0.1323" rgba="0 0 1 0.3" type="capsule" />
+                        <geom class="viz" name="Right_Upper_Leg" size ="0.075 0.17" pos="0 0 -0.1323" rgba="0 0 1 0.3" type="capsule" />
                         <body name="R_Knee_Link" pos="0 0 -0.35">
                             <inertial pos="0.00429 0.00214 -0.1428" mass="3.883" fullinertia="0.1506 0.5588 0.007451 -2.887E-05 -0.002607 -0.001486" />
                             <joint name="R_Knee_Joint" pos="0 0 0" axis="0 1 0" limited="true" range="-3.14 3.14" class="shg20_100_2so"/>
@@ -165,7 +165,7 @@
                             <geom class="cls" size="0.06 0.1" pos="0 0 -0.175" type="cylinder"/>
                             <geom class="viz" size="0.028 0.02 0.06875" pos="0 0 -0.1603" type="box" rgba="0.20313 0.20313 0.20313 1" />
                             <!-- Visualizing a CBF for Self Collision (Right Lower Leg) -->
-                            <geom class="viz" size ="0.075 0.15" pos="0 0 -0.23" rgba="0 0 1 0.3" type="capsule" />
+                            <geom class="viz" name="Right_Lower_Leg" size ="0.075 0.15" pos="0 0 -0.23" rgba="0 0 1 0.3" type="capsule" />
                             <body name="R_AnkleCenter_Link" pos="0 0 -0.35">
                                 <inertial pos="-0.00419 -0.0018 -0.0003" mass="2.51" fullinertia="0.002857 0.4135 0.003345 -1.422E-07 2.222E-06 4.611E-06" />
                                 <joint name="R_AnklePitch_Joint" pos="0 0 0" axis="0 1 0" limited="true" range="-3.14 3.14" class="shg20_100_2so"/>
@@ -183,9 +183,9 @@
                                         <geom class="cls" size="0.045 0.03125" pos="-0.08875 0 0" quat="0.707107 0 -0.707107 0" type="cylinder" />
                                         <site class="FTsensor" name="RF_FT" pos="0 0 -0.09"/>
                                         <!-- Visualizing a CBF for Self Collision (Right Inner Foot) -->
-                                        <geom class="viz" size ="0.0432 0.12" pos="0.03 0.0455 -0.15" quat="0.707107 0 -0.707107 0" rgba="0 0 1 0.3" type="capsule" />
+                                        <geom class="viz" name="Right_Inner_Foot" size ="0.0432 0.12" pos="0.03 0.0455 -0.15" quat="0.707107 0 -0.707107 0" rgba="0 0 1 0.3" type="capsule" />
                                         <!-- Visualizing a CBF for Self Collision (Right Outer Foot) -->
-                                        <geom class="viz" size ="0.0432 0.12" pos="0.03 -0.0455 -0.15" quat="0.707107 0 -0.707107 0" rgba="0 0 1 0.3" type="capsule" />
+                                        <geom class="viz" name="Right_Outer_Foot" size ="0.0432 0.12" pos="0.03 -0.0455 -0.15" quat="0.707107 0 -0.707107 0" rgba="0 0 1 0.3" type="capsule" />
                                     </body>
                                 </body>
                             </body>
@@ -231,9 +231,9 @@
                         <geom class="cls" size="0.04 0.035" pos="0.023 0.154 0.185" type="cylinder"/>
                         <geom class="cls" size="0.04 0.035" pos="0.023 -0.154 0.185" type="cylinder"/>
                         <!-- Visualizing a CBF for Self Collision (Left Upper Body) -->
-                        <geom class="viz" size="0.06 0.015" pos="0.023 0.154 0.19" rgba="0 0 1 0.3" type="capsule"/>
+                        <!-- <geom class="viz" name="Left_Upper_Body" size="0.06 0.015" pos="0.023 0.154 0.19" rgba="0 0 1 0.3" type="capsule"/> -->
                         <!-- Visualizing a CBF for Self Collision (Right Upper Body) -->
-                        <geom class="viz" size="0.06 0.015" pos="0.023 -0.154 0.19" rgba="0 0 1 0.3" type="capsule"/>
+                        <!-- <geom class="viz" name="Right_Upper_Body" size="0.06 0.015" pos="0.023 -0.154 0.19" rgba="0 0 1 0.3" type="capsule"/> -->
                         
 
                         <body name="L_Shoulder1_Link" pos="0.023 0.154 0.2275">
@@ -258,7 +258,7 @@
                                         <geom class="viz" rgba="0.85938 0.07813 0.23438 1" mesh="L_arm" />
                                         <geom class="cls" size="0.04 0.08" pos="0 0.08 0" quat="0.707107 0.707107 0 0" type="cylinder"/>
                                         <!-- Visualizing a CBF for Self Collision (Left Upper Arm) -->
-                                        <geom class="viz" size ="0.062 0.1" pos="0.005 0.12 -0.01" quat="0.793353 0.608761 0 0" rgba="0 0 1 0.3" type="capsule" />
+                                        <geom class="viz" name="Left_Upper_Arm" size ="0.062 0.1" pos="0.005 0.12 -0.01" quat="0.793353 0.608761 0 0" rgba="0 0 1 0.3" type="capsule" />
                                         <body name="L_Elbow_Link" pos="0 0.207 -0.0325">
                                             <inertial pos="-0.00136 0.05256 0.01764" mass="2.06511" fullinertia="0.055865466 0.001895543 0.005958821 0.000151764 0.000055158 0.001530917" />
                                             <joint name="L_Elbow_Joint" pos="0 0 0" axis="1 0 0" limited="true" range="-3.14159 2.8" class="shg14_100_2so"/>
@@ -273,7 +273,7 @@
                                                 <geom class="cls" size="0.04 0.05" pos="0 0.05 0" quat="0.707107 0.707107 0 0" type="cylinder"/>
                                                 <geom class="cls" size="0.025 0.04" pos="0 0.1451 0" quat="0.707107 0 0.707107 0" type="cylinder"/>
                                                 <!-- Visualizing a CBF for Self Collision (Left Forearm) -->
-                                                <geom class="viz" size ="0.055 0.1" pos="0 0.05 0" quat="0.707107 0.707107 0 0" rgba="0 0 1 0.3" type="capsule" />
+                                                <geom class="viz" name="Left_ForeArm" size ="0.055 0.1" pos="0 0.05 0" quat="0.707107 0.707107 0 0" rgba="0 0 1 0.3" type="capsule" />
                                                 <body name="L_Wrist1_Link" pos="0 0.1451 0">
                                                     <inertial pos="-0.00158 0.02153 3e-05" mass="0.70923" fullinertia="0.015205197 0.000396376 0.000683187 0.000024218 -0.000000263 0.000000688" />
                                                     <joint name="L_Wrist1_Joint" pos="0 0 0" axis="1 0 0" limited="true" range="-3.14159 3.14159" class="csf_11_100_2xh_f"/>
@@ -286,7 +286,7 @@
                                                         <geom size="0.03 0.03 0.01" pos="0 0 -0.025" type="box" class="viz" rgba="0.20313 0.20313 0.20313 1" />
                                                         <site class="FTsensor" name="LH_FT" pos="0 0 -0.035"/>
                                                         <!-- Visualizing a CBF for Self Collision (Left Hand) -->
-                                                        <geom class="viz" size="0.06" rgba="0 0 1 0.3" type="sphere"/>
+                                                        <geom class="viz" name="Left_Hand" size="0.06" rgba="0 0 1 0.3" type="sphere"/>
                                                     </body>
                                                 </body>
                                             </body>
@@ -308,7 +308,7 @@
                                 <geom class="viz" rgba="0.85938 0.07813 0.23438 1" pos="0.02 0 -0.6" mesh="head" />
                                 <geom class="cls" size="0.08 0.06 0.086" pos="0.02 0 0.14" type="box" />
                                 <!-- Visualizing a CBF for Self Collision (Head) -->
-                                <geom class="viz" size="0.142" pos="0.035 0 0.0735" rgba="0 0 1 0.3" type="sphere"/>
+                                <geom class="viz" name="Head" size="0.142" pos="0.035 0 0.0735" rgba="0 0 1 0.3" type="sphere"/>
                             </body>
                         </body>
                         <body name="R_Shoulder1_Link" pos="0.023 -0.154 0.2275">
@@ -333,7 +333,7 @@
                                         <geom class="viz" rgba="0.85938 0.07813 0.23438 1" mesh="R_arm" />
                                         <geom size="0.04 0.08" pos="0 -0.08 0" quat="0.707107 0.707107 0 0" type="cylinder" class="cls" />
                                         <!-- Visualizing a CBF for Self Collision (Right Upper Arm) -->
-                                        <geom class="viz" size ="0.062 0.1" pos="0.005 -0.12 -0.01" quat="0.793353 -0.608761 0 0" rgba="0 0 1 0.3" type="capsule" />
+                                        <geom class="viz" name="Right_Upper_Arm" size ="0.062 0.1" pos="0.005 -0.12 -0.01" quat="0.793353 -0.608761 0 0" rgba="0 0 1 0.3" type="capsule" />
                                         <body name="R_Elbow_Link" pos="0 -0.207 -0.0325">
                                             <inertial pos="-0.00136 -0.05256 0.01764" mass="2.06511" fullinertia="0.055865466 0.001895543 0.005958821 -0.000151764 0.000055158 -0.001530917" />
                                             <joint name="R_Elbow_Joint" pos="0 0 0" axis="1 0 0" limited="true" range="-2.967 3.14159" class="shg14_100_2so"/>
@@ -348,7 +348,7 @@
                                                 <geom size="0.04 0.05" pos="0 -0.05 0" quat="0.707107 0.707107 0 0" type="cylinder" class="cls" />
                                                 <geom size="0.025 0.04" pos="0 -0.1451 0" quat="0.707107 0 0.707107 0" type="cylinder" class="cls" />
                                                 <!-- Visualizing a CBF for Self Collision (Right Forearm) -->
-                                                <geom class="viz" size ="0.055 0.1" pos="0 -0.05 0" quat="0.707107 0.707107 0 0" rgba="0 0 1 0.3" type="capsule" />
+                                                <geom class="viz" name="Right_ForeArm" size ="0.055 0.1" pos="0 -0.05 0" quat="0.707107 0.707107 0 0" rgba="0 0 1 0.3" type="capsule" />
                                                 <body name="R_Wrist1_Link" pos="0 -0.1451 0">
                                                     <inertial pos="-0.00158 -0.02153 3e-05" mass="0.70923" fullinertia="0.015205197 0.000396376 0.000683187 -0.000024218 -0.000000263 -0.000000688" />
                                                     <joint name="R_Wrist1_Joint" pos="0 0 0" axis="1 0 0" limited="true" range="-3.14159 3.14159" class="csf_11_100_2xh_f"/>
@@ -361,7 +361,7 @@
                                                         <geom size="0.03 0.03 0.01" pos="0 0 -0.025" type="box" class="viz" rgba="0.20313 0.20313 0.20313 1" />
                                                         <site class="FTsensor" name="RH_FT" pos="0 0 -0.035"/>
                                                         <!-- Visualizing a CBF for Self Collision (Right Hand) -->
-                                                        <geom class="viz" size="0.06" rgba="0 0 1 0.3" type="sphere"/>
+                                                        <geom class="viz" name="Right_Hand" size="0.06" rgba="0 0 1 0.3" type="sphere"/>
                                                     </body>
                                                 </body>
                                             </body>
@@ -386,13 +386,13 @@
         </body> -->
 
 
-    <body name="aruco_body" pos="0.7 0.5 1.5" quat="0.5 0.5 -0.5 -0.5">
+    <body name="aruco_body" pos="0.7 0 1.5" quat="0.5 0.5 -0.5 -0.5">
         <joint name="aruco_freejoint" type="free"/>
         <geom name="aruco_box" size="0.08 0.08 0.02" type="box" rgba="1 1 1 1" mass="1"/>
         <geom name="aruco_marker" pos = "0 0 0.02" size="0.05 0.05 0.001" material="aruco_mat" type="box" mass="0.01"/>
     </body>
 
-    <body name="aruco_mocap" pos="0.7 0.5 1.5" quat="0.5 0.5 -0.5 -0.5" mocap="true"/>
+    <body name="aruco_mocap" pos="0.7 0 1.5" quat="0.5 0.5 -0.5 -0.5" mocap="true"/>
 
     </worldbody>
 
@@ -521,7 +521,7 @@
                                         0.3  0.3  1.5 -1.27 -1 0 -1 0
                                         0 0
                                         -0.3 -0.3 -1.5  1.27  1 0  1 0
-                                        0.7 0.5 1.5 0.5 0.5 -0.5 -0.5"/>
+                                        0.7 0 1.5 0.5 0.5 -0.5 -0.5"/>
 
     </keyframe>
 </mujoco>

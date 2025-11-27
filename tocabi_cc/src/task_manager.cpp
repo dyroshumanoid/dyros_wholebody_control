@@ -44,15 +44,12 @@ void TaskManager::movePelvHandPose()
 
     //--- Pelvis Trajectory
     rd_.link_[Pelvis].x_desired    = rd_.link_[Pelvis].support_xpos_init;
-    rd_.link_[Pelvis].x_desired(1) = rd_.link_[Pelvis].support_xpos_init(1) + pelv_dist;
+    // rd_.link_[Pelvis].x_desired(1) = rd_.link_[Pelvis].support_xpos_init(1) + pelv_dist;
     rd_.link_[Pelvis].x_desired    = rd_.link_[Pelvis].x_desired - rd_.link_[Pelvis].support_xpos;
 
     //--- Both Hand Trajectories
-    for (int idx = 1; idx < 3; idx++)
-    {
-        rd_.link_[Left_Hand].x_desired(idx) = rd_.link_[Left_Hand].local_xpos_init(idx) + hand_dist;
-        rd_.link_[Right_Hand].x_desired(idx) = rd_.link_[Right_Hand].local_xpos_init(idx) - hand_dist;
-    }
+    rd_.link_[Left_Hand].x_desired(1)  = rd_.link_[Left_Hand].local_xpos_init(1) - hand_dist;
+    rd_.link_[Right_Hand].x_desired(1) = rd_.link_[Right_Hand].local_xpos_init(1) + hand_dist;
 
     //--- Trajectory Generation
     for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
@@ -61,15 +58,14 @@ void TaskManager::movePelvHandPose()
     }
 
     // Sine-wave Test
-    static int tick_pelv = 0;
-    double T = traj_time; // period
-    double wn = (2.0 * M_PI) / T;
-    rd_.link_[Pelvis].x_traj = rd_.link_[Pelvis].support_xpos_init;
-    rd_.link_[Pelvis].x_traj(1) = rd_.link_[Pelvis].support_xpos_init(1) + pelv_dist * sin(wn * tick_pelv / hz_);
-    rd_.link_[Pelvis].v_traj(1) = wn * pelv_dist * cos(wn * tick_pelv / hz_);
-    rd_.link_[Pelvis].x_traj = rd_.link_[Pelvis].x_traj - rd_.link_[Pelvis].support_xpos;
-
-    tick_pelv++;
+    // static int tick_pelv = 0;
+    // double T = traj_time; // period
+    // double wn = (2.0 * M_PI) / T;
+    // rd_.link_[Pelvis].x_traj = rd_.link_[Pelvis].support_xpos_init;
+    // rd_.link_[Pelvis].x_traj(1) = rd_.link_[Pelvis].support_xpos_init(1) + pelv_dist * sin(wn * tick_pelv / hz_);
+    // rd_.link_[Pelvis].v_traj(1) = wn * pelv_dist * cos(wn * tick_pelv / hz_);
+    // rd_.link_[Pelvis].x_traj = rd_.link_[Pelvis].x_traj - rd_.link_[Pelvis].support_xpos;
+    // tick_pelv++;
 
     //--- Increment Tick
     sim_tick++;

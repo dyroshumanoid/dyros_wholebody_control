@@ -48,6 +48,25 @@ Eigen::VectorQd CustomController::getControl()
 void CustomController::computeSlow()
 {
     queue_cc_.callAvailable(ros::WallDuration());
+    col_mgr_.queueCallAvailable();
+    
+    // cm_.update();
+
+    col_mgr_.pubBasetoHeadTransform();
+#ifdef COMPILE_SIMULATION
+    col_mgr_.pubQRObstaclePose(sim_tick_, hz_);
+    col_mgr_.updateObstacle();
+    sim_tick_++;
+    if (sim_tick_ % 500 == 0)
+    {
+        if(!col_mgr_.cb_obstacles_.empty()){
+            cout << "position: " << col_mgr_.cb_obstacles_[0].trans_global.transpose() << endl;
+            cout << "velocity: " << col_mgr_.cb_obstacles_[0].vel_global.transpose() << endl;
+            cout << "----------------------------" << endl;
+        }
+    }
+
+#endif
 
     if (rd_.tc_.mode == 6)
     {   
@@ -62,8 +81,12 @@ void CustomController::computeSlow()
 
         kin_wbc_.computeTaskSpaceKinematicWBC();
 
-        dyn_wbc_.computeDynamicWBC();
+        // dyn_wbc_.computeDynamicWBC();
         dyn_wbc_.computeTotalTorqueCommand();
+
+#ifdef COMPILE_SIMULATION
+        col_mgr_.pubSelfCollisionStatus();
+#endif
 
         dataCC1 << rd_.LF_FT.transpose() << " " << rd_.RF_FT.transpose() << std::endl;
         dataCC2 << rd_.torque_desired.transpose() << std::endl;
@@ -77,7 +100,6 @@ void CustomController::computeSlow()
 
 void CustomController::computeFast()
 {
-
 }
 
 void CustomController::computePlanner()

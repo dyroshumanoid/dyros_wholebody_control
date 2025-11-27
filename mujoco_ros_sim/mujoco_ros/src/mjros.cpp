@@ -201,6 +201,12 @@ void QRPoseCallback(const geometry_msgs::PoseStamped & msg)
     aruco_pos_cmd_applied = true;
 }
 
+void collisionCallback(const std_msgs::UInt8MultiArray & msg)
+{
+    for (size_t i = 0; i < msg.data.size(); i++)
+        col_obj_in_collision[i] = static_cast<bool>(msg.data[i]);
+}
+
 void rosPollEvents()
 {
     if (reset_request)
@@ -568,6 +574,16 @@ void mycontroller(const mjModel *m, mjData *d)
                 // Mocap 바디에 적용
                 memcpy(&d->mocap_pos[3*mocap_aruco_id], pos_aruco_desired, 3 * sizeof(double));
                 memcpy(&d->mocap_quat[4*mocap_aruco_id], quat_aruco_desired, 4 * sizeof(double));
+            }
+
+            // Color change of collgion objects (red: in collision, blue: no collision)
+            for (int i = 0; i < col_obj_geom_ids.size(); i++){
+                if(col_obj_in_collision[i]){
+                    memcpy(m->geom_rgba + 4 * col_obj_geom_ids[i], RED, 4 * sizeof(float));
+                }
+                else{
+                    memcpy(m->geom_rgba + 4 * col_obj_geom_ids[i], BLUE, 4 * sizeof(float));
+                }
             }
 
             if (use_shm)

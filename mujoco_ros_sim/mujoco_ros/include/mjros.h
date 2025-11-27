@@ -24,6 +24,7 @@
 #include <std_msgs/String.h>
 #include <std_msgs/Float32.h>
 #include <std_msgs/Float32MultiArray.h>
+#include <std_msgs/UInt8MultiArray.h>
 #include <sensor_msgs/JointState.h>
 #include <tf/transform_datatypes.h>
 #include <geometry_msgs/Point.h>
@@ -297,6 +298,7 @@ ros::Subscriber new_obj_pose_sub;
 // ros::Publisher obj_pose_pub;
 ros::Subscriber force_apply_sub;    // apply external force
 ros::Subscriber aruco_pose_sub;     // move a QR code(ArUCo) attached obstacle
+ros::Subscriber collision_sub;      // get collision status of collision objects
 
 // std_msgs::Float32MultiArray ext_force_msg_;
 mujoco_ros_msgs::applyforce ext_force_msg_;
@@ -307,11 +309,38 @@ mjvGeom* arrow;
 void arrowshow(mjvGeom* arrow);
 void makeArrow(mjvGeom* arrow);
 
-//QR(aruco) box related variables
+// QR(aruco) box related variables
 const int mocap_aruco_id = 0;
 double pos_aruco_desired[3];
 double quat_aruco_desired[4];
 bool aruco_pos_cmd_applied = false;
+
+// collision object related functions and variables
+// colors for collision object visualization
+const float BLUE[4] = {0.0, 0.0, 1.0, 0.3}; // safe (no collision)
+const float RED[4] = {1.0, 0.0, 0.0, 0.3};  // in collision
+// geom ids of collision objects
+const std::vector<int> col_obj_geom_ids = {
+    7,      // Left Pelvis
+    8,      // Right Pelvis
+    20,     // Left Upper Leg
+    24,     // Left Lower Leg
+    32,     // Left Inner Foot
+    33,     // Left Outer Foot
+    45,     // Right Upper Leg
+    49,     // Right Lower Leg
+    57,     // Right Inner Foot
+    58,     // Right Outer Foot
+    90,     // Left Upper Arm
+    98,     // Left Forearm
+    103,    // Left Hand
+    107,    // Head
+    117,    // Right Upper Arm
+    125,    // Right Forearm
+    130     // Right Hand
+};
+// collision status of collision objects
+std::vector<bool> col_obj_in_collision = std::vector<bool>(col_obj_geom_ids.size(), false);
 
 //mujoco_ros_msgs::JointState joint_state_msg_;
 //mujoco_ros_msgs::JointSet joint_set_msg_;
@@ -391,5 +420,6 @@ void mycontroller(const mjModel *m, mjData *d);
 void NewObjPoseCallback(const geometry_msgs::PoseConstPtr &msg);
 void force_apply_callback(const std_msgs::Float32MultiArray &msg);
 void QRPoseCallback(const geometry_msgs::PoseStamped & msg);            // get the desired pos.&ori. of a QR code(ArUCo) attached obstacle
+void collisionCallback(const std_msgs::UInt8MultiArray & msg);          // get collision status of collision objects from Collision Manager
 
 #endif

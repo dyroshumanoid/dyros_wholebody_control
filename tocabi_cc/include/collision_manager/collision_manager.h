@@ -24,8 +24,15 @@
 // to avoid compilation errors from differing Boost-variant sizes.
 #include <pinocchio/fwd.hpp>
 
-#include "math_type_define.h"
-#include "tocabi_lib/robot_data.h"
+// ROS Headers
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2/exceptions.h>
+#include <std_msgs/UInt8MultiArray.h>           // For collision status of collision objects
+#include <std_msgs/Bool.h>
+#include <geometry_msgs/TransformStamped.h>     // For TF information of camera frame
+#include <geometry_msgs/PoseStamped.h>          // For sending obstacle poses to MuJoCo
 
 // Pinocchio Headers
 #include <pinocchio/multibody/model.hpp>
@@ -45,31 +52,43 @@
 #include <hpp/fcl/distance.h>
 #include <hpp/fcl/collision.h>
 
-// Headers for Sending TF information of camera frame
-#include <tf2_ros/transform_broadcaster.h>
-#include <tf2_ros/buffer.h>
-#include <tf2_ros/transform_listener.h>
-#include <tf2/exceptions.h>
-#include <geometry_msgs/TransformStamped.h>
-
-// Header for sending position and orientation of obstacles to MuJoCo simulation
-#include <geometry_msgs/PoseStamped.h>
+#include "math_type_define.h"
+#include "tocabi_lib/robot_data.h"
+#include "collision_manager/tracked_obstacle.h"
 
 class CollisionManager
 {
 public:
     CollisionManager(const RobotData &rd);
 
+    void queueCallAvailable();
+
 private:
     // robot data
     const RobotData &rd_;
 
+    // control frequency
+    double hz_ = 2000;
+
     // ROS
     ros::NodeHandle nh_cm_;
+    ros::CallbackQueue queue_cm_;
+    // publisher
+    ros::Publisher col_status_pub_;                         // send collision status of collision objects to MuJoCo
+    ros::Publisher base_to_head_pose_pub_;                  // send base_to_head_pose_pub_ to camera
+    ros::Publisher aruco_pose_pub_;                         // send aruco_pose_msg to MuJoCo
+    // subscriber
+    ros::Subscriber aruco_detect_sub_;
     // tf2_ros(coordinate transform communication)
     tf2_ros::TransformBroadcaster tf_broadcaster_;
     tf2_ros::Buffer tf_buffer_;
     tf2_ros::TransformListener tf_listener{tf_buffer_};
+    // msg
+    std_msgs::UInt8MultiArray col_status_msg_;              // contain collision status of collision objects
+    geometry_msgs::TransformStamped base_to_head_tf_msg_;   // contain transform from base to head
+    geometry_msgs::TransformStamped base_to_qr_tf_msg_;     // contain transform from base to qr object
+    geometry_msgs::PoseStamped aruco_pose_msg_;             // contain pos.&ori. of the obstacle
+    geometry_msgs::PoseStamped base_to_head_pose_msg_;      // contain transform from base to head
 
     //================================ Pinocchio =================================//
 public:
@@ -80,7 +99,6 @@ private:
     pinocchio::Model model_;
     // pinocchio data of the Robot
     pinocchio::Data data_;
-    
 
     /**
      * @brief Convert the joint configuration including floating base from RBDL format to Pinocchio format
@@ -112,6 +130,9 @@ public:
         // pinocchio parent joint ID of the link
         int joint_id;
 
+        // collision status of each collision object (true: in collision, false: safe(no collision))
+        bool in_collision = false; 
+
         // translation vector
         Eigen::Vector3d trans_local;    // from link frame to collision object frame
         Eigen::Vector3d trans_global;   // from world frame to collision object frame
@@ -119,6 +140,9 @@ public:
         // rotation matrix
         Eigen::Matrix3d rot_local;      // from link frame to collision object frame
         Eigen::Matrix3d rot_global;     // from world frame to collision object frame
+
+        // linear_velocity
+        Eigen::Vector3d vel_global;
 
         // type of collision geometry
         enum class Type
@@ -175,12 +199,29 @@ public:
 
     // the number of collision pairs
     int num_pairs_;
+    int num_pairs_w_obs_;
     
     // Self-collision avoidance Jacobian for all defined collision pairs
     MatrixXd J_self_col_;
+    MatrixXd J_obs_col_;
 
-    // Minimum distances for each collision pair
-    VectorXd min_distances_;
+    // Minimum distance
+    VectorXd min_distances_;            // self collision
+    VectorXd min_distances_w_obs_;   // between robot and obstacle
+
+    /**
+     * @brief Publishes the self-collision status of all collision objects of the robot
+     *        to the MuJoCo simulation
+     * 
+     * @note This method constructs and sends a `std_msgs::UInt8MultiArray` message
+     *       where each element represents the collision status of a corresponding collision object:
+     * 
+     *       - 0: safe (no collision)
+     * 
+     *       - 1: in collision
+     *
+     */
+    void pubSelfCollisionStatus();
 
     /**
      * @brief Update the transformation(TF) matrices of the robot's collision objects(CObjs)
@@ -198,6 +239,16 @@ public:
      *       specified in col_pair_ids_
      */
     void computeSelfColAvoidJac();
+
+    /**
+     * @brief Check for self-collisions among the robot's collision objects
+     * 
+     * @note This method is used to detect collisions for visualization purposes, particularly to highlight
+     *       collisions in red when the self-collision avoidance constraint is not applied.
+     */
+    void checkSelfCollision();
+
+    void computeObsColAvoidJac();
 
 private:
     // pairs of collision object IDs for self-collision checks
@@ -220,16 +271,18 @@ private:
         {Left_Inner_Foot_Col_ID, Right_Inner_Foot_Col_ID},
         {Right_Upper_Leg_Col_ID, Right_ForeArm_Col_ID},
         {Right_Upper_Leg_Col_ID, Right_Hand_Col_ID},
+        // {Left_Upper_Arm_Col_ID, Right_Hand_Col_ID},
         // {Left_Hand_Col_ID, Right_Upper_Arm_Col_ID},
+        {Left_ForeArm_Col_ID, Right_ForeArm_Col_ID},
+        {Left_ForeArm_Col_ID, Right_Hand_Col_ID},
         {Left_Hand_Col_ID, Right_ForeArm_Col_ID},
         {Left_Hand_Col_ID, Right_Hand_Col_ID},
-        {Left_ForeArm_Col_ID, Right_ForeArm_Col_ID},
-        // {Right_Hand_Col_ID, Left_Upper_Arm_Col_ID},
-        {Right_Hand_Col_ID, Left_ForeArm_Col_ID},
-        {Right_Hand_Col_ID, Left_Hand_Col_ID},
         {Head_Col_ID, Left_ForeArm_Col_ID},
         {Head_Col_ID, Left_Hand_Col_ID}
     };
+
+    // collision status flags for each collision object (0: safe, 0>=: in collision)
+    std::vector<unsigned int> collision_flags_ = std::vector<unsigned int>(Col_Obj_Count, 0);
 
     // DistanceRequest configured to compute nearest points (used in getDistanceResultBetweenCObjs)
     hpp::fcl::DistanceRequest request_enable_nearest_point_;
@@ -282,11 +335,11 @@ private:
      * @param obj_id1 index of the first collision object
      * @param obj_id2 index of the second collision object
      * @param min_distance minimum distance between the nearest points of the two objects
-     * @param nearest_point1 position of the nearest point on the center (i.e., the sphere center) of the first object in world frame
-     * @param nearest_point2 position of the nearest point on the center (i.e., the sphere center) of the second object in world frame
+     * @param nearest_point1 the point on object 1 that is closest to object 2, expressed in the world frame
+     * @param nearest_point2 the point on object 2 that is closest to object 1, expressed in the world frame
      * 
      * @note The collision result contains the minimum distance between the nearest points
-     *       and the corresponding points on the centers of the two sphere objects
+     *       and the corresponding points on each object's surface
      */                                                          
     void ColResultSphere2Sphere(const CollisionObjectIdx obj_id1, 
                                 const CollisionObjectIdx obj_id2, 
@@ -301,13 +354,13 @@ private:
      * @param obj_id1 index of the first collision object
      * @param obj_id2 index of the second collision object
      * @param min_distance minimum distance between the nearest points of the two objects
-     * @param nearest_point1 position of the nearest point on the center (i.e., the sphere center) of the first object in world frame
-     * @param nearest_point2 position of the nearest point on the centerline (i.e., the central axis) of the second object in world frame
+     * @param nearest_point1 the point on object 1 that is closest to object 2, expressed in the world frame
+     * @param nearest_point2 the point on object 2 that is closest to object 1, expressed in the world frame
      * 
      * @note The sphere object must be assigned to obj_id1
      *      
      *       The collision result contains the minimum distance between the nearest points
-     *       and the corresponding points on the sphere center and capsule centerline
+     *       and the corresponding points on each object's surface
      *       
      */                               
     void ColResultSphere2Capsule(const CollisionObjectIdx obj_id1, 
@@ -323,11 +376,11 @@ private:
      * @param obj_id1 index of the first collision object
      * @param obj_id2 index of the second collision object
      * @param min_distance minimum distance between the nearest points of the two objects
-     * @param nearest_point1 position of the nearest point on the centerline (i.e., the central axis) of the first object in world frame
-     * @param nearest_point2 position of the nearest point on the centerline (i.e., the central axis) of the second object in world frame
+     * @param nearest_point1 the point on object 1 that is closest to object 2, expressed in the world frame
+     * @param nearest_point2 the point on object 2 that is closest to object 1, expressed in the world frame
      * 
      * @note The collision result contains the minimum distance between the nearest points
-     *       and the corresponding points on the centerlines of the two capsule objects
+     *       and the corresponding points on each object's surface
      */                                
     void ColResultCapsule2Capsule(const CollisionObjectIdx obj_id1, 
                                   const CollisionObjectIdx obj_id2, 
@@ -340,17 +393,12 @@ private:
      * @brief Compute the Jacobian-based constraint matrix for a single collision pair(ColPair)
      * 
      * @param obj_id1 index of the first collision object
-     * @param nearest_point1 position of the nearest point on the collision object's center 
-     *                       (i.e., a sphere center or a point on the capsule centerline) for the first object in world frame
+     * @param center_point1 the point on object 1 that is closest to object 2, expressed in the world frame
      * @param obj_id2 index of the second collision object
-     * @param nearest_point2 position of the nearest point on the collision object's center
-     *                       (i.e., a sphere center or a point on the capsule centerline) for the second object in world frame
+     * @param center_point2 the point on object 2 that is closest to object 1, expressed in the world frame
      * @param sign sign of the minimum distance(positive(objects separated): 1, negative(penetration): -1)
      * 
      * @return the Jacobian-based constraint matrix for the single collision pair
-     * 
-     * @note nearest_point1 and nearest_point2 here refer to points on the collision geometry "centers"
-     *         (i.e., sphere centers or points on capsule centerlines).
      */                                 
     Eigen::MatrixXd computeColPairJac(const CollisionObjectIdx obj_id1,
                                       const Eigen::Vector3d nearest_point1,
@@ -363,15 +411,12 @@ private:
      * @brief Compute the Jacobian-based constraint matrix for a single collision pair(ColPair) using HPP-FCL collision library
      * 
      * @param obj_id1 index of the first collision object
-     * @param nearest_point1 position of the nearest point returned by HPP-FCL for the first object in world frame
+     * @param nearest_point1 the point on object 1 returned by HPP-FCL that is closest to object 2, expressed in the world frame
      * @param obj_id2 index of the second collision object
-     * @param nearest_point2 position of the nearest point returned by HPP-FCL for the second object in world frame
+     * @param nearest_point2 the point on object 2 returned by HPP-FCL that is closest to object 1, expressed in the world frame
      * @param sign sign of the minimum distance(positive(objects separated): 1, negative(penetration): -1)
      * 
      * @return the Jacobian-based constraint matrix for the single collision pair
-     * 
-     * @note When using HPP-FCL, nearest_point1 and nearest_point2 are the true closest points on the
-     *       geometries' surfaces (i.e., surface points), not center or centerline points
      */                                     
     Eigen::MatrixXd computeColPairJacHPPFCL(const CollisionObjectIdx obj_id1,
                                             const Eigen::Vector3d nearest_point1,
@@ -427,9 +472,9 @@ private:
                                                              const double size_y,
                                                              const double size_z
                                                              );
-    
-    //____________________________________________________________________________//
 
+    //____________________________________________________________________________//
+                                                             
     //======================== Communication with Camera =========================//
 public:
     // transformation matrices
@@ -440,10 +485,16 @@ public:
     Eigen::Matrix3d world_to_base_rot_yaw_only_;
     Eigen::Vector3d world_to_base_trans_;
 
+    std::mutex meas_mutex_;
+    bool has_new_measure_ = false;
+    ros::Time last_detect_time_;
+    
+    double tracking_duration, process_var, process_rate_var, measurement_var;
+
     /**
      * @brief Publish the transformation matrix from base frame to head frame
      * 
-     * @note This method uses ROS tf2 to broadcast the transformation matrix
+     * @note This method uses ROS to publish the transformation matrix
      */
     void pubBasetoHeadTransform();
 
@@ -456,16 +507,13 @@ public:
      */
     Eigen::Isometry3d getBasetoQRTransform();
 
-    /** This method is for checking aruco code detection
-     * @brief Get the transformation matrix from base frame to head frame
-     */
-    void getBasetoHeadTransform();
+    void BasetoQRTransformCallback(const geometry_msgs::PoseStamped &msg);
+    
+    void updateObstacle();
 
 private:
-    // tf2_ros msg
-    geometry_msgs::TransformStamped base_to_head_tf_msg_;   // contain transform from base to head
-    geometry_msgs::TransformStamped base_to_qr_tf_msg_;     // contain transform from base to qr object
-    
+    std::vector<TrackedObstacle> tracked_obstacles_;
+
     //____________________________________________________________________________//
 
     //============================ Obstacle in MuJoCo ============================//
@@ -479,12 +527,6 @@ public:
      */
     void pubQRObstaclePose(const int sim_tick, 
                            const double hz);
-private:
-    // ROS
-    // publisher
-    ros::Publisher aruco_pose_pub_;              // send aruco_pose_msg to MuJoCo
-    // msg
-    geometry_msgs::PoseStamped aruco_pose_msg_;  // contain pos.&ori. of the obstacle
 };
 
 #endif // COLLISION_MANAGER_H

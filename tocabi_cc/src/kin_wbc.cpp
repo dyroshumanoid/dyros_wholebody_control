@@ -211,20 +211,23 @@ void KinWBC::calcInequalityConstraint()
     col_mgr_.updateRobotCObjsTF();
     col_mgr_.computeSelfColAvoidJac();
 
-    double alpha_self_col = 20.0;
+    double alpha_self_col = 1.0;
     double eps_self_col = 50.0;
 
     Eigen::VectorXd lbA_self_col; lbA_self_col.setZero(col_mgr_.num_pairs_); 
     Eigen::VectorXd ubA_self_col; ubA_self_col.setZero(col_mgr_.num_pairs_);
 
-    lbA_self_col = -alpha_self_col * col_mgr_.min_distances_;
-                   + (1.0 / eps_self_col) * col_mgr_.J_self_col_.rowwise().squaredNorm();
+    lbA_self_col = -alpha_self_col * col_mgr_.min_distances_ + (1.0 / eps_self_col) * col_mgr_.J_self_col_.rowwise().squaredNorm();
     ubA_self_col.setConstant(1e8);
     
     constraints_.push_back({col_mgr_.J_self_col_,
                             lbA_self_col,
                             ubA_self_col});
+    
+    // --- (4) Obstacle avoidance constraints
 
+    // uncomment to visualize self-collisions when the avoidance constraint is disabled
+    // col_mgr_.checkSelfCollision();
 
     // ---self, environment, reachability, ... + alpha (singularity)
 } 
