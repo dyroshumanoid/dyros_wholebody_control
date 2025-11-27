@@ -33,6 +33,7 @@ ContactIndicator getSupportPhaseIndicator();
 void contactWrenchCalculator();
 Eigen::Vector2d cp_desired_;
 Eigen::Vector2d cp_measured_;
+Eigen::Vector2d del_zmp;
 
 double zmp_x_ref = 0.0;
 double zmp_y_ref = 0.0;

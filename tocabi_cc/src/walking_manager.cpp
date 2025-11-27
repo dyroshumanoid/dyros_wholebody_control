@@ -284,6 +284,7 @@ void WalkingManager::getComTrajectory()
         first_com = false;
     }
 
+    //--- Preview Control
     int NL = static_cast<int>(1.6 * hz_);
     Eigen::VectorXd zmp_x_window;
     zmp_x_window.setZero(NL);
@@ -295,7 +296,6 @@ void WalkingManager::getComTrajectory()
 
     zmp_x_ref = zmp_x_traj(step_tick);
     zmp_y_ref = zmp_y_traj(step_tick);
-
 
     static Eigen::MatrixXd p_err_sum_x_;
     static Eigen::MatrixXd p_err_sum_y_;
@@ -329,31 +329,31 @@ void WalkingManager::getComTrajectory()
     rd_.link_[COM_id].x_traj(1) = com_y_dy_ddy(0);
     rd_.link_[COM_id].x_traj(2) = com_height;
 
+    //--- Calc Capture Point
+    cp_desired_(0) = com_x_dx_ddx(0) + com_x_dx_ddx(1) / wn;
+    cp_desired_(1) = com_y_dy_ddy(0) + com_y_dy_ddy(1) / wn;
+    cp_measured_ = (rd_.link_[COM_id].support_xpos + rd_.link_[COM_id].support_v / wn).head(2);
+    del_zmp = 2.0 * (cp_measured_ - cp_desired_);
+
     p_err_sum_x_(0) += ((C * com_x_dx_ddx_next)(0) - zmp_x_traj(step_tick + 1));
     p_err_sum_y_(0) += ((C * com_y_dy_ddy_next)(0) - zmp_y_traj(step_tick + 1));
 
     rd_.link_[Pelvis].r_traj.setIdentity();
-
-    // Calc Capture Point
-    cp_desired_(0) = com_x_dx_ddx(0) + com_x_dx_ddx(1) / wn;
-    cp_desired_(1) = com_y_dy_ddy(0) + com_y_dy_ddy(1) / wn;
 }
 
 void WalkingManager::contactWrenchCalculator()
 {
-    cp_measured_ = (rd_.link_[COM_id].support_xpos + rd_.link_[COM_id].support_v / wn).head(2);
 
     ////// CONTACT WRENCH CALCULATION //////
     lfoot_contact_wrench.setZero(6);
     rfoot_contact_wrench.setZero(6);
-    Eigen::Vector2d del_zmp = 2.0 * (cp_measured_ - cp_desired_);
     double alpha = 0.0;
     double F_R = 0.0, F_L = 0.0;
     double Tau_all_y = 0.0, Tau_R_y = 0.0, Tau_L_y = 0.0;
     double Tau_all_x = 0.0, Tau_R_x = 0.0, Tau_L_x = 0.0;
 
-    Eigen::Vector2d pL_sharp; pL_sharp.setZero(); pL_sharp = rd_.link_[Left_Foot].support_xpos.segment(0, 2); // pL_sharp(1) -= 0.09;
-    Eigen::Vector2d pR_sharp; pR_sharp.setZero(); pR_sharp = rd_.link_[Right_Foot].support_xpos.segment(0, 2); // pR_sharp(1) += 0.09;
+    Eigen::Vector2d pL_sharp; pL_sharp.setZero(); pL_sharp = rd_.link_[Left_Foot].support_xpos.segment(0, 2);  pL_sharp(1) -= 0.05;
+    Eigen::Vector2d pR_sharp; pR_sharp.setZero(); pR_sharp = rd_.link_[Right_Foot].support_xpos.segment(0, 2); pR_sharp(1) += 0.05;
 
     alpha = (zmp_y_ref + del_zmp(1) - pR_sharp(1)) / (pL_sharp(1) - pR_sharp(1));
     alpha = DyrosMath::minmax_cut(alpha, 0.0, 1.0);
