@@ -108,57 +108,6 @@ desired joint accelerations and contact wrenches while enforcing whole-body dyna
 
 ---
 
-### **Tracking Objectives**
-
-The QP tracks the following quantities:
-
-- **Desired joint accelerations**: $\ddot{\boldsymbol{q}}^{\text{des}}$
-- **Desired contact wrenches**: $\boldsymbol{F}^{\text{des}}_{c}$
-
----
-
-### **Regularization Terms**
-
-The controller includes regularization to ensure smooth and stable control signals:
-
-- **Torque smoothing**: minimizing $\|\boldsymbol{\tau} - \boldsymbol{\tau}_{\text{prev}}\|_{R}^{2}$
-- **Acceleration energy minimization**: minimizing $\ddot{\boldsymbol{q}}^\top\boldsymbol{M}\ddot{\boldsymbol{q}}$
-
----
-
-### **Constraints**
-
-The optimization enforces:
-
-- **Whole-body rigid-body dynamics**  
-  $
-  \boldsymbol{M}(\boldsymbol{q})\ddot{\boldsymbol{q}} + h(\boldsymbol{q},\dot{\boldsymbol{q}}) = S^\top \boldsymbol{\tau} + \boldsymbol{J_c}^\top \boldsymbol{F}_c
-  $
-- **Friction cone constraints**  
-  $
-  \boldsymbol{F}_c \in \mathcal{K}_\mu
-  $
-
----
-
-### **Notation**
-
-- $\boldsymbol{M}(\boldsymbol{q})$: Mass matrix  
-- $\boldsymbol{h}(\boldsymbol{q},\dot{\boldsymbol{q}})$: Coriolis, gravity, and nonlinear terms  
-- $\boldsymbol{S}^\top$: Actuation selection matrix  
-- $\boldsymbol{J}_c$: Contact Jacobian  
-- $\boldsymbol{\mathcal{K}}_{\mu}$: Friction cone defined by coefficient $\mu$
-
-### **Output**
-The QP returns:
-
-- **Joint torques** \( \boldsymbol{\tau} \) consistent with the full-body dynamics  
-- Contact wrenches and joint accelerations that respect task priorities and constraints  
-
-
-
----
-
 ## 6. WalkingManager
 Generates walking-related trajectories, including:
 
