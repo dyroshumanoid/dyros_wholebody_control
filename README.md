@@ -112,8 +112,8 @@ desired joint accelerations and contact wrenches while enforcing whole-body dyna
 
 The QP tracks the following quantities:
 
-- **Desired joint accelerations**: $\ddot{q}_{des}$
-- **Desired contact wrenches**: $\boldsymbol{F}_{des}$
+- **Desired joint accelerations**: $\ddot{\boldsymbol{q}}^{\text{des}}$
+- **Desired contact wrenches**: $\boldsymbol{F}^{\text{des}}_{c}$
 
 ---
 
@@ -121,8 +121,8 @@ The QP tracks the following quantities:
 
 The controller includes regularization to ensure smooth and stable control signals:
 
-- **Torque smoothing**: minimizing $\|\boldsymbol{\tau}\|_{R}^{2}$
-- **Acceleration energy minimization**: minimizing $\|\ddot{q}\|_{Q}^{2}$
+- **Torque smoothing**: minimizing $\|\boldsymbol{\tau} - \boldsymbol{\tau}_{\text{prev}}\|_{R}^{2}$
+- **Acceleration energy minimization**: minimizing $\ddot{\boldsymbol{q}}^\top\boldsymbol{M}\ddot{\boldsymbol{q}}$
 
 ---
 
@@ -131,53 +131,23 @@ The controller includes regularization to ensure smooth and stable control signa
 The optimization enforces:
 
 - **Whole-body rigid-body dynamics**  
-  $$
-  M(q)\ddot{q} + h(q,\dot{q}) = S^\top \boldsymbol{\tau} + J_c^\top \boldsymbol{F}
-  $$
+  $
+  \boldsymbol{M}(\boldsymbol{q})\ddot{\boldsymbol{q}} + h(\boldsymbol{q},\dot{\boldsymbol{q}}) = S^\top \boldsymbol{\tau} + \boldsymbol{J_c}^\top \boldsymbol{F}_c
+  $
 - **Friction cone constraints**  
-  $$
+  $
   \boldsymbol{F}_c \in \mathcal{K}_\mu
-  $$
-- **Torque, joint, and contact limits**
-
----
-
-### **QP Formulation**
-
-DynWBC solves the following quadratic program:
-
-$$
-\begin{aligned}
-\min_{\ddot{q},\, \boldsymbol{\tau},\, \boldsymbol{F}}
-\quad &
-\underbrace{\|\ddot{q} - \ddot{q}_{des}\|_{Q_{\ddot{q}}}^{2}}_{\text{Joint acceleration tracking}}
-+
-\underbrace{\|\boldsymbol{F} - \boldsymbol{F}_{des}\|_{Q_F}^{2}}_{\text{Contact wrench tracking}}
-+
-\underbrace{\|\boldsymbol{\tau}\|_{R_\tau}^{2}}_{\text{Torque smoothing}}
-\\[6pt]
-\text{subject to:} \quad &
-M(q)\ddot{q} + h(q,\dot{q}) = S^\top \boldsymbol{\tau} + J_c^\top \boldsymbol{F}
-\quad (\text{Whole-body dynamics})
-\\[6pt]
-& \boldsymbol{F}_c \in \mathcal{K}_{\mu}
-\quad (\text{Friction cone constraints})
-\\[6pt]
-& \boldsymbol{\tau}_{min} \le \boldsymbol{\tau} \le \boldsymbol{\tau}_{max}
-\\[4pt]
-& \dot{q}_{min} \le \dot{q} \le \dot{q}_{max}
-\end{aligned}
-$$
+  $
 
 ---
 
 ### **Notation**
 
-- $M(q)$: Mass matrix  
-- $h(q,\dot{q})$: Coriolis, gravity, and nonlinear terms  
-- $S$: Actuation selection matrix  
-- $J_c$: Contact Jacobian  
-- $\mathcal{K}_{\mu}$: Friction cone defined by coefficient $\mu$
+- $\boldsymbol{M}(\boldsymbol{q})$: Mass matrix  
+- $\boldsymbol{h}(\boldsymbol{q},\dot{\boldsymbol{q}})$: Coriolis, gravity, and nonlinear terms  
+- $\boldsymbol{S}^\top$: Actuation selection matrix  
+- $\boldsymbol{J}_c$: Contact Jacobian  
+- $\boldsymbol{\mathcal{K}}_{\mu}$: Friction cone defined by coefficient $\mu$
 
 ### **Output**
 The QP returns:
