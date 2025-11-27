@@ -71,5 +71,5 @@ wbid:
   W_torque : 2.5
   W_energy : 0.2
 
-motion_mode : 3 # 0: idle, 1: simple ik, 2: taichi, 3: walking
+motion_mode : 1 # 0: idle, 1: simple hand motion, 2: taichi, 3: walking
 is_kinematic_control_idx : 0 # 0: dynamic control, 1: kinematic control
