@@ -2,10 +2,17 @@
 
 using namespace TOCABI;
 
-ofstream dataCC1("/home/kwan/catkin_ws/src/tocabi_cc/data/dataCC1.txt");
-ofstream dataCC2("/home/kwan/catkin_ws/src/tocabi_cc/data/dataCC2.txt");
+ ofstream torque_pd_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
+ofstream torque_idn_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
+ofstream torque_sum_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
+ofstream joint_pos_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_pos_log.txt");
+ofstream joint_pos_des_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_pos_des_log.txt");
+ofstream joint_vel_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_vel_log.txt");
+ofstream joint_vel_des_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_vel_des_log.txt");
+ofstream joint_acc_des_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_acc_des_log.txt");
+ofstream contact_wrench_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/contact_wrench_log.txt");
 
-CustomController::CustomController(RobotData &rd) : rd_(rd), col_mgr_(rd), cm_(rd), tm_(rd), kin_wbc_(rd, col_mgr_), dyn_wbc_(rd)
+CustomController::CustomController(RobotData &rd) : rd_(rd), col_mgr_(rd), cm_(rd), tm_(rd), kin_wbc_(rd, col_mgr_), dyn_wbc_(rd), teleop_(rd)
 {
     //--- ROS Node Handle
     nh_cc_.setCallbackQueue(&queue_cc_);
@@ -48,49 +55,116 @@ Eigen::VectorQd CustomController::getControl()
 void CustomController::computeSlow()
 {
     queue_cc_.callAvailable(ros::WallDuration());
-    col_mgr_.queueCallAvailable();
-    
-    // cm_.update();
+    col_mgr_.callAvailableQueue();
+    teleop_.callAvailableQueue();
+
+    cm_.update();
 
     col_mgr_.pubBasetoHeadTransform();
-#ifdef COMPILE_SIMULATION
-    col_mgr_.pubQRObstaclePose(sim_tick_, hz_);
     col_mgr_.updateObstacle();
-    sim_tick_++;
-    if (sim_tick_ % 500 == 0)
-    {
-        if(!col_mgr_.cb_obstacles_.empty()){
-            cout << "position: " << col_mgr_.cb_obstacles_[0].trans_global.transpose() << endl;
-            cout << "velocity: " << col_mgr_.cb_obstacles_[0].vel_global.transpose() << endl;
-            cout << "----------------------------" << endl;
-        }
-    }
-
-#endif
 
     if (rd_.tc_.mode == 6)
     {   
+        if(is_6_init)
+        {           
+            cm_.saveInitialState();
+            is_6_init = false;
+        }
+
         CustomControllerInit();
+
         moveInitialPose();
+
     }
     else if (rd_.tc_.mode == 7)
     {
-        cm_.update();
+        if(is_7_init)
+        {           
+            cm_.saveInitialState();
+            is_7_init = false;
+        }
+
+#ifdef COMPILE_SIMULATION
+            col_mgr_.pubQRObstaclePose(sim_tick_, hz_);
+            sim_tick_++;
+#endif
 
         tm_.runTestMotion(motion_mode_); 
 
         kin_wbc_.computeTaskSpaceKinematicWBC();
 
-        // dyn_wbc_.computeDynamicWBC();
-        dyn_wbc_.computeTotalTorqueCommand();
-
 #ifdef COMPILE_SIMULATION
         col_mgr_.pubSelfCollisionStatus();
 #endif
 
-        dataCC1 << rd_.LF_FT.transpose() << " " << rd_.RF_FT.transpose() << std::endl;
-        dataCC2 << rd_.torque_desired.transpose() << std::endl;
+        if(!is_kinematic_control)
+        {
+            if (atb_control_command_update_ == false)
+            {
+                atb_control_command_update_ = true;
 
+                qddot_cmd_container = rd_.q_ddot_desired_virtual;
+
+                contact_wrench_cmd_container.head(6) = rd_.LF_FT_DES;
+                contact_wrench_cmd_container.tail(6) = rd_.RF_FT_DES;
+
+                atb_control_command_update_ = false;
+            }
+        }
+
+        torque_pd.setZero();
+        torque_pd = (rd_.Kd_diag) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
+
+        torque_idn.setZero();
+        if(!is_kinematic_control)
+        {
+            if (atb_torque_update_ == false)
+            {
+                atb_torque_update_ = true;
+                torque_idn = torque_idn_container;
+                atb_torque_update_ = false;
+            }
+        }
+        
+        torque_sum.setZero();
+        torque_sum = torque_pd + torque_idn;
+
+        // --- Torque initialization
+        static bool is_torque_save_init = true;
+        if(is_torque_save_init == true)
+        {
+            rd_.torque_init = rd_.torque_desired;
+
+            is_torque_save_init = false;
+        }
+
+        static bool is_torque_desired_init = true;
+        static int tick_torque_desired_init = 0;
+        if(is_torque_desired_init == true)
+        {
+            for (int i = 0; i < MODEL_DOF; i++) {
+                torque_sum(i) = DyrosMath::cubic(tick_torque_desired_init, 0, 1000, rd_.torque_init(i), torque_sum(i), 0.0, 0.0);
+            }
+
+            tick_torque_desired_init++;
+
+            if(tick_torque_desired_init >= 1000) {
+                is_torque_desired_init = false;
+                std::cout << "========== INFO: INITIAL TORQUE SMOOTHING COMPLETE ==========" << std::endl;
+            }
+        }
+
+        rd_.torque_desired = torque_sum;
+
+        torque_pd_log  << std::fixed << std::setprecision(4) << torque_pd.transpose() << std::endl;
+        torque_idn_log << std::fixed << std::setprecision(4) << torque_idn.transpose() << std::endl;
+        torque_sum_log << std::fixed << std::setprecision(4) << torque_sum.transpose() << std::endl;
+        joint_pos_log  << std::fixed << std::setprecision(4) << rd_.local_q_virtual_.transpose() << std::endl;
+        joint_pos_des_log  << std::fixed << std::setprecision(4) << rd_.q_desired_virtual.transpose() << std::endl;
+        joint_vel_log  << std::fixed << std::setprecision(4) << rd_.local_q_dot_virtual_.transpose() << std::endl;
+        joint_vel_des_log  << std::fixed << std::setprecision(4) << rd_.q_dot_desired_virtual.transpose() << std::endl;
+        joint_acc_des_log  << std::fixed << std::setprecision(4) << rd_.q_ddot_desired_virtual.transpose() << std::endl;
+        contact_wrench_log << std::fixed << std::setprecision(4) << rd_.LF_FT_DES.transpose() << " " << rd_.RF_FT_DES.transpose() << std::endl;
     }
     else
     {
@@ -100,11 +174,36 @@ void CustomController::computeSlow()
 
 void CustomController::computeFast()
 {
+    if (rd_.tc_.mode == 7)
+    {
+        if(!is_kinematic_control)
+        {
+            if (atb_control_command_update_ == false)
+            {
+                atb_control_command_update_ = true;
+
+                contact_wrench_cmd_fast = contact_wrench_cmd_container;
+                qddot_cmd_fast = qddot_cmd_container;
+
+                atb_control_command_update_ = false;
+            }
+       
+            dyn_wbc_.updateControlCommands(contact_wrench_cmd_fast, qddot_cmd_fast);
+            torque_idn_fast.setZero();
+            torque_idn_fast = dyn_wbc_.computeDynamicWBC();
+
+            if (atb_torque_update_ == false)
+            {
+                atb_torque_update_ = true;
+                torque_idn_container = torque_idn_fast;
+                atb_torque_update_ = false;
+            }
+        }
+    }
 }
 
 void CustomController::computePlanner()
 {
-
 }
 
 void CustomController::CustomControllerInit()
@@ -115,11 +214,18 @@ void CustomController::CustomControllerInit()
     {
         loadParams();
 
+        teleop_.setHumanParameterFromTrackers();   // TODO : APPLY GUI
+        teleop_.setRobotParameterFromModel();
+
         q_init_ = rd_.q_;
         WBC::SetContact(rd_, true, true);
-        
-        cout << "========== CUSTOMCONTROLLER IS NOW INITIALIZED ==========" << endl;
-        cout << "TIME: "<< rd_.control_time_ << endl; 
+
+        contact_wrench_cmd_fast.setZero();
+        contact_wrench_cmd_container.setZero();
+        qddot_cmd_fast.setZero();
+        qddot_cmd_container.setZero();
+        torque_idn_fast.setZero();
+        torque_idn_container.setZero();
 
         is_cc_init = false;
     }
@@ -165,8 +271,8 @@ void CustomController::moveInitialPose()
     else
     {
         q_init_des(15) = 0.0;
-        q_init_des(16) = -0.3;
-        q_init_des(17) = 1.57;
+        q_init_des(16) = 0.45;
+        q_init_des(17) = 1.4;
         q_init_des(18) = -1.2;
         q_init_des(19) = -1.57; // elbow
         q_init_des(20) = 1.5;
@@ -177,14 +283,37 @@ void CustomController::moveInitialPose()
         q_init_des(24) = 0.0; // pitch
 
         q_init_des(25) = 0.0;
-        q_init_des(26) = 0.3;
-        q_init_des(27) = -1.57;
+        q_init_des(26) = -0.45;
+        q_init_des(27) = -1.4;
         q_init_des(28) = 1.2;
         q_init_des(29) = 1.57; // elbow
         q_init_des(30) = -1.5;
         q_init_des(31) = -0.4;
         q_init_des(32) = 0.2;
+        
+        // q_init_des(15) = 0.0;
+        // q_init_des(16) = -0.3;
+        // q_init_des(17) = 1.57;
+        // q_init_des(18) = -1.2;
+        // q_init_des(19) = -1.57; // elbow
+        // q_init_des(20) = 1.5;
+        // q_init_des(21) = 0.4;
+        // q_init_des(22) = -0.2;
+
+        // q_init_des(23) = 0.0; // yaw
+        // q_init_des(24) = 0.0; // pitch
+
+        // q_init_des(25) = 0.0;
+        // q_init_des(26) = 0.3;
+        // q_init_des(27) = -1.57;
+        // q_init_des(28) = 1.2;
+        // q_init_des(29) = 1.57; // elbow
+        // q_init_des(30) = -1.5;
+        // q_init_des(31) = -0.4;
+        // q_init_des(32) = 0.2;
     }
+
+    kin_wbc_.setInitialConfiguration(q_init_des);
     
     rd_.q_desired = DyrosMath::cubicVector<MODEL_DOF>(initial_tick, 0, 2.0 * hz_, q_init_, q_init_des, Eigen::VectorQd::Zero(), Eigen::VectorQd::Zero()); 
     rd_.torque_desired = (rd_.Kp_diag * (rd_.q_desired - rd_.q_)) - (rd_.Kd_diag * rd_.q_dot_);
@@ -203,7 +332,6 @@ void CustomController::xBoxJoyCallback(const sensor_msgs::Joy::ConstPtr& joy)
 }
 
 //--- Parameter Loader
-
 void CustomController::loadParams()
 {
     Kp.setZero(MODEL_DOF); Kd.setZero(MODEL_DOF);
@@ -249,6 +377,14 @@ void CustomController::loadParams()
         ROS_ERROR("Joint position upper limit vector size mismatch: got %lu, expected %d", pos_high_deg.size(), MODEL_DOF);
     assert(pos_high_deg.size() == MODEL_DOF);
 
+    // if (pos_low.size() != MODEL_DOF)
+    //     ROS_ERROR("Joint position lower limit vector size mismatch: got %lu, expected %d", pos_low_deg.size(), MODEL_DOF);
+    // assert(pos_low.size() == MODEL_DOF);
+
+    // if (pos_high.size() != MODEL_DOF)
+    //     ROS_ERROR("Joint position upper limit vector size mismatch: got %lu, expected %d", pos_high_deg.size(), MODEL_DOF);
+    // assert(pos_high.size() == MODEL_DOF);
+
     if (vel_low.size() != MODEL_DOF)
         ROS_ERROR("Joint velocity lower limit vector size mismatch: got %lu, expected %d", pos_low_deg.size(), MODEL_DOF);
     assert(vel_low.size() == MODEL_DOF);
@@ -266,7 +402,7 @@ void CustomController::loadParams()
     for (int i = 0; i < MODEL_DOF_VIRTUAL; ++i)
     {
         Kp_virtual(i) = kp_dyn_vec[i];
-        Kd_virtual(i) = kd_dyn_vec[i] * 1.5;
+        Kd_virtual(i) = kd_dyn_vec[i];
     }
 
     rd_.Kp_virtual_diag = Kp_virtual.asDiagonal();
@@ -279,6 +415,8 @@ void CustomController::loadParams()
     {
         rd_.q_pos_l_lim(i) = pos_low_deg[i] * DEG2RAD;
         rd_.q_pos_h_lim(i) = pos_high_deg[i] * DEG2RAD;
+        // rd_.q_pos_l_lim(i) = pos_low[i] * DEG2RAD;
+        // rd_.q_pos_h_lim(i) = pos_high[i] * DEG2RAD;
         rd_.q_vel_l_lim(i) = vel_low[i];
         rd_.q_vel_h_lim(i) = vel_high[i];
     }
@@ -290,29 +428,48 @@ void CustomController::loadParams()
     else if (motion_mode_idx == 1){ motion_mode_ = TaskMotionType::PelvHand;}
     else if (motion_mode_idx == 2){ motion_mode_ = TaskMotionType::Taichi; }
     else if (motion_mode_idx == 3){ motion_mode_ = TaskMotionType::Walking; }
+    else if (motion_mode_idx == 4){ motion_mode_ = TaskMotionType::TeleOperation; }
     else {
         ROS_ERROR("Motion mode idx error: got %d", motion_mode_idx);
-        assert(motion_mode_idx == 0 || motion_mode_idx == 1 || motion_mode_idx == 2 || motion_mode_idx == 3);
+        assert(motion_mode_idx == 0 || motion_mode_idx == 1 || motion_mode_idx == 2 || motion_mode_idx == 3 || motion_mode_idx == 4);
     }
     const char *mode_name =
         (motion_mode_ == TaskMotionType::None) ? "None" 
       : (motion_mode_ == TaskMotionType::PelvHand) ? "PelvHand"
       : (motion_mode_ == TaskMotionType::Taichi)   ? "Taichi"
       : (motion_mode_ == TaskMotionType::Walking)  ? "Walking"
+      : (motion_mode_ == TaskMotionType::TeleOperation)  ? "TeleOperation"
       : "Unknown";
+
+    kin_wbc_.setTaskHierarchy(motion_mode_);
+
+    if (motion_mode_ == TaskMotionType::Walking)
+    {
+        rd_.q_pos_l_lim.segment(12, MODEL_DOF - 12).setZero();
+        rd_.q_pos_h_lim.segment(12, MODEL_DOF - 12).setZero();
+        rd_.q_vel_l_lim.segment(12, MODEL_DOF - 12).setZero();
+        rd_.q_vel_h_lim.segment(12, MODEL_DOF - 12).setZero();
+
+        std::cout << "rd_.q_pos_l_lim: " << rd_.q_pos_l_lim.transpose() << std::endl;
+        std::cout << "rd_.q_pos_h_lim: " << rd_.q_pos_h_lim.transpose() << std::endl; 
+        std::cout << "rd_.q_vel_l_lim: " << rd_.q_vel_l_lim.transpose() << std::endl;
+        std::cout << "rd_.q_vel_h_lim: " << rd_.q_vel_h_lim.transpose() << std::endl;
+    }
 
     std::cout << "=====================================" << std::endl;
     std::cout << "===== Motion Mode : " << mode_name << " =====" << std::endl;
     std::cout << "=====================================" << std::endl;
+    std::cout << " " << std::endl;
 
     //--- Task Parameter
-    double traj_time_, pelv_dist_, hand_dist_, step_length_, foot_height_, step_duration_;
+    double traj_time_, pelv_dist_, hand_dist_, step_length_, foot_height_, step_duration_, dsp_duration_;
     nh_cc_.getParam("/tocabi_controller/task_param/traj_time", traj_time_);
     nh_cc_.getParam("/tocabi_controller/task_param/pelv_dist", pelv_dist_);
     nh_cc_.getParam("/tocabi_controller/task_param/hand_dist", hand_dist_);
     nh_cc_.getParam("/tocabi_controller/task_param/step_length", step_length_);
     nh_cc_.getParam("/tocabi_controller/task_param/foot_height", foot_height_);
     nh_cc_.getParam("/tocabi_controller/task_param/step_duration", step_duration_);
+    nh_cc_.getParam("/tocabi_controller/task_param/dsp_duration", dsp_duration_);
 
     tm_.setTrajectoryDuration(traj_time_);
     tm_.setPelvisDistance(pelv_dist_);
@@ -320,25 +477,30 @@ void CustomController::loadParams()
     tm_.setStepStride(step_length_);
     tm_.setFootHeight(foot_height_);
     tm_.setStepDuration(step_duration_);
+    tm_.setDspDuration(dsp_duration_);
 
-    std::cout << "=====================================" << std::endl;
-    std::cout << "========== Task Parameters ========== " << std::endl;
+    std::cout << "====================================" << std::endl;
+    std::cout << "======== Task Parameters ========== " << std::endl;
     std::cout << "Trajectory Time : " << traj_time_ << " sec" << std::endl;
     std::cout << "Pelvis Distance : " << pelv_dist_ << " m" << std::endl;
     std::cout << "Hand Distance : " << hand_dist_ << " m" << std::endl;
     std::cout << "Step Length : " << step_length_ << " m" << std::endl;
     std::cout << "Foot Height : " << foot_height_ << " m" << std::endl;
     std::cout << "Step Duration : " << step_duration_ << " sec" << std::endl;
-    std::cout << "=====================================" << std::endl;
+    std::cout << "Double Support Duration : " << dsp_duration_ << " sec" << std::endl;
+    std::cout << "====================================" << std::endl;
+    std::cout << " " << std::endl;
 
     //--- Whole-body Inverse Dynamics
-    double W_qddot, W_cwr, W_energy;
+    double W_qddot, W_cwr, W_torque, W_energy;
     nh_cc_.getParam("/tocabi_controller/wbid/W_qddot", W_qddot);
     nh_cc_.getParam("/tocabi_controller/wbid/W_cwr", W_cwr);
+    nh_cc_.getParam("/tocabi_controller/wbid/W_torque", W_torque);
     nh_cc_.getParam("/tocabi_controller/wbid/W_energy", W_energy);
 
     dyn_wbc_.setJointTrackingWeight(W_qddot);
-    dyn_wbc_.setContactWrenchRegularizationWeight(W_cwr);
+    dyn_wbc_.setContactWrenchTrackingWeight(W_cwr);
+    dyn_wbc_.setTorqueMinimizationWeight(W_torque);
     dyn_wbc_.setAccelEnergyMinimizationWeight(W_energy);
 
     std::cout << "=====================================" << std::endl;
@@ -346,4 +508,32 @@ void CustomController::loadParams()
     std::cout << "W_qddot : " << W_qddot  << std::endl;
     std::cout << "W_cwr : " << W_cwr  << std::endl;
     std::cout << "W_energy : " << W_energy  << std::endl;
+    std::cout << "=====================================" << std::endl;
+    std::cout << " " << std::endl;
+
+    int is_kinematic_control_idx = -1;
+    nh_cc_.getParam("/tocabi_controller/is_kinematic_control_idx", is_kinematic_control_idx);
+    if (is_kinematic_control_idx == 0)
+    {
+        std::cout << "==========================================" << std::endl;
+        std::cout << "========== DYNAMIC CONTROL MODE ========== " << std::endl;
+        std::cout << "==========================================" << std::endl;
+        std::cout << " " << std::endl;
+        is_kinematic_control = false;
+    }
+    else if (is_kinematic_control_idx == 1)
+    {
+        std::cout << "============================================" << std::endl;
+        std::cout << "========== KINEMATIC CONTROL MODE ========== " << std::endl;
+        std::cout << "============================================" << std::endl;
+        std::cout << " " << std::endl;
+
+        is_kinematic_control = true;
+    }
+    else
+    {
+        ROS_ERROR("kinematic_control_idx error: got %d", is_kinematic_control_idx);
+        assert(is_kinematic_control_idx == 0 || is_kinematic_control_idx == 1);
+    }
+    tm_.isForceTorqueSensorAvailable(is_kinematic_control);
 }

@@ -61,7 +61,7 @@ class CollisionManager
 public:
     CollisionManager(const RobotData &rd);
 
-    void queueCallAvailable();
+    void callAvailableQueue();
 
 private:
     // robot data
@@ -141,8 +141,9 @@ public:
         Eigen::Matrix3d rot_local;      // from link frame to collision object frame
         Eigen::Matrix3d rot_global;     // from world frame to collision object frame
 
-        // linear_velocity
-        Eigen::Vector3d vel_global;
+        // for obstacle
+        Eigen::Vector3d pos_base;       // obstacle position w.r.t. base frmae
+        Eigen::Vector3d vel_global;     // obstacle velocity w.r.t. world frmae
 
         // type of collision geometry
         enum class Type
@@ -198,16 +199,17 @@ public:
     std::vector<CollisionBody> cb_obstacles_;
 
     // the number of collision pairs
-    int num_pairs_;
-    int num_pairs_w_obs_;
+    int num_pairs_;                         // self collision
+    int num_pairs_w_obs_;                   // between robot and obstacle
     
-    // Self-collision avoidance Jacobian for all defined collision pairs
-    MatrixXd J_self_col_;
-    MatrixXd J_obs_col_;
+    // self-collision avoidance Jacobian for all defined collision pairs
+    MatrixXd J_self_col_;                   // self collision
+    MatrixXd J_obs_col_;                    // between robot and obstacle
 
-    // Minimum distance
-    VectorXd min_distances_;            // self collision
-    VectorXd min_distances_w_obs_;   // between robot and obstacle
+    // minimum distance
+    VectorXd min_distances_;                // self collision
+    VectorXd min_distances_w_obs_;          // between robot and obstacle
+    VectorXd obs_vel_projections_;          // obstacle velocity projection to the normal vector
 
     /**
      * @brief Publishes the self-collision status of all collision objects of the robot
@@ -240,6 +242,8 @@ public:
      */
     void computeSelfColAvoidJac();
 
+    void computeObstacleAvoidJac();
+
     /**
      * @brief Check for self-collisions among the robot's collision objects
      * 
@@ -247,8 +251,6 @@ public:
      *       collisions in red when the self-collision avoidance constraint is not applied.
      */
     void checkSelfCollision();
-
-    void computeObsColAvoidJac();
 
 private:
     // pairs of collision object IDs for self-collision checks
@@ -348,6 +350,20 @@ private:
                                 Eigen::Vector3d &nearest_point2
                                 );
     
+    void obsColResultSphere2Sphere(const unsigned int obj_id1, 
+                                   const unsigned int obj_id2, 
+                                   double &min_distance,
+                                   Eigen::Vector3d &nearest_point1,
+                                   Eigen::Vector3d &nearest_point2
+                                   );
+
+    void obsColResultSphere2Capsule(const unsigned int obj_id1, 
+                                    const unsigned int obj_id2,
+                                    double &min_distance, 
+                                    Eigen::Vector3d &nearest_point1,
+                                    Eigen::Vector3d &nearest_point2
+                                    );
+
     /**
      * @brief Get the collision result(ColResult) between sphere and capsule collision objects
      * 
@@ -390,7 +406,7 @@ private:
                                   );
 
     /**
-     * @brief Compute the Jacobian-based constraint matrix for a single collision pair(ColPair)
+     * @brief Compute the Jacobian-based constraint matrix for a single collision pair(ColPair) in the robot
      * 
      * @param obj_id1 index of the first collision object
      * @param center_point1 the point on object 1 that is closest to object 2, expressed in the world frame
@@ -400,12 +416,21 @@ private:
      * 
      * @return the Jacobian-based constraint matrix for the single collision pair
      */                                 
-    Eigen::MatrixXd computeColPairJac(const CollisionObjectIdx obj_id1,
-                                      const Eigen::Vector3d nearest_point1,
-                                      const CollisionObjectIdx obj_id2,
-                                      const Eigen::Vector3d nearest_point2,
-                                      const int sign
-                                      );
+    Eigen::MatrixXd computeRobotColPairJac(const CollisionObjectIdx obj_id1,
+                                           const Eigen::Vector3d nearest_point1,
+                                           const CollisionObjectIdx obj_id2,
+                                           const Eigen::Vector3d nearest_point2,
+                                           const int sign
+                                           );
+
+    
+    Eigen::RowVectorXd computeColPairWithObsJac(const unsigned int obj_id,
+                                                const Eigen::Vector3d nearest_point_obj,
+                                                const unsigned int obs_id,
+                                                const Eigen::Vector3d nearest_point_obs,
+                                                double &obs_vel_projection,
+                                                const int sign
+                                                );
 
     /**
      * @brief Compute the Jacobian-based constraint matrix for a single collision pair(ColPair) using HPP-FCL collision library

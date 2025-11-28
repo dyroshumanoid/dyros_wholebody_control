@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Site BuildName="(empty)"
+	BuildStamp="20251119-0744-Experimental"
+	Name="kwan"
+	Generator="ctest-3.31.5"
+	CompilerName="/usr/bin/g++"
+	CompilerVersion="11.4.0"
+	OSName="Linux"
+	Hostname="kwan"
+	OSRelease="5.15.0-139-generic"
+	OSVersion="#149~20.04.1-Ubuntu SMP Wed Apr 16 08:29:56 UTC 2025"
+	OSPlatform="x86_64"
+	Is64Bits="1"
+	VendorString="GenuineIntel"
+	VendorID="Intel Corporation"
+	FamilyID="6"
+	ModelID="183"
+	ModelName="13th Gen Intel(R) Core(TM) i9-13900K"
+	ProcessorCacheSize="36864"
+	NumberOfLogicalCPU="32"
+	NumberOfPhysicalCPU="24"
+	TotalVirtualMemory="15624"
+	TotalPhysicalMemory="31862"
+	LogicalProcessorsPerPhysical="1"
+	ProcessorClockFrequency="3000"
+	>
+	<Testing>
+		<StartDateTime>Nov 19 16:44 KST</StartDateTime>
+		<StartTestTime>1763538272</StartTestTime>
+		<TestList/>
+		<EndDateTime>Nov 19 16:44 KST</EndDateTime>
+		<EndTestTime>1763538272</EndTestTime>
+		<ElapsedMinutes>0</ElapsedMinutes>
+	</Testing>
+</Site>

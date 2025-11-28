@@ -50,6 +50,7 @@ add_library(${PROJECT_NAME}
   src/control_manager.cpp
   src/task_manager.cpp
   src/walking_manager.cpp
+  src/teleop_manager.cpp
   src/kin_wbc.cpp
   src/dyn_wbc.cpp
   src/utils.cpp

@@ -5,10 +5,32 @@ using namespace TOCABI;
 KinWBC::KinWBC(RobotData& rd, CollisionManager &col_mgr) : rd_(rd), col_mgr_(col_mgr)
 {
     task_hierarchy = {
-        {{Pelvis, TaskType::Position}, {Pelvis, TaskType::Orientation}},
+        {{COM_id, TaskType::Position}, {Pelvis, TaskType::Orientation}},
         {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}},
-        {{Head, TaskType::Orientation}},
-        {{Left_Hand, TaskType::Position}, {Left_Hand, TaskType::Orientation}, {Right_Hand, TaskType::Position}, {Right_Hand, TaskType::Orientation}}};
+        {{Upper_Body, TaskType::Orientation}},
+        {{Head, TaskType::Orientation}}};
+}
+
+void KinWBC::setTaskHierarchy(const TaskMotionType& motion_mode_)
+{
+    motion_mode = motion_mode_;
+
+    if(motion_mode == TaskMotionType::Walking)
+    {
+        task_hierarchy = {
+            {{COM_id, TaskType::Position}, {Pelvis, TaskType::Orientation}},
+            {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}}
+        };
+    }
+    else
+    {
+        task_hierarchy = {
+            {{COM_id, TaskType::Position}, {Pelvis, TaskType::Orientation}},
+            {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}},
+            {{Upper_Body, TaskType::Orientation}},
+            {{Head, TaskType::Orientation}},
+            {{Left_Hand, TaskType::Position}, {Left_Hand, TaskType::Orientation}, {Right_Hand, TaskType::Position}, {Right_Hand, TaskType::Orientation}}};
+    }
 }
 
 void KinWBC::computeTaskSpaceKinematicWBC()
@@ -23,21 +45,21 @@ void KinWBC::computeTaskSpaceKinematicWBC()
         int m = 3 * task_group.size();
         Eigen::MatrixXd J(m, MODEL_DOF_VIRTUAL);
         Eigen::VectorXd e(m), de(m);
-
+     
         for (size_t i = 0; i < task_group.size(); ++i)
         {
             const auto& [idx, type] = task_group[i];
 
             if (type == TaskType::Position)
             {
-                J.block<3, MODEL_DOF_VIRTUAL>(3 * i, 0) = rd_.link_[idx].local_Jac_v;
+                J.block(3 * i, 0, 3, MODEL_DOF_VIRTUAL) = rd_.link_[idx].local_Jac_v;
                 Eigen::Vector3d pos_err = rd_.link_[idx].x_traj - rd_.link_[idx].local_xpos;
 
                 de.segment<3>(3 * i) = pos_err;
             }
             else if (type == TaskType::Orientation)
             {
-                J.block<3, MODEL_DOF_VIRTUAL>(3 * i, 0) = rd_.link_[idx].local_Jac_w;
+                J.block(3 * i, 0, 3, MODEL_DOF_VIRTUAL) = rd_.link_[idx].local_Jac_w;
                 Eigen::Vector3d ori_err = -DyrosMath::getPhi(rd_.link_[idx].local_rotm, rd_.link_[idx].r_traj);
 
                 de.segment<3>(3 * i) = ori_err;
@@ -56,6 +78,18 @@ void KinWBC::computeTaskSpaceKinematicWBC()
         Ni *= (Eigen::MatrixVVd::Identity() - J_pinv * J_pre);
     }
 
+    if(motion_mode == TaskMotionType::Walking)
+    {
+        const int UPPERBODY_DOF = MODEL_DOF - 12;
+        Eigen::MatrixXd J; J.setZero(UPPERBODY_DOF, MODEL_DOF_VIRTUAL);
+        J.rightCols(UPPERBODY_DOF).setIdentity();
+
+        Eigen::MatrixXd J_pre = J * Ni;
+        Eigen::MatrixXd J_pinv = DyrosMath::pinv_SVD(J_pre);
+
+        qdot_des += J_pinv * ((q_init_des.tail(UPPERBODY_DOF) - rd_.q_.tail(UPPERBODY_DOF)) - J * qdot_des);
+    }
+
     qdot_des = safetyFilter();
 
     rd_.q_dot_desired_virtual = qdot_des;
@@ -63,6 +97,11 @@ void KinWBC::computeTaskSpaceKinematicWBC()
 
     rd_.q_desired_virtual = rd_.local_q_virtual_.head(MODEL_DOF_VIRTUAL) + rd_.q_dot_desired_virtual;
     rd_.q_desired = rd_.q_desired_virtual.tail(MODEL_DOF);
+
+    rd_.q_ddot_desired_virtual.setZero();
+    rd_.q_ddot_desired_virtual = rd_.Kp_virtual_diag * (rd_.q_desired_virtual - rd_.local_q_virtual_.head(MODEL_DOF_VIRTUAL)) 
+                               + rd_.Kd_virtual_diag * (Eigen::VectorVQd::Zero() - rd_.local_q_dot_virtual_);
+
 }
 
 Eigen::VectorVQd KinWBC::safetyFilter()
@@ -73,30 +112,43 @@ Eigen::VectorVQd KinWBC::safetyFilter()
     calcEqualityConstraint();
     calcInequalityConstraint();
 
+    // total_num_state = constraints_.empty() ? 0 : constraints_[0].A.cols();
+
+    // static bool is_filter_init_ = true;
+    // if(is_filter_init_ == true)
+    // {
+    //     total_num_constraints = 0;
+    //     total_num_state = constraints_.empty() ? 0 : constraints_[0].A.cols();
+    //     for (const auto& c : constraints_) {total_num_constraints += c.A.rows();}
+
+    //     QP_safety_filter.InitializeProblemSize(total_num_state, total_num_constraints);
+
+    //     A_const   = Eigen::MatrixXd::Zero(total_num_constraints, total_num_state);
+    //     lbA_const = Eigen::VectorXd::Zero(total_num_constraints);
+    //     ubA_const = Eigen::VectorXd::Zero(total_num_constraints);
+
+    //     qdot_safety.setZero();
+
+    //     is_filter_init_ = false;
+    // }
+
+    total_num_constraints = 0;
     total_num_state = constraints_.empty() ? 0 : constraints_[0].A.cols();
+    for (const auto& c : constraints_) {total_num_constraints += c.A.rows();}
 
-    static bool is_filter_init_ = true;
-    if(is_filter_init_ == true)
-    {
-        total_num_constraints = 0;
-        total_num_state = constraints_.empty() ? 0 : constraints_[0].A.cols();
-        for (const auto& c : constraints_) {total_num_constraints += c.A.rows();}
+    QP_safety_filter.InitializeProblemSize(total_num_state, total_num_constraints);
 
-        QP_safety_filter.InitializeProblemSize(total_num_state, total_num_constraints);
+    A_const   = Eigen::MatrixXd::Zero(total_num_constraints, total_num_state);
+    lbA_const = Eigen::VectorXd::Zero(total_num_constraints);
+    ubA_const = Eigen::VectorXd::Zero(total_num_constraints);
 
-        A_const   = Eigen::MatrixXd::Zero(total_num_constraints, total_num_state);
-        lbA_const = Eigen::VectorXd::Zero(total_num_constraints);
-        ubA_const = Eigen::VectorXd::Zero(total_num_constraints);
-
-        qdot_safety.setZero();
-
-        is_filter_init_ = false;
-    }
+    qdot_safety.setZero();
 
     //--- Stack Constraints
     int row_idx  = 0;
     for (const auto& c : constraints_) {
         int rows = c.A.rows();
+        int cols = c.A.cols();
         A_const.block(row_idx, 0, rows, total_num_state) = c.A;
         lbA_const.segment(row_idx , rows)    = c.lbA;
         ubA_const.segment(row_idx , rows)    = c.ubA;
@@ -169,27 +221,23 @@ void KinWBC::calcEqualityConstraint()
 
 void KinWBC::calcInequalityConstraint()
 {
-    // --- (1) Joint position constraints
+    //--- (1) Joint position constraints
     Eigen::MatrixXd A_qpos; A_qpos.setZero(MODEL_DOF, MODEL_DOF_VIRTUAL);
     A_qpos.rightCols(MODEL_DOF).setIdentity();
 
     double alpha_qpos = 1.0;
     double eps_qpos = 50.0;
-
     Eigen::VectorXd lbA_qpos; lbA_qpos.setZero(MODEL_DOF); 
     Eigen::VectorXd ubA_qpos; ubA_qpos.setZero(MODEL_DOF); 
-
     for(int i = 0; i < MODEL_DOF; i++)
     {
         lbA_qpos(i) = min(max(alpha_qpos * (rd_.q_pos_l_lim(i) - rd_.q_(i)) + (1.0 / eps_qpos), rd_.q_vel_l_lim(i)), rd_.q_vel_h_lim(i));
         ubA_qpos(i) = max(min(alpha_qpos * (rd_.q_pos_h_lim(i) - rd_.q_(i)) - (1.0 / eps_qpos), rd_.q_vel_h_lim(i)), rd_.q_vel_l_lim(i));
     }
     
-    constraints_.push_back({A_qpos, 
-                            lbA_qpos, 
-                            ubA_qpos}); 
+    constraints_.push_back({A_qpos, lbA_qpos, ubA_qpos}); 
 
-    // --- (2) Reachability constraints
+    //--- (2) Reachability constraints
     // const int m = static_cast<int>(grad_reachability_.size()); 
     // double alpha_reachability = 1.0;
     // double eps_reachability = 50.0;
@@ -206,9 +254,10 @@ void KinWBC::calcInequalityConstraint()
     //     lbA_reachability,
     //     Eigen::VectorXd::Constant(A_reachability.rows(), std::numeric_limits<double>::infinity())
     // });
-
-    // --- (3) Self-collision avoidance constraints
+    
+    // ------ collision constraints (3) & (4)
     col_mgr_.updateRobotCObjsTF();
+    // --- (3) Self-collision avoidance constraints
     col_mgr_.computeSelfColAvoidJac();
 
     double alpha_self_col = 1.0;
@@ -223,12 +272,25 @@ void KinWBC::calcInequalityConstraint()
     constraints_.push_back({col_mgr_.J_self_col_,
                             lbA_self_col,
                             ubA_self_col});
-    
-    // --- (4) Obstacle avoidance constraints
 
     // uncomment to visualize self-collisions when the avoidance constraint is disabled
     // col_mgr_.checkSelfCollision();
 
+    // --- (4) Obstacle avoidance constraints
+    col_mgr_.computeObstacleAvoidJac();
+
+    double alpha_obs_col = 2.0;
+    double eps_obs_col = 100.0;
+
+    Eigen::VectorXd lbA_obs_col; lbA_obs_col.setZero(col_mgr_.min_distances_w_obs_.size()); 
+    Eigen::VectorXd ubA_obs_col; ubA_obs_col.setZero(col_mgr_.min_distances_w_obs_.size());
+
+    lbA_obs_col = -alpha_obs_col * col_mgr_.min_distances_w_obs_ + col_mgr_.obs_vel_projections_ + (1.0 / eps_obs_col) * col_mgr_.J_obs_col_.rowwise().squaredNorm();
+    ubA_obs_col.setConstant(1e8);
+
+    constraints_.push_back({col_mgr_.J_obs_col_,
+                            lbA_obs_col,
+                            ubA_obs_col});
     // ---self, environment, reachability, ... + alpha (singularity)
 } 
 
@@ -282,4 +344,10 @@ void KinWBC::checkGradHessSize()
 
         is_gradhess_init_ = false;
     }
+}
+
+void KinWBC::setInitialConfiguration(const Eigen::VectorQd &q_init_des_)
+{
+    q_init_des.setZero();
+    q_init_des = q_init_des_;
 }

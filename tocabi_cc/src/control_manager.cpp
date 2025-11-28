@@ -4,7 +4,6 @@ using namespace TOCABI;
 
 ControlManager::ControlManager(RobotData& rd) : rd_(rd)
 {
-    // TODO : RBDL -> Pinocchio
     std::string urdf_path;
     ros::param::get("/tocabi_controller/urdf_path", urdf_path);
     RigidBodyDynamics::Addons::URDFReadFromFile(urdf_path.c_str(), &model_, true, false);
@@ -14,9 +13,8 @@ void ControlManager::update()
 {
     contactStateMachine();
     mapGlobalToBase();
-    mapBaseToSupport();
-    updateDynamics();
-    updateContact();
+    // updateDynamics();
+    // updateContact();
 
     static bool is_cm_init = true;
     if(is_cm_init == true)
@@ -41,9 +39,11 @@ void ControlManager::contactStateMachine()
 
         rd_.is_right_contact_transition = false;
     }
-    else
+    else if(rd_.is_double_contact_transition == true)
     {
-        // No contact change
+        WBC::SetContact(rd_, true, true);
+
+        rd_.is_double_contact_transition = false;
     }
 
     local_LF_contact = rd_.ee_[0].contact;
@@ -59,7 +59,7 @@ void ControlManager::mapGlobalToBase()
     for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
     {
         //--- Base frame
-        rd_.link_[idx].local_Jac_v             = base_rot.transpose() * rd_.link_[idx].Jac().topRows(3);
+        rd_.link_[idx].local_Jac_v             = base_rot.transpose() * rd_.link_[idx].Jac().topRows(3);    // TODO : Change Dynamics Library from RBDL to Pinocchio 
         rd_.link_[idx].local_Jac_w             = base_rot.transpose() * rd_.link_[idx].Jac().bottomRows(3); 
         rd_.link_[idx].local_Jac.topRows(3)    =                        rd_.link_[idx].local_Jac_v;
         rd_.link_[idx].local_Jac.bottomRows(3) =                        rd_.link_[idx].local_Jac_w;
@@ -85,42 +85,6 @@ void ControlManager::mapGlobalToBase()
 
     rd_.local_q_dot_virtual_.segment(0,3) = rd_.link_[Pelvis].local_v;
     rd_.local_q_dot_virtual_.segment(3,3) = rd_.link_[Pelvis].local_w;
-}
-
-void ControlManager::mapBaseToSupport()
-{
-    for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
-    {
-        //--- Support frame
-        if (local_LF_contact == true && local_RF_contact == true)
-        {
-            rd_.link_[idx].support_xpos = rd_.link_[idx].local_xpos - rd_.link_[Left_Foot].local_xpos;
-            rd_.link_[idx].support_rotm = rd_.link_[idx].local_rotm;
-            rd_.link_[idx].support_v    = rd_.link_[idx].local_v;
-            rd_.link_[idx].support_w    = rd_.link_[idx].local_w;
-        }
-        else if (local_LF_contact == true && local_RF_contact != true)
-        {
-            rd_.link_[idx].support_xpos = rd_.link_[idx].local_xpos - rd_.link_[Left_Foot].local_xpos;
-            rd_.link_[idx].support_rotm = rd_.link_[idx].local_rotm;
-            rd_.link_[idx].support_v    = rd_.link_[idx].local_v;
-            rd_.link_[idx].support_w    = rd_.link_[idx].local_w;
-        }
-        else if (local_LF_contact != true && local_RF_contact == true)
-        {
-            rd_.link_[idx].support_xpos = rd_.link_[idx].local_xpos - rd_.link_[Right_Foot].local_xpos;
-            rd_.link_[idx].support_rotm = rd_.link_[idx].local_rotm;
-            rd_.link_[idx].support_v    = rd_.link_[idx].local_v;
-            rd_.link_[idx].support_w    = rd_.link_[idx].local_w;
-        }
-        else
-        {
-            ROS_ERROR("CONTACT MISSING");
-            assert((local_LF_contact == true && local_RF_contact == true)
-                || (local_LF_contact == true && local_RF_contact != true)
-                || (local_LF_contact != true && local_RF_contact == true));
-        }
-    }
 }
 
 void ControlManager::updateDynamics()
@@ -168,6 +132,14 @@ void ControlManager::updateContact()
             || (local_LF_contact == true && local_RF_contact != true)
             || (local_LF_contact != true && local_RF_contact == true));
     }
+
+    // rd_.local_lambda_C.setZero(rd_.contact_index * 6, rd_.contact_index * 6);
+    // rd_.local_J_C_INV_T.setZero(MODEL_DOF_VIRTUAL, rd_.contact_index * 6);
+    // rd_.local_N_C.setZero();
+
+    // rd_.local_lambda_C = (rd_.local_J_C * rd_.local_A * rd_.local_J_C.transpose()).inverse();
+    // rd_.local_J_C_INV_T = rd_.local_lambda_C * rd_.local_J_C * rd_.local_A;
+    // rd_.local_N_C = MatrixXd::Identity(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL) - rd_.local_J_C.transpose() * rd_.local_J_C_INV_T;
 }
 
 void ControlManager::saveInitialState()
@@ -185,11 +157,5 @@ void ControlManager::saveInitialState()
         rd_.link_[idx].local_rotm_init = rd_.link_[idx].local_rotm;                             
         rd_.link_[idx].local_v_init    = rd_.link_[idx].local_v;                               
         rd_.link_[idx].local_w_init    = rd_.link_[idx].local_w;
-
-        //--- Support frame
-        rd_.link_[idx].support_xpos_init = rd_.link_[idx].support_xpos;
-        rd_.link_[idx].support_rotm_init = rd_.link_[idx].support_rotm;                             
-        rd_.link_[idx].support_v_init    = rd_.link_[idx].support_v;                               
-        rd_.link_[idx].support_w_init    = rd_.link_[idx].support_w;
     }
 }

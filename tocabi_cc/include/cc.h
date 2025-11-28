@@ -19,6 +19,7 @@
 #include "task_manager.h"
 #include "kin_wbc.h"
 #include "dyn_wbc.h"
+#include "teleop_manager.h"
 #include "utils.h"
 
 class CustomController
@@ -56,6 +57,7 @@ public:
     TaskManager tm_;
     KinWBC kin_wbc_;  
     DynWBC dyn_wbc_;  
+    TeleOperationManager teleop_;  
     
     std::vector<std::vector<TaskInfo>> task_hierarchy;
     std::set<std::string> task_names;
@@ -94,6 +96,20 @@ public:
     void runTestMotion(const double& traj_time, const double& pelv_dist, const double& hand_dist, const double& foot_height, const double& step_duration);
     TaskMotionType motion_mode_ = TaskMotionType::None;
 
+    Eigen::VectorQd torque_pd;
+    Eigen::VectorQd torque_idn;
+    Eigen::VectorQd torque_idn_fast;
+    Eigen::VectorQd torque_idn_container;
+    Eigen::VectorQd torque_sum;
+
+    Eigen::VectorVQd qddot_cmd_container;
+    Eigen::VectorVQd qddot_cmd_fast;
+    Eigen::Vector12d contact_wrench_cmd_container;
+    Eigen::Vector12d contact_wrench_cmd_fast;
+
+    bool is_kinematic_control = true;
+    std::atomic<bool> atb_control_command_update_{false};
+    std::atomic<bool> atb_torque_update_{false};
 
 private:
     Eigen::VectorQd ControlVal_;
@@ -101,4 +117,6 @@ private:
 #ifdef COMPILE_SIMULATION
     unsigned int sim_tick_ = 0;
 #endif
+    bool is_6_init = true;
+    bool is_7_init = true;
 };

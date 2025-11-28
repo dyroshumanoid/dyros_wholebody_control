@@ -46,7 +46,7 @@ CollisionManager::CollisionManager(const RobotData &rd) : rd_(rd)
 #endif
 }
 
-void CollisionManager::queueCallAvailable()
+void CollisionManager::callAvailableQueue()
 {
     queue_cm_.callAvailable(ros::WallDuration());
 }
@@ -116,14 +116,69 @@ void CollisionManager::computeSelfColAvoidJac()
             collision_flags_[id2] += 1;
         }
 
-        J_self_col_.block<1, MODEL_DOF_VIRTUAL>(i, 0) = computeColPairJac(id1, nearest_point1,
-                                                                          id2, nearest_point2,
-                                                                          DyrosMath::sign(min_distances_(i))
-                                                                          );
+        pinocchio::computeJointJacobians(model_, data_, q_virtual_pin_);
+        pinocchio::framesForwardKinematics(model_, data_, q_virtual_pin_);
+
+        J_self_col_.block<1, MODEL_DOF_VIRTUAL>(i, 0) = computeRobotColPairJac(id1, nearest_point1,
+                                                                               id2, nearest_point2,
+                                                                               DyrosMath::sign(min_distances_(i))
+                                                                               );
     }
 
     for(unsigned int id = 0; id < Col_Obj_Count; id++) cb_robot_[id].in_collision = collision_flags_[id] > 0;
 
+}
+
+void CollisionManager::computeObstacleAvoidJac()
+{
+    std::vector<double> min_distances;
+    std::vector<double> osbtacle_speeds;
+    std::vector<RowVectorXd> J_col_rows;
+
+    if(!cb_obstacles_.empty()){
+        pinocchio::computeJointJacobians(model_, data_, q_virtual_pin_);
+        pinocchio::framesForwardKinematics(model_, data_, q_virtual_pin_);
+
+        for (unsigned int i = 0; i < cb_obstacles_.size(); i++)
+        {
+            for(unsigned int id = 0; id < Col_Obj_Count; id++)
+            {
+                double min_distance;
+
+                Vector3d nearest_point_obj, nearest_point_obs;
+
+                if(cb_robot_[id].type == CollisionBody::Type::Sphere){
+                    obsColResultSphere2Sphere(i, id, min_distance, nearest_point_obs, nearest_point_obj);
+                }
+                else if(cb_robot_[id].type == CollisionBody::Type::Capsule){
+                    obsColResultSphere2Capsule(i, id, min_distance, nearest_point_obs, nearest_point_obj);
+                }
+
+                if(min_distance <= 2 * cb_obstacles_[i].sphere->radius){
+                    double obs_vel_projection;
+                    J_col_rows.push_back(computeColPairWithObsJac(id, nearest_point_obj,
+                                                                  i, nearest_point_obs,
+                                                                  obs_vel_projection,
+                                                                  DyrosMath::sign(min_distance)
+                                                                  ));
+                    min_distances.push_back(min_distance);
+                    osbtacle_speeds.push_back(obs_vel_projection);
+                }
+            }
+        }
+    }
+
+    int m = J_col_rows.size();
+
+    J_obs_col_.setZero(m, MODEL_DOF_VIRTUAL);
+    for(int i = 0; i < m; i++) J_obs_col_.row(i) = J_col_rows[i];
+    if(min_distances.empty()){
+        min_distances_w_obs_.resize(0);
+        obs_vel_projections_.resize(0);
+    } else {
+        min_distances_w_obs_ = Eigen::Map<VectorXd>(min_distances.data(), m);
+        obs_vel_projections_ = Eigen::Map<VectorXd>(osbtacle_speeds.data(), m);
+    }
 }
 
 // using HPP-FCL
@@ -154,6 +209,7 @@ void CollisionManager::checkSelfCollision()
     {
         CollisionObjectIdx id1 = col_id_pairs_[i].first;
         CollisionObjectIdx id2 = col_id_pairs_[i].second;
+        cout << i  << "\t" << id1 << "\t" << id2 << endl;
         
         Vector3d nearest_point1, nearest_point2;
 
@@ -174,6 +230,13 @@ void CollisionManager::checkSelfCollision()
             collision_flags_[id1] += 1;
             collision_flags_[id2] += 1;
         }
+
+        // if(id1 == Right_Pelvis_Col_ID && id2 == Right_ForeArm_Col_ID){
+        //     cout << "nearest 1: " << (cb_robot_[id1].rot_global.transpose() * (nearest_point1 - cb_robot_[id1].trans_global)).transpose() << endl;
+        //     cout << "nearest 2: " << (cb_robot_[id2].rot_global.transpose() * (nearest_point2 - cb_robot_[id2].trans_global)).transpose() << endl;
+        //     cout << "min_distance: " << min_distances_(i) << endl;
+        //     cout << "-------------------------------" << endl;
+        // }
     }
 
     for(unsigned int id = 0; id < Col_Obj_Count; id++) cb_robot_[id].in_collision = collision_flags_[id] > 0;
@@ -197,7 +260,7 @@ void CollisionManager::initColBody()
     cb_robot_[Right_Pelvis_Col_ID].link_name = "Pelvis_Link";
     cb_robot_[Right_Pelvis_Col_ID].link_id = TOCABI::Pelvis;
     cb_robot_[Right_Pelvis_Col_ID].joint_id = model_.frames[model_.getFrameId("Pelvis_Link")].parent;
-    cb_robot_[Left_Pelvis_Col_ID].trans_local  = Eigen::Vector3d(0.05, -0.02, 0.1);
+    cb_robot_[Right_Pelvis_Col_ID].trans_local  = Eigen::Vector3d(0.05, -0.02, 0.1);
     cb_robot_[Right_Pelvis_Col_ID].rot_local = Eigen::Matrix3d::Identity();
     cb_robot_[Right_Pelvis_Col_ID].type = CollisionBody::Type::Capsule;
     cb_robot_[Right_Pelvis_Col_ID].capsule = std::make_shared<hpp::fcl::Capsule>(0.18, 0.05); // radius, height
@@ -447,6 +510,52 @@ void CollisionManager::ColResultSphere2Capsule(const CollisionObjectIdx obj_id1,
     nearest_point2 = center_point2 + (center_point1 - center_point2).normalized() * cb_robot_[obj_id2].capsule->radius;
 }
 
+void CollisionManager::obsColResultSphere2Sphere(const unsigned int obj_id1, const unsigned int obj_id2, double &min_distance, Eigen::Vector3d &nearest_point1, Eigen::Vector3d &nearest_point2)
+{
+    // center point: center of sphere
+    Vector3d center_point1 = cb_obstacles_[obj_id1].trans_global;
+    Vector3d center_point2 = cb_robot_[obj_id2].trans_global;
+
+    min_distance = (center_point1 - center_point2).norm() - (cb_obstacles_[obj_id1].sphere->radius + cb_robot_[obj_id2].sphere->radius);
+
+    nearest_point1= center_point1 + (center_point2 - center_point1).normalized() * cb_obstacles_[obj_id1].sphere->radius;
+    nearest_point2= center_point2 + (center_point1 - center_point2).normalized() * cb_robot_[obj_id2].sphere->radius;
+}
+
+void CollisionManager::obsColResultSphere2Capsule(const unsigned int obj_id1, const unsigned int obj_id2, double &min_distance, Eigen::Vector3d &nearest_point1, Eigen::Vector3d &nearest_point2)
+{
+    // center_point1: center of sphere, center_point2: position of the nearest point on the centerline(i.e., the central axis) of capsule 
+    Vector3d center_point1, center_point2;
+    center_point1 =  cb_obstacles_[obj_id1].trans_global;
+    // p_capsule1, p_capsule2: endpoints of capsule centerline
+    Vector3d p_capsule1 = cb_robot_[obj_id2].trans_global + cb_robot_[obj_id2].rot_global * Eigen::Vector3d(0, 0, cb_robot_[obj_id2].capsule->halfLength);
+    Vector3d p_capsule2 = cb_robot_[obj_id2].trans_global + cb_robot_[obj_id2].rot_global * Eigen::Vector3d(0, 0, -cb_robot_[obj_id2].capsule->halfLength);
+
+    Vector3d vec_capsule1_to_sphere = nearest_point1 - p_capsule1;
+    Vector3d vec_capsule2_to_sphere = nearest_point1 - p_capsule2;
+    Vector3d vec_capsule1_to_capsule2 = p_capsule2 - p_capsule1;
+
+    // case 1: the sphere center lies to the left of the capsule’s centerline (before the first endpoint)
+    if(vec_capsule1_to_sphere.dot(vec_capsule1_to_capsule2) <= 0){
+        center_point2 = p_capsule1;
+    }
+
+    // case 2: the sphere center lies to the right of the capsule’s centerline (beyond the second endpoint)
+    else if(vec_capsule2_to_sphere.dot(vec_capsule1_to_capsule2) >= 0){
+        center_point2 = p_capsule2;
+    }
+
+    // case 3: the sphere center lies between the two endpoints of the capsule’s centerline
+    else{
+        center_point2 = p_capsule1 + (vec_capsule1_to_sphere.dot(vec_capsule1_to_capsule2) / vec_capsule1_to_capsule2.squaredNorm()) * vec_capsule1_to_capsule2;
+    }
+
+    min_distance = (center_point1 - center_point2).norm() - (cb_obstacles_[obj_id1].sphere->radius + cb_robot_[obj_id2].capsule->radius);
+
+    nearest_point1 = center_point1 + (center_point2 - center_point1).normalized() * cb_obstacles_[obj_id1].sphere->radius;
+    nearest_point2 = center_point2 + (center_point1 - center_point2).normalized() * cb_robot_[obj_id2].capsule->radius;
+}
+
 void CollisionManager::ColResultCapsule2Capsule(const CollisionObjectIdx obj_id1, const CollisionObjectIdx obj_id2, double &min_distance, Eigen::Vector3d &nearest_point1, Eigen::Vector3d &nearest_point2)
 {
     // reference paper: On fast computation of distance between line segments(1985)
@@ -536,13 +645,10 @@ void CollisionManager::ColResultCapsule2Capsule(const CollisionObjectIdx obj_id1
     nearest_point2 = center_point2 + (center_point1 - center_point2).normalized() * cb_robot_[obj_id2].capsule->radius;
 }
 
-Eigen::MatrixXd CollisionManager::computeColPairJac(const CollisionObjectIdx obj_id1, const Eigen::Vector3d nearest_point1, const CollisionObjectIdx obj_id2, const Eigen::Vector3d nearest_point2, const int sign)
+Eigen::MatrixXd CollisionManager::computeRobotColPairJac(const CollisionObjectIdx obj_id1, const Eigen::Vector3d nearest_point1, const CollisionObjectIdx obj_id2, const Eigen::Vector3d nearest_point2, const int sign)
 {
     // reference paper: Humanoid Self-Collision Avoidance Using Whole-Body Control with Control Barrier Functions(2022)
     // link: https://ieeexplore.ieee.org/abstract/document/10000235
-
-    pinocchio::computeJointJacobians(model_, data_, q_virtual_pin_);
-    pinocchio::framesForwardKinematics(model_, data_, q_virtual_pin_);
 
     // Matrix3d base_rot = DyrosMath::rotateWithZ(DyrosMath::rot2Euler(rd_.link_[Pelvis].rotm)(2)); 
 
@@ -578,6 +684,38 @@ Eigen::MatrixXd CollisionManager::computeColPairJac(const CollisionObjectIdx obj
     Jv_col_obj2 = J_col_obj2.block<3, MODEL_DOF_VIRTUAL>(0, 0);
 
     J_col_pair = sign * normal_vec.transpose() * (Jv_col_obj1 - Jv_col_obj2);
+
+    return J_col_pair;
+}
+
+Eigen::RowVectorXd CollisionManager::computeColPairWithObsJac(const unsigned int obj_id, const Eigen::Vector3d nearest_point_obj, const unsigned int obs_id, const Eigen::Vector3d nearest_point_obs, double &obs_vel_projection, const int sign)
+{
+    // Matrix3d base_rot = DyrosMath::rotateWithZ(DyrosMath::rot2Euler(rd_.link_[Pelvis].rotm)(2)); 
+
+    // Jacobian used for the self-collision avoidance constraint
+    RowVectorXd J_col_pair;
+    J_col_pair.setZero(MODEL_DOF_VIRTUAL);
+
+    // unit vector connecting the two closest points between two collision objects
+    Vector3d normal_vec = (nearest_point_obj - nearest_point_obs) / (nearest_point_obj - nearest_point_obs).norm();
+
+    // Jacobians from base to trans_joint_to_nearestcenter
+    MatrixXd J_col_obj1;
+    MatrixXd Jv_col_obj1;  // linear part
+    J_col_obj1.setZero(6,MODEL_DOF_VIRTUAL);
+    Jv_col_obj1.setZero(3,MODEL_DOF_VIRTUAL);
+
+    // first collision object
+    // vector stores local translation vector from the joint to the nearest point on the collision object's center (sphere: center or capsule: axis point)
+    Vector3d trans_joint_to_nearestcenter_local1 = rd_.link_[cb_robot_[obj_id].link_id].rotm.transpose() * (nearest_point_obj - rd_.link_[cb_robot_[obj_id].link_id].xpos);
+
+    // transformation matrix contains translation from the joint to the nearest point on the collision object's center
+    pinocchio::SE3 placement1(Eigen::Matrix3d::Identity(), trans_joint_to_nearestcenter_local1);
+    pinocchio::getFrameJacobian(model_, data_, cb_robot_[obj_id].joint_id, placement1, pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, J_col_obj1);
+    Jv_col_obj1 =  J_col_obj1.block<3, MODEL_DOF_VIRTUAL>(0, 0);
+
+    J_col_pair = sign * normal_vec.transpose() * (Jv_col_obj1);
+    obs_vel_projection = sign * normal_vec.transpose() * cb_obstacles_[0].vel_global;
 
     return J_col_pair;
 }
@@ -771,6 +909,9 @@ void CollisionManager::BasetoQRTransformCallback(const geometry_msgs::PoseStampe
 
 void CollisionManager::updateObstacle()
 {
+    world_to_base_trans_ = rd_.link_[Pelvis].xpos; 
+    world_to_base_rot_yaw_only_ = DyrosMath::rotateWithZ(DyrosMath::rot2Euler(rd_.link_[Pelvis].rotm)(2)); 
+
     if(!tracked_obstacles_.empty()) tracked_obstacles_[0].updateState();
 
     {
@@ -800,9 +941,15 @@ void CollisionManager::updateObstacle()
                 cb_obstacles_.push_back(cb);
             }
             else{
-                cb_obstacles_[0].trans_global = tracked_obstacles_[0].getObstacle().pos_;
-                cb_obstacles_[0].vel_global = tracked_obstacles_[0].getObstacle().vel_;
+                // cb_obstacles_[0].pos_base = tracked_obstacles_[0].getObstacle().pos_;
+                // cb_obstacles_[0].pos_base(0) += 0.02;
+                cb_obstacles_[0].pos_base = base_to_qr_transform_.translation();
+                cb_obstacles_[0].pos_base(0) += 0.02;
+                cb_obstacles_[0].trans_global = world_to_base_rot_yaw_only_ * cb_obstacles_[0].pos_base + world_to_base_trans_;
+                cb_obstacles_[0].vel_global = world_to_base_rot_yaw_only_ * tracked_obstacles_[0].getObstacle().vel_;
                 // data1 << cb_obstacles_[0].trans_global(1) << "," << cb_obstacles_[0].vel_global(1) << endl;
+                cb_obstacles_[0].type = CollisionBody::Type::Sphere;
+                cb_obstacles_[0].sphere = std::make_shared<hpp::fcl::Sphere>(0.1149);
             }
         }
     }
@@ -819,10 +966,11 @@ void CollisionManager::pubQRObstaclePose(const int sim_tick, const double hz)
     aruco_pose_msg_.header.frame_id = "world";
 
     // translation
-    aruco_pose_msg_.pose.position.x = 0.7;
-    aruco_pose_msg_.pose.position.y = 0.2 * sin(M_PI * (sim_tick/hz));
-    // aruco_pose_msg_.pose.position.y = 0.5;
-    aruco_pose_msg_.pose.position.z = 1.5;
+    aruco_pose_msg_.pose.position.x = 0.53;
+    aruco_pose_msg_.pose.position.y = 0.4 * sin(M_PI/3 * (sim_tick/hz));
+    aruco_pose_msg_.pose.position.z = 1.24;
+    // aruco_pose_msg_.pose.position.y = 0;
+    // aruco_pose_msg_.pose.position.z = 1 + 0.4 * cos(M_PI/8 * (sim_tick/hz));
 
     // orientation (Quaternion)
     aruco_pose_msg_.pose.orientation.x = 0.5;

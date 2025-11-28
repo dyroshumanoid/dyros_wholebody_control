@@ -1,96 +1,101 @@
-clc
-clear all
-close all
-%
-clc
-clear all
-close all
-
-data = readmatrix('dataWM1.txt');
-left_foot_pos = data(:, 1:6);
-data = readmatrix('dataWM2.txt');
-right_foot_pos= data(:, 1:6);
-data = readmatrix('dataWM3.txt');
-pelv_pos = data(:, 1:6);
-data = readmatrix('dataWM4.txt');
-cp_pos = data(:, 1:6);
-
-figure()
-
-w = sqrt(9.81 / 0.73)
-
-start_cnt = 0;
-for cnt = 1:1:2
-    subplot(2,1,cnt)
-    
-    plot(left_foot_pos(:,start_cnt + cnt));
-    hold on
-    plot(left_foot_pos(:,start_cnt + cnt + 3));
-    plot(right_foot_pos(:, start_cnt + cnt))
-    plot(right_foot_pos(:, start_cnt + cnt + 3))
-    % plot(pelv_pos(:,start_cnt + cnt));
-    % plot(pelv_pos(:,start_cnt + cnt + 3));
-    plot(cp_pos(:,start_cnt + cnt));
-    plot(cp_pos(:,start_cnt + cnt + 2));
-    plot(cp_pos(:,start_cnt + cnt + 4));
-
-
-
-    % legend('lfoot traj', 'lfoot cur', 'rfoot traj', 'rfoot cur', 'pelv traj', 'pelv cur', 'cp_pos', 'cp_mea', 'del zmp');
-    legend('lfoot traj', 'lfoot cur', 'rfoot traj', 'rfoot cur', 'cp pos', 'cp mea', 'del zmp');
-end
-
 %%
-data = readmatrix('dataCC1.txt');
-LF = data(:, 1:6);
-RF = data(:, 7:12);
-data = readmatrix('contact_wrench_id.txt');
-LF_id = data(:, 1:6);
-RF_id = data(:, 7:12);
 
-figure()
-plot(LF(:,3))
-hold on
-plot(LF_id(:,3))
-plot(RF(:,3))
-plot(RF_id(:,3))
-
-data = readmatrix('dataCC2.txt');
+clc
+clear all
+close all
+data = readmatrix('torque_sum_log.txt');
 torque_sol = data(:, 1:33);
 
-data = readmatrix('torque_id.txt');
+data = readmatrix('torque_idn_log.txt');
 torque_id = data(:, 1:33);
 
-
-data = readmatrix('torque_pd.txt');
+% 
+data = readmatrix('torque_pd_log.txt');
 torque_pd = data(:, 1:33);
 
-figure()
-sgtitle('TORQUE LEG')
-for cnt = 1:1:12
-    plot(torque_sol(:,cnt))    
-    hold on 
-end
+data = readmatrix('joint_pos_log.txt');
+qpos = data(:, 1:33);
+
+data = readmatrix('joint_pos_des_log.txt');
+qpos_des = data(:, 1:33);
+
+data = readmatrix('joint_vel_log.txt');
+qvel = data(:, 1:33);
+
+data = readmatrix('joint_vel_des_log.txt');
+qvel_des = data(:, 1:33);
+
+data = readmatrix('joint_acc_des_log.txt');
+qacc_des = data(:, 1:39);
+
+data = readmatrix('contact_wrench_log.txt');
+contact_wrench = data(:, 1:12);
 
 figure()
-sgtitle('TORQUE WAIST')
-for cnt = 13:1:15
-    plot(torque_sol(:,cnt))    
-    hold on
-end
+sgtitle('JOINT TORQUE')
+torque_cnt = 15
+plot(torque_sol(:,torque_cnt))    
+hold on 
+plot(torque_id(:,torque_cnt))
+plot(torque_pd(:,torque_cnt))
+legend()
+
+pos_cnt = 6 + 15
+figure()
+sgtitle('JOINT QPOS')
+plot(qpos(:,pos_cnt))    
+hold on 
+plot(qpos_des(:,pos_cnt))
+legend()
 
 figure()
-sgtitle('TORQUE UPPER')
-for cnt = 16:1:33
-    plot(torque_sol(:,cnt))    
-    hold on 
-end
+sgtitle('JOINT QVEL')
+plot(qvel(:,pos_cnt))    
+hold on 
+plot(qvel_des(:,pos_cnt))
+legend()
 
+figure()
+sgtitle('JOINT QACC')
+hold on 
+plot(qacc_des(:,pos_cnt))
+legend()
+
+figure()
+sgtitle('CONTACT WRENCH')
+hold on 
+plot(contact_wrench(:,:))
+legend()
 %%
+
+clc
+clear all
+close all
+data = readmatrix('cp_log.txt');
+cp = data(:, 1:4);
+
+data = readmatrix('com_log.txt');
+com = data(:, 1:6);
+
+data = readmatrix('zmp_log.txt');
+zmp = data(:, 1:2);
+
 figure()
-cnt = 5
-plot(torque_sol(:,cnt))    
-hold on
-plot(torque_id(:,cnt))  
-plot(torque_pd(:,cnt))
-legend("torque sum", "torque id", "torque pd")
+sgtitle('X')
+plot(cp(:,1))    
+hold on 
+plot(cp(:,3)) 
+plot(com(:,1))
+plot(com(:,4))
+plot(zmp(:,1))
+legend('cp mea', 'cp des', 'com pos', 'com v', 'zmp')
+
+figure()
+sgtitle('Y')
+plot(cp(:,2))    
+hold on 
+plot(cp(:,4)) 
+plot(com(:,2))
+plot(com(:,5))
+plot(zmp(:,2))
+legend('cp mea', 'cp des', 'com pos', 'com v', 'zmp')

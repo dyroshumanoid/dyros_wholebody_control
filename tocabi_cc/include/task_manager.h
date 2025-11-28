@@ -6,6 +6,7 @@
 #include "wholebody_functions.h"
 #include "utils.h"
 #include "walking_manager.h"
+#include "teleop_manager.h"
 
 class TaskManager
 {
@@ -13,6 +14,7 @@ public:
   TaskManager(RobotData &rd);
 
   void runTestMotion(const TaskMotionType& motion_mode);
+  void mapBaseToSupport();
 
   //--- Class Setter
   void setControlFrequency(double &hz);
@@ -22,16 +24,24 @@ public:
   void setStepStride(double &step_length_);
   void setFootHeight(double &foot_height_);
   void setStepDuration(double &step_duration_);
+  void setDspDuration(double &dsp_duration_);
+
+  void isForceTorqueSensorAvailable(const bool &is_ft_sensor_available_);
 
 private:
   void movePelvHandPose();
   void moveTaichiMotion();
   void bipedalWalkingController();
+  void teleOperationController();
 
 
 private:
   RobotData &rd_;
   double hz_ = 2000.0;
+
+  Eigen::Vector3d base_pos;
+  Eigen::Matrix3d base_rot;
+  ContactIndicator support_phase_indicator_ = ContactIndicator::DoubleSupport;
 
   double traj_time = 0.0;
   double pelv_dist = 0.0;
@@ -39,4 +49,7 @@ private:
   double step_length = 0.0;
   double foot_height = 0.0;
   double step_duration = 0.0;
+  double dsp_duration = 0.0;
+
+  bool is_ft_sensor_available = false;
 };
