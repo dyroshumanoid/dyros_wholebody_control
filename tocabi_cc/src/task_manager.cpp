@@ -172,7 +172,6 @@ void TaskManager::bipedalWalkingController()
         wm_.setCenterOfMassHeight(rd_.link_[COM_id].support_xpos_init(2));
         wm_.setTransferDuration(2.0);
         wm_.findPreviewParameter(1.0 / hz_, 1.6 * hz_);
-        wm_.isForceTorqueSensorAvailable(is_ft_sensor_available);
 
         is_wm_init = false;
     } 
@@ -183,7 +182,7 @@ void TaskManager::bipedalWalkingController()
     support_phase_indicator_ = wm_.getSupportPhaseIndicator();
     mapBaseToSupport();
 
-    wm_.setWalkingParameter(step_length, 0.0, foot_height);
+    wm_.setWalkingParameter(step_length, step_yaw, foot_height);
     wm_.setStepDuration(step_duration);
     wm_.setDspDuration(dsp_duration);
 
@@ -284,9 +283,14 @@ void TaskManager::setHandDistance(double &hand_dist_)
     hand_dist = hand_dist_;
 }
 
-void TaskManager::setStepStride(double &step_length_)
+void TaskManager::setStepStride(double step_length_)
 {
     step_length = step_length_;
+}
+
+void TaskManager::setStepYaw(double step_yaw_)
+{
+    step_yaw = step_yaw_;
 }
 
 void TaskManager::setFootHeight(double &foot_height_)
@@ -302,9 +306,4 @@ void TaskManager::setStepDuration(double &step_duration_)
 void TaskManager::setDspDuration(double &dsp_duration_)
 {
     dsp_duration = dsp_duration_;
-}
-
-void TaskManager::isForceTorqueSensorAvailable(const bool &is_ft_sensor_available_)
-{
-    is_ft_sensor_available = is_ft_sensor_available_;
 }

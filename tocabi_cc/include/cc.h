@@ -31,14 +31,15 @@ public:
     ros::Subscriber joy_sub_;
     ros::Subscriber xbox_joy_sub_;
 
-    double target_vel_x_ = 0.0;
-    double target_vel_y_ = 0.0;
-    double target_vel_yaw_ = 0.0;
+    double move_forward = 0.0;
+    double move_lateral = 0.0;
+    double rotate_yaw =   0.0;
 
     Eigen::Vector3d v_cmd;
     Eigen::Vector3d w_cmd;
 
     void loadParams();
+    double traj_time_, pelv_dist_, hand_dist_, step_length_, step_yaw_, foot_height_, step_duration_, dsp_duration_;
 
     //--- Thread
     void computeSlow();
@@ -108,4 +109,5 @@ public:
 private:
     Eigen::VectorQd ControlVal_;
     double hz_ = 2000;
+    bool is_joy_enable = false;
 };

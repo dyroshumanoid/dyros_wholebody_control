@@ -92,16 +92,39 @@ void KinWBC::computeTaskSpaceKinematicWBC()
 
     // qdot_des = safetyFilter();
 
-    rd_.q_dot_desired_virtual = qdot_des;
-    rd_.q_dot_desired = rd_.q_dot_desired_virtual.tail(MODEL_DOF);
+    //--- Floating-Base Integration (Base position)
+    rd_.q_desired_virtual.head(3) = rd_.local_q_virtual_.head(3) + qdot_des.segment(0,3); 
 
-    rd_.q_desired_virtual = rd_.local_q_virtual_.head(MODEL_DOF_VIRTUAL) + rd_.q_dot_desired_virtual;
+    //--- Floating-Base Integration (Base orientation)
+    Eigen::Quaterniond current_quat(rd_.local_q_virtual_(39), rd_.local_q_virtual_(3), rd_.local_q_virtual_(4), rd_.local_q_virtual_(5));
+    Eigen::Quaterniond desired_quat; 
+    desired_quat = integrateQuatBodyExp(current_quat, qdot_des.segment(3,3), 1.0); 
+    rd_.q_desired_virtual.tail(3) = rd_.local_q_virtual_.tail(3) + qdot_des.segment(0,3); 
+    rd_.q_desired_virtual(3)  = desired_quat.x();   
+    rd_.q_desired_virtual(4)  = desired_quat.y();   
+    rd_.q_desired_virtual(5)  = desired_quat.z();   
+    rd_.q_desired_virtual(39) = desired_quat.w();   
+
+    //--- Floating-Base Integration (Base actuated joints)
+    rd_.q_desired_virtual.tail(MODEL_DOF) = rd_.q_ + qdot_des.tail(MODEL_DOF);
+
     rd_.q_desired = rd_.q_desired_virtual.tail(MODEL_DOF);
 
+    //--- Joint Acceleration Command (Base position)
     rd_.q_ddot_desired_virtual.setZero();
-    rd_.q_ddot_desired_virtual = rd_.Kp_virtual_diag * (rd_.q_desired_virtual - rd_.local_q_virtual_.head(MODEL_DOF_VIRTUAL)) 
-                               + rd_.Kd_virtual_diag * (Eigen::VectorVQd::Zero() - rd_.local_q_dot_virtual_);
+    rd_.q_ddot_desired_virtual.segment(0, 3) = rd_.Kp_virtual_diag.block(0, 0, 3, 3) * (rd_.q_desired_virtual.segment(0, 3) - rd_.local_q_virtual_.segment(0, 3)) 
+                                             + rd_.Kd_virtual_diag.block(0, 0, 3, 3) * (Eigen::Vector3d::Zero() - rd_.local_q_dot_virtual_.segment(0, 3));
 
+    //--- Joint Acceleration Command (Base orientation)
+    Eigen::Matrix3d current_rotation = Eigen::Quaterniond(rd_.local_q_virtual_(39), rd_.local_q_virtual_(3), rd_.local_q_virtual_(4), rd_.local_q_virtual_(5)).toRotationMatrix();
+    Eigen::Matrix3d desired_rotation = Eigen::Quaterniond(rd_.q_desired_virtual(39), rd_.q_desired_virtual(3), rd_.q_desired_virtual(4), rd_.q_desired_virtual(5)).toRotationMatrix();
+    rd_.q_ddot_desired_virtual.segment(3, 3) = rd_.Kp_virtual_diag.block(3, 3, 3, 3) * (-DyrosMath::getPhi(current_rotation, desired_rotation)) 
+                                             + rd_.Kd_virtual_diag.block(3, 3, 3, 3) * (Eigen::Vector3d::Zero() - rd_.local_q_dot_virtual_.segment(3, 3));
+
+    //--- Joint Acceleration Command (Base actuated joints)
+    rd_.q_ddot_desired_virtual.tail(MODEL_DOF).setZero();
+    rd_.q_ddot_desired_virtual.tail(MODEL_DOF) = rd_.Kp_virtual_diag.block(6, 6, MODEL_DOF, MODEL_DOF) * (rd_.q_desired_virtual.tail(MODEL_DOF) - rd_.q_) 
+                                               + rd_.Kd_virtual_diag.block(6, 6, MODEL_DOF, MODEL_DOF) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
 }
 
 Eigen::VectorVQd KinWBC::safetyFilter()

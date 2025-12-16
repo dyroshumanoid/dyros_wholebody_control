@@ -31,14 +31,16 @@ qacc_des = data(:, 1:39);
 data = readmatrix('contact_wrench_log.txt');
 contact_wrench = data(:, 1:12);
 
-figure()
-sgtitle('JOINT TORQUE')
-torque_cnt = 15
-plot(torque_sol(:,torque_cnt))    
-hold on 
-plot(torque_id(:,torque_cnt))
-plot(torque_pd(:,torque_cnt))
-legend()
+for torque_cnt = 1:1:6
+    figure()
+    sgtitle('JOINT TORQUE')
+    % torque_cnt = 2
+    plot(torque_sol(:,torque_cnt))    
+    hold on 
+    plot(torque_id(:,torque_cnt))
+    plot(torque_pd(:,torque_cnt))
+    legend()
+end
 
 pos_cnt = 6 + 15
 figure()

@@ -272,11 +272,17 @@ void CustomController::moveInitialPose()
 //--- Joy Utils
 void CustomController::xBoxJoyCallback(const sensor_msgs::Joy::ConstPtr& joy)
 {
-    double vel_threshold = 0.1;
+    double threshold = 1.0;
 
-    target_vel_x_   = DyrosMath::minmax_cut(joy->axes[1] * vel_threshold, -vel_threshold, vel_threshold);
-    target_vel_y_   = DyrosMath::minmax_cut(joy->axes[0] * vel_threshold, -vel_threshold, vel_threshold);
-    target_vel_yaw_ = DyrosMath::minmax_cut(joy->axes[3] * vel_threshold, -vel_threshold, vel_threshold);
+    move_forward = DyrosMath::minmax_cut(joy->axes[1] * threshold, -threshold, threshold);
+    move_lateral = DyrosMath::minmax_cut(joy->axes[0] * threshold, -threshold, threshold);
+    rotate_yaw   = DyrosMath::minmax_cut(joy->axes[3] * threshold, -threshold, threshold);
+
+    if (is_joy_enable == false)
+    {
+        tm_.setStepStride(move_forward * step_length_);
+        tm_.setStepYaw(rotate_yaw * step_yaw_);
+    }
 }
 
 //--- Parameter Loader
@@ -410,11 +416,11 @@ void CustomController::loadParams()
     std::cout << " " << std::endl;
 
     //--- Task Parameter
-    double traj_time_, pelv_dist_, hand_dist_, step_length_, foot_height_, step_duration_, dsp_duration_;
     nh_cc_.getParam("/tocabi_controller/task_param/traj_time", traj_time_);
     nh_cc_.getParam("/tocabi_controller/task_param/pelv_dist", pelv_dist_);
     nh_cc_.getParam("/tocabi_controller/task_param/hand_dist", hand_dist_);
     nh_cc_.getParam("/tocabi_controller/task_param/step_length", step_length_);
+    nh_cc_.getParam("/tocabi_controller/task_param/step_yaw", step_yaw_);
     nh_cc_.getParam("/tocabi_controller/task_param/foot_height", foot_height_);
     nh_cc_.getParam("/tocabi_controller/task_param/step_duration", step_duration_);
     nh_cc_.getParam("/tocabi_controller/task_param/dsp_duration", dsp_duration_);
@@ -483,5 +489,4 @@ void CustomController::loadParams()
         ROS_ERROR("kinematic_control_idx error: got %d", is_kinematic_control_idx);
         assert(is_kinematic_control_idx == 0 || is_kinematic_control_idx == 1);
     }
-    tm_.isForceTorqueSensorAvailable(is_kinematic_control);
 }

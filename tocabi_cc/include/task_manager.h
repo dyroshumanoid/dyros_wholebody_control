@@ -21,12 +21,12 @@ public:
   void setTrajectoryDuration(double &traj_time_);
   void setPelvisDistance(double &pelv_dist_);
   void setHandDistance(double &hand_dist_);
-  void setStepStride(double &step_length_);
+  void setStepStride(double step_length_);
+  void setStepYaw(double step_yaw_);
   void setFootHeight(double &foot_height_);
+
   void setStepDuration(double &step_duration_);
   void setDspDuration(double &dsp_duration_);
-
-  void isForceTorqueSensorAvailable(const bool &is_ft_sensor_available_);
 
 private:
   void movePelvHandPose();
@@ -47,9 +47,8 @@ private:
   double pelv_dist = 0.0;
   double hand_dist = 0.0;
   double step_length = 0.0;
+  double step_yaw = 0.0;
   double foot_height = 0.0;
   double step_duration = 0.0;
   double dsp_duration = 0.0;
-
-  bool is_ft_sensor_available = false;
 };

@@ -23,7 +23,6 @@ void setWalkingParameter(const double &step_length_, const double &foot_yaw_angl
 void setStepDuration(const double &step_duration_);
 void setDspDuration(const double &dsp_duration_);
 void setTransferDuration(const double &transfer_duration_);
-void isForceTorqueSensorAvailable(const bool &is_ft_sensor_available_);
 void findPreviewParameter(double dt, int NL);   
 
 //---Getter
@@ -33,7 +32,12 @@ ContactIndicator getSupportPhaseIndicator();
 void contactWrenchCalculator();
 Eigen::Vector2d cp_desired_;
 Eigen::Vector2d cp_measured_;
+Eigen::Vector2d cp_error_;
+Eigen::Vector2d cp_error_int_;
+
 Eigen::Vector2d del_zmp;
+double zmp_kp_ = 3.0;               // proportional gain
+double zmp_ki_ = 0.5;               // integral gain
 
 double zmp_x_ref = 0.0;
 double zmp_y_ref = 0.0;
@@ -41,7 +45,7 @@ double wn = 0.0;
 
 private:
 RobotData &rd_;
-double hz_;
+double hz_ = 2000.0;
 
 void updateStepTick();
 void updateSupportInitialState();
@@ -78,6 +82,7 @@ Eigen::Vector2d footstep_des;
 const int preview_idx = 4;
 Eigen::Vector2d step_command;
 std::deque<Eigen::Vector2d> step_queue;
+std::deque<double> step_yaw_queue;
 std::deque<Eigen::Vector2d> cp_end_queue;
 double step_length    = 0.0;
 double step_width     = 0.0;
@@ -124,5 +129,4 @@ bool is_phase_indicator_transition = false;
 bool is_footstep_update = false;
 bool is_zmp_update = true;
 bool is_preview_transition = false;
-bool is_ft_sensor_available = false;
 };

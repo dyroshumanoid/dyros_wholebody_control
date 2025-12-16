@@ -144,7 +144,7 @@ void ControlManager::updateContact()
 
 void ControlManager::saveInitialState()
 {
-    rd_.q_desired_virtual = rd_.local_q_virtual_.head(MODEL_DOF_VIRTUAL);
+    rd_.q_desired_virtual = rd_.local_q_virtual_;
     rd_.q_dot_desired_virtual.setZero();
 
     for (int idx = 0; idx < LINK_NUMBER + 1; idx++)

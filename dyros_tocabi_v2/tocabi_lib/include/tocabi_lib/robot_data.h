@@ -237,7 +237,7 @@ struct RobotData
     * Link data for Custom Controller
     * local : link data w.r.t. base frame
     */
-    Eigen::VectorVQd q_desired_virtual;
+    Eigen::VectorQVQd q_desired_virtual;
     Eigen::VectorVQd q_dot_desired_virtual;
     Eigen::VectorVQd q_ddot_desired_virtual;
 

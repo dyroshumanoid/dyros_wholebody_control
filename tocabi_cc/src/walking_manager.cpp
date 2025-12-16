@@ -24,9 +24,7 @@ void WalkingManager::computeWalkingMotion()
     getComTrajectory();
     contactWrenchCalculator();
     getFootTrajectory();
-    if(is_ft_sensor_available == true){
-        updateFootPoseFromContactWrench();
-    }
+    updateFootPoseFromContactWrench();
 
     mapSupportToBase();
 
@@ -49,6 +47,7 @@ void WalkingManager::calcFootstepQueue()
     if (is_footstep_queue_init == true)
     {
         step_queue.clear();
+        step_yaw_queue.clear();
 
         Eigen::Vector2d step_command_local;
         step_command_local.setZero();
@@ -58,6 +57,7 @@ void WalkingManager::calcFootstepQueue()
 
             step_command_local += Eigen::Vector2d(step_length_local, foot_contact_idx * step_width);
             step_queue.push_back(step_command_local);
+            step_yaw_queue.push_back(foot_yaw_angle);
 
             foot_contact_idx *= -1;
         }
@@ -78,11 +78,13 @@ void WalkingManager::calcFootstepQueue()
             }
 
             step_queue.pop_front();
+            step_yaw_queue.pop_front();
 
             Eigen::Vector2d step_command_back = step_queue.back();
             Eigen::Vector2d step_command_new = step_command_back + Eigen::Vector2d(step_length, foot_sign * foot_contact_idx * step_width);
 
             step_queue.push_back(step_command_new);
+            step_yaw_queue.push_back(foot_yaw_angle);
 
             is_footstep_update = false;
         }
@@ -94,6 +96,7 @@ void WalkingManager::getZmpTrajectory()
     int total_ticks = static_cast<int>(step_duration* hz_) + static_cast<int>(dsp_duration * hz_);
     int foot_contact_idx = local_LF_contact ? -1 : +1;
 
+    double zmp_offset_x = 0.02;
     double zmp_offset_y = 0.03;
 
     if (step_cnt == 0) // DSP
@@ -116,6 +119,7 @@ void WalkingManager::getZmpTrajectory()
             //--- Transfer to first footstep
             p0 = rd_.link_[COM_id].support_xpos_init.head(2);
             p1.setZero();
+            p1(0) += zmp_offset_x;
             p1(1) += foot_contact_idx * zmp_offset_y;
 
             Eigen::VectorXd s = Eigen::VectorXd::LinSpaced(weight_shift_ticks, 0.0, 1.0);
@@ -136,9 +140,12 @@ void WalkingManager::getZmpTrajectory()
                     p0 = step_queue[i - 1];
                 }
 
+                p0(0) += zmp_offset_x;
                 p0(1) += foot_contact_idx * zmp_offset_y;
 
                 p1 = step_queue[i];
+                p1(0) += zmp_offset_x;
+                p1(1) += foot_contact_idx * (-1) * zmp_offset_y;
 
                 // SSP
                 zmp_x_traj.segment(transfer_ticks + i * total_ticks, static_cast<int>(step_duration * hz_)).setConstant(p0(0));
@@ -183,7 +190,12 @@ void WalkingManager::getZmpTrajectory()
                     p0 = step_queue[i - 1];
                 }
 
+                p0(0) += zmp_offset_x;
+                p0(1) += foot_contact_idx * zmp_offset_y;
+
                 p1 = step_queue[i];
+                p1(0) += zmp_offset_x;
+                p1(1) += foot_contact_idx * (-1) * zmp_offset_y;
 
                 // SSP
                 zmp_x_traj.segment(i * total_ticks, static_cast<int>(step_duration * hz_)).setConstant(p0(0));
@@ -254,7 +266,8 @@ void WalkingManager::getFootTrajectory()
             }
 
             rd_.link_[support_foot_link_idx].r_traj.setIdentity();
-            rd_.link_[swing_foot_link_idx].r_traj.setIdentity();
+            // rd_.link_[swing_foot_link_idx].r_traj.setIdentity();
+            rd_.link_[swing_foot_link_idx].r_traj = DyrosMath::rotationCubic(step_time, 0.0, step_duration, rd_.link_[swing_foot_link_idx].support_rotm_init, DyrosMath::rotateWithZ(step_yaw_queue.front()));
         }
         else // DSP
         {
@@ -264,7 +277,8 @@ void WalkingManager::getFootTrajectory()
             rd_.link_[swing_foot_link_idx].x_traj(2) = 0.0;
 
             rd_.link_[support_foot_link_idx].r_traj.setIdentity();
-            rd_.link_[swing_foot_link_idx].r_traj.setIdentity();
+            // rd_.link_[swing_foot_link_idx].r_traj.setIdentity();
+            rd_.link_[swing_foot_link_idx].r_traj = DyrosMath::rotateWithZ(step_yaw_queue.front());
         }
     }
 }
@@ -332,8 +346,6 @@ void WalkingManager::getComTrajectory()
     //--- Calc Capture Point
     cp_desired_(0) = com_x_dx_ddx(0) + com_x_dx_ddx(1) / wn;
     cp_desired_(1) = com_y_dy_ddy(0) + com_y_dy_ddy(1) / wn;
-    cp_measured_ = (rd_.link_[COM_id].support_xpos + rd_.link_[COM_id].support_v / wn).head(2);
-    del_zmp = 2.0 * (cp_measured_ - cp_desired_);
 
     p_err_sum_x_(0) += ((C * com_x_dx_ddx_next)(0) - zmp_x_traj(step_tick + 1));
     p_err_sum_y_(0) += ((C * com_y_dy_ddy_next)(0) - zmp_y_traj(step_tick + 1));
@@ -343,10 +355,26 @@ void WalkingManager::getComTrajectory()
 
 void WalkingManager::contactWrenchCalculator()
 {
+    cp_measured_ = (rd_.link_[COM_id].support_xpos + rd_.link_[COM_id].support_v / wn).head(2);
+
+    cp_error_ = cp_measured_ - cp_desired_;
+
+    static bool first_cp_int = true;
+    if (first_cp_int == true)
+    {
+        cp_error_int_.setZero();
+        first_cp_int = false;
+    }
+
+    cp_error_int_ += cp_error_ * (1.0 / hz_);
 
     ////// CONTACT WRENCH CALCULATION //////
     lfoot_contact_wrench.setZero(6);
     rfoot_contact_wrench.setZero(6);
+    Eigen::Vector2d del_zmp; del_zmp.setZero();
+    // del_zmp = zmp_kp_ * (cp_measured_ - cp_desired_);
+    del_zmp = zmp_kp_ * cp_error_ + zmp_ki_ * cp_error_int_;
+    
     double alpha = 0.0;
     double F_R = 0.0, F_L = 0.0;
     double Tau_all_y = 0.0, Tau_R_y = 0.0, Tau_L_y = 0.0;
@@ -477,87 +505,62 @@ void WalkingManager::footstepOptimizer()
 
 void WalkingManager::updateFootPoseFromContactWrench()
 {
-    constexpr double LPF_CUTOFF = 50.0;
-    constexpr double FORCE_KP   = 1e-4;
-    constexpr double FORCE_KD   = 1e-8;
-    constexpr double FORCE_DAMPING   = 3.0;
-    constexpr double MOMENT_KP  = -0.040;
-    constexpr double MOMENT_KD  = -0.0005;
-    constexpr double MOMENT_DAMPING  = 10.0;
+    const double dt = 1.0 / hz_;
+    // const double dt = 1.0 / 100.0;  // for more robust walking, use bigger dt (herustic)
+    const double dt2 = dt * dt;
 
-    Eigen::Vector6d lfoot_ft = (-1.0) * rd_.LF_FT;
-    Eigen::Vector6d rfoot_ft = (-1.0) * rd_.RF_FT;
+    ///////////////////////////////////////////
+    //--- Relative Foot Height Difference ---//
+    Eigen::Matrix<double, 6, MODEL_DOF_VIRTUAL> J_rel;
+    Eigen::Matrix<double, 6, 6>  K_rel_inv;
 
-    static Eigen::Vector6d lfoot_ft_lpf = lfoot_ft;
-    static Eigen::Vector6d rfoot_ft_lpf = rfoot_ft;
+    J_rel.setZero();
+    J_rel = rd_.link_[Left_Foot].local_Jac - rd_.link_[Right_Foot].local_Jac;
 
-    for (int i = 0; i < 6; i++)
-    {
-        lfoot_ft_lpf(i) = DyrosMath::lpf(lfoot_ft(i), lfoot_ft_lpf(i), hz_, LPF_CUTOFF);
-        rfoot_ft_lpf(i) = DyrosMath::lpf(rfoot_ft(i), rfoot_ft_lpf(i), hz_, LPF_CUTOFF);
-    }
+    K_rel_inv.setZero();
+    K_rel_inv = J_rel * rd_.A_inv_ * J_rel.transpose();
 
-    //--- Contact Force
-    updateMomentControl(cf_error, 
-                        cf_error_pre, 
-                        cf_input,
-                        lfoot_ft_lpf(2) - rfoot_ft_lpf(2),
-                        lfoot_contact_wrench(2) - rfoot_contact_wrench(2),
-                        FORCE_KP,
-                        FORCE_KD,
-                        FORCE_DAMPING,
-                        hz_);
+    Eigen::Vector6d wrench_rel; wrench_rel.setZero();
+    wrench_rel = (lfoot_contact_wrench - rfoot_contact_wrench);
 
-    rd_.link_[Left_Foot].x_traj(2)  -= cf_input * 0.5;
-    rd_.link_[Right_Foot].x_traj(2) += cf_input * 0.5;
+    Eigen::Vector6d acc_rel; acc_rel.setZero();
+    acc_rel = K_rel_inv * (wrench_rel);
 
-    //--- Contact Moment
-    updateMomentControl(cm_lfoot_roll_error,
-                        cm_lfoot_roll_error_pre,
-                        cm_lfoot_roll_input,
-                        lfoot_ft_lpf(3),
-                        lfoot_contact_wrench(3),
-                        MOMENT_KP,
-                        MOMENT_KD,
-                        MOMENT_DAMPING,
-                        hz_);
+    rd_.link_[Left_Foot].x_traj(2)  -= (acc_rel)(2) * dt * dt;
+    rd_.link_[Right_Foot].x_traj(2) += (acc_rel)(2) * dt * dt;
 
-    updateMomentControl(cm_lfoot_pitch_error,
-                        cm_lfoot_pitch_error_pre,
-                        cm_lfoot_pitch_input,
-                        lfoot_ft_lpf(4),
-                        lfoot_contact_wrench(4),
-                        MOMENT_KP,
-                        MOMENT_KD,
-                        MOMENT_DAMPING,
-                        hz_);
+    ///////////////////////////////////
+    //--- Foot Orientation Update ---//
+    Eigen::Vector12d foot_acc_des; foot_acc_des.setZero();
+    Eigen::Vector12d foot_contact_wrench; foot_contact_wrench.setZero();
+    foot_contact_wrench.head(6) = lfoot_contact_wrench;
+    foot_contact_wrench.tail(6) = rfoot_contact_wrench;
 
-    updateMomentControl(cm_rfoot_roll_error,
-                        cm_rfoot_roll_error_pre,
-                        cm_rfoot_roll_input,
-                        rfoot_ft_lpf(3),
-                        rfoot_contact_wrench(3),
-                        MOMENT_KP,
-                        MOMENT_KD,
-                        MOMENT_DAMPING,
-                        hz_);
+    Eigen::MatrixXd J_C; J_C.setZero(12, MODEL_DOF_VIRTUAL);
+    J_C.topRows(6) = rd_.link_[Left_Foot].local_Jac;
+    J_C.bottomRows(6) = rd_.link_[Right_Foot].local_Jac;
 
-    updateMomentControl(cm_rfoot_pitch_error,
-                        cm_rfoot_pitch_error_pre,
-                        cm_rfoot_pitch_input,
-                        rfoot_ft_lpf(4),
-                        rfoot_contact_wrench(4),
-                        MOMENT_KP,
-                        MOMENT_KD,
-                        MOMENT_DAMPING,
-                        hz_);
+    Eigen::MatrixXd local_lambda_C_inv; local_lambda_C_inv.setZero(12, 12);
 
-    rd_.link_[Left_Foot].r_traj = DyrosMath::rotateWithZ(0.0) 
-                                * DyrosMath::rotateWithY(cm_lfoot_pitch_input) 
-                                * DyrosMath::rotateWithX(cm_lfoot_roll_input);
-    rd_.link_[Right_Foot].r_traj = DyrosMath::rotateWithZ(0.0) 
-                                * DyrosMath::rotateWithY(cm_rfoot_pitch_input) 
-                                * DyrosMath::rotateWithX(cm_rfoot_roll_input);
+    local_lambda_C_inv = J_C * rd_.A_inv_ * J_C.transpose();
+    foot_acc_des = local_lambda_C_inv * (-foot_contact_wrench);
+
+    Eigen::Vector6d lfoot_acc_des = foot_acc_des.head<6>();
+    Eigen::Vector6d rfoot_acc_des = foot_acc_des.tail<6>();
+
+    Eigen::Vector3d dtheta_L = lfoot_acc_des.tail<3>() * dt * dt;   // roll, pitch, yaw small increments
+    Eigen::Vector3d dtheta_R = rfoot_acc_des.tail<3>() * dt * dt;
+
+    Eigen::Matrix3d dR_L = DyrosMath::rotateWithZ(0.0)
+                         * DyrosMath::rotateWithY(dtheta_L(1))
+                         * DyrosMath::rotateWithX(dtheta_L(0));
+
+    Eigen::Matrix3d dR_R = DyrosMath::rotateWithZ(0.0)
+                         * DyrosMath::rotateWithY(dtheta_R(1))
+                         * DyrosMath::rotateWithX(dtheta_R(0));
+
+    rd_.link_[Left_Foot].r_traj  = rd_.link_[Left_Foot].r_traj  * dR_L;
+    rd_.link_[Right_Foot].r_traj = rd_.link_[Right_Foot].r_traj * dR_R;
 }
 
 void WalkingManager::mapSupportToBase()
@@ -731,11 +734,6 @@ void WalkingManager::setStepDuration(const double &step_duration_)
 void WalkingManager::setDspDuration(const double &dsp_duration_)
 {
     dsp_duration = dsp_duration_;
-}
-
-void WalkingManager::isForceTorqueSensorAvailable(const bool &is_ft_sensor_available_)
-{
-    is_ft_sensor_available = is_ft_sensor_available_;
 }
 
 double WalkingManager::getPreviewStepNumber()
