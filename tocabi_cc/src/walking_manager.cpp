@@ -97,7 +97,8 @@ void WalkingManager::getZmpTrajectory()
     int foot_contact_idx = local_LF_contact ? -1 : +1;
 
     double zmp_offset_x = 0.02;
-    double zmp_offset_y = 0.03;
+    // double zmp_offset_y = 0.03;
+    double zmp_offset_y = 0.01;
 
     if (step_cnt == 0) // DSP
     {
@@ -506,7 +507,6 @@ void WalkingManager::footstepOptimizer()
 void WalkingManager::updateFootPoseFromContactWrench()
 {
     const double dt = 1.0 / hz_;
-    // const double dt = 1.0 / 100.0;  // for more robust walking, use bigger dt (herustic)
     const double dt2 = dt * dt;
 
     ///////////////////////////////////////////

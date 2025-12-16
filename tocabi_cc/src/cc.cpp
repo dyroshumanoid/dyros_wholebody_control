@@ -278,7 +278,7 @@ void CustomController::xBoxJoyCallback(const sensor_msgs::Joy::ConstPtr& joy)
     move_lateral = DyrosMath::minmax_cut(joy->axes[0] * threshold, -threshold, threshold);
     rotate_yaw   = DyrosMath::minmax_cut(joy->axes[3] * threshold, -threshold, threshold);
 
-    if (is_joy_enable == false)
+    if (is_joy_enable == true)
     {
         tm_.setStepStride(move_forward * step_length_);
         tm_.setStepYaw(rotate_yaw * step_yaw_);
