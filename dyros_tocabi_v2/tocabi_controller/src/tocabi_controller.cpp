@@ -1014,7 +1014,7 @@ void *TocabiController::Thread3()
 #ifdef COMPILE_TOCABI_AVATAR
                 if (rd_.tc_.mode == 10 || rd_.tc_.mode == 11)
                 {
-                    ac_.computeThread3();
+                    // ac_.computeThread3();
                 }
 #endif
                 /////////////////////////////////////////////
