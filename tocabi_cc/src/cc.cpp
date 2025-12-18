@@ -2,7 +2,7 @@
 
 using namespace TOCABI;
 
- ofstream torque_pd_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
+ofstream torque_pd_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
 ofstream torque_idn_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
 ofstream torque_sum_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
 ofstream joint_pos_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_pos_log.txt");
@@ -11,6 +11,8 @@ ofstream joint_vel_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_vel_log.t
 ofstream joint_vel_des_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_vel_des_log.txt");
 ofstream joint_acc_des_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_acc_des_log.txt");
 ofstream contact_wrench_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/contact_wrench_log.txt");
+ofstream minimum_signed_distance_log("/home/sanghyuk/MATLAB/data/minimum_signed_distance_log.txt");
+ofstream obstacle_log("/home/sanghyuk/MATLAB/data/obstacle_log.txt");
 
 CustomController::CustomController(RobotData &rd) : rd_(rd), col_mgr_(rd), cm_(rd), tm_(rd), kin_wbc_(rd, col_mgr_), dyn_wbc_(rd), teleop_(rd)
 {
@@ -165,10 +167,19 @@ void CustomController::computeSlow()
         joint_vel_des_log  << std::fixed << std::setprecision(4) << rd_.q_dot_desired_virtual.transpose() << std::endl;
         joint_acc_des_log  << std::fixed << std::setprecision(4) << rd_.q_ddot_desired_virtual.transpose() << std::endl;
         contact_wrench_log << std::fixed << std::setprecision(4) << rd_.LF_FT_DES.transpose() << " " << rd_.RF_FT_DES.transpose() << std::endl;
+        minimum_signed_distance_log << col_mgr_.min_distances_(20) << endl;
     }
     else
     {
         rd_.torque_desired = (rd_.Kp_diag * (rd_.q_desired - rd_.q_)) - (rd_.Kd_diag * rd_.q_dot_);
+    }
+
+    if(!col_mgr_.cb_obstacles_.empty())
+    {
+        obstacle_log << col_mgr_.cb_obstacles_[0].trans_world[1] << "," << col_mgr_.cb_obstacles_[0].vel_world[1] << "," << col_mgr_.check5 << "," << col_mgr_.check6 << std::endl;
+    }
+    else{
+        obstacle_log << col_mgr_.check1 << "," << col_mgr_.check2 << "," << col_mgr_.check3 << "," << col_mgr_.check4 << std::endl;
     }
 }
 
@@ -270,30 +281,9 @@ void CustomController::moveInitialPose()
     }
     else
     {
-        q_init_des(15) = 0.0;
-        q_init_des(16) = 0.45;
-        q_init_des(17) = 1.4;
-        q_init_des(18) = -1.2;
-        q_init_des(19) = -1.57; // elbow
-        q_init_des(20) = 1.5;
-        q_init_des(21) = 0.4;
-        q_init_des(22) = -0.2;
-
-        q_init_des(23) = 0.0; // yaw
-        q_init_des(24) = 0.0; // pitch
-
-        q_init_des(25) = 0.0;
-        q_init_des(26) = -0.45;
-        q_init_des(27) = -1.4;
-        q_init_des(28) = 1.2;
-        q_init_des(29) = 1.57; // elbow
-        q_init_des(30) = -1.5;
-        q_init_des(31) = -0.4;
-        q_init_des(32) = 0.2;
-        
         // q_init_des(15) = 0.0;
-        // q_init_des(16) = -0.3;
-        // q_init_des(17) = 1.57;
+        // q_init_des(16) = 0.45;
+        // q_init_des(17) = 1.4;
         // q_init_des(18) = -1.2;
         // q_init_des(19) = -1.57; // elbow
         // q_init_des(20) = 1.5;
@@ -304,13 +294,34 @@ void CustomController::moveInitialPose()
         // q_init_des(24) = 0.0; // pitch
 
         // q_init_des(25) = 0.0;
-        // q_init_des(26) = 0.3;
-        // q_init_des(27) = -1.57;
+        // q_init_des(26) = -0.45;
+        // q_init_des(27) = -1.4;
         // q_init_des(28) = 1.2;
         // q_init_des(29) = 1.57; // elbow
         // q_init_des(30) = -1.5;
         // q_init_des(31) = -0.4;
         // q_init_des(32) = 0.2;
+        
+        q_init_des(15) = 0.0;
+        q_init_des(16) = -0.3;
+        q_init_des(17) = 1.57;
+        q_init_des(18) = -1.2;
+        q_init_des(19) = -1.57; // elbow
+        q_init_des(20) = 1.5;
+        q_init_des(21) = 0.4;
+        q_init_des(22) = -0.2;
+
+        q_init_des(23) = 0.0; // yaw
+        q_init_des(24) = 0.0; // pitch
+
+        q_init_des(25) = 0.0;
+        q_init_des(26) = 0.3;
+        q_init_des(27) = -1.57;
+        q_init_des(28) = 1.2;
+        q_init_des(29) = 1.57; // elbow
+        q_init_des(30) = -1.5;
+        q_init_des(31) = -0.4;
+        q_init_des(32) = 0.2;
     }
 
     kin_wbc_.setInitialConfiguration(q_init_des);

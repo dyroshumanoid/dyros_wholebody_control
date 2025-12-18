@@ -72,13 +72,13 @@ void TaskManager::movePelvHandPose()
     // {
     //     rd_.link_[Left_Hand].x_desired(idx)  = rd_.link_[Left_Hand].local_xpos_init(idx)  + hand_dist;
     //     rd_.link_[Right_Hand].x_desired(idx) = rd_.link_[Right_Hand].local_xpos_init(idx) - hand_dist;
-    // }
-    rd_.link_[Left_Hand].x_desired(0)  = rd_.link_[Left_Hand].local_xpos_init(0) - hand_dist / 2.0;
-    rd_.link_[Right_Hand].x_desired(0) = rd_.link_[Right_Hand].local_xpos_init(0) - hand_dist / 2.0;
+    // // }
+    // rd_.link_[Left_Hand].x_desired(0)  = rd_.link_[Left_Hand].local_xpos_init(0) - hand_dist / 2.0;
+    // rd_.link_[Right_Hand].x_desired(0) = rd_.link_[Right_Hand].local_xpos_init(0) - hand_dist / 2.0;
     rd_.link_[Left_Hand].x_desired(1)  = rd_.link_[Left_Hand].local_xpos_init(1) - hand_dist;
     rd_.link_[Right_Hand].x_desired(1) = rd_.link_[Right_Hand].local_xpos_init(1) + hand_dist;
-    // rd_.link_[Left_Hand].x_desired(2)  = rd_.link_[Left_Hand].local_xpos_init(2) - hand_dist;
-    // rd_.link_[Right_Hand].x_desired(2) = rd_.link_[Right_Hand].local_xpos_init(2) - hand_dist;
+    // rd_.link_[Left_Hand].x_desired(2)  = rd_.link_[Left_Hand].local_xpos_init(2) + hand_dist;
+    // rd_.link_[Right_Hand].x_desired(2) = rd_.link_[Right_Hand].local_xpos_init(2) + hand_dist;
 
     rd_.link_[Left_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Left_Hand].local_xpos_init, rd_.link_[Left_Hand].x_desired);
     rd_.link_[Right_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Right_Hand].local_xpos_init, rd_.link_[Right_Hand].x_desired);

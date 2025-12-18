@@ -18,6 +18,7 @@ public:
     {
         fade_counter_ = s_fade_counter_size_;
         obstacle_.pos_ = obstacle_pos;
+        obstacle_.vel_ = Eigen::Vector3d::Zero();
         initKF();
     }
 

@@ -267,6 +267,7 @@ void KinWBC::calcInequalityConstraint()
     Eigen::VectorXd ubA_self_col; ubA_self_col.setZero(col_mgr_.num_pairs_);
 
     lbA_self_col = -alpha_self_col * col_mgr_.min_distances_ + (1.0 / eps_self_col) * col_mgr_.J_self_col_.rowwise().squaredNorm();
+    // lbA_self_col = -alpha_self_col * col_mgr_.min_distances_;
     ubA_self_col.setConstant(1e8);
     
     constraints_.push_back({col_mgr_.J_self_col_,
@@ -291,6 +292,8 @@ void KinWBC::calcInequalityConstraint()
     constraints_.push_back({col_mgr_.J_obs_col_,
                             lbA_obs_col,
                             ubA_obs_col});
+
+    col_mgr_.check6 = true;
     // ---self, environment, reachability, ... + alpha (singularity)
 } 
 

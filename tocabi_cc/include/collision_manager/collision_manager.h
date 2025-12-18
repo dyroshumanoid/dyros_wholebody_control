@@ -25,10 +25,6 @@
 #include <pinocchio/fwd.hpp>
 
 // ROS Headers
-#include <tf2_ros/transform_broadcaster.h>
-#include <tf2_ros/buffer.h>
-#include <tf2_ros/transform_listener.h>
-#include <tf2/exceptions.h>
 #include <std_msgs/UInt8MultiArray.h>           // For collision status of collision objects
 #include <std_msgs/Bool.h>
 #include <geometry_msgs/TransformStamped.h>     // For TF information of camera frame
@@ -78,11 +74,7 @@ private:
     ros::Publisher base_to_head_pose_pub_;                  // send base_to_head_pose_pub_ to camera
     ros::Publisher aruco_pose_pub_;                         // send aruco_pose_msg to MuJoCo
     // subscriber
-    ros::Subscriber aruco_detect_sub_;
-    // tf2_ros(coordinate transform communication)
-    tf2_ros::TransformBroadcaster tf_broadcaster_;
-    tf2_ros::Buffer tf_buffer_;
-    tf2_ros::TransformListener tf_listener{tf_buffer_};
+    ros::Subscriber aruco_detect_sub_;                      // receive the pose of the QR code(ArUCo) obstacle
     // msg
     std_msgs::UInt8MultiArray col_status_msg_;              // contain collision status of collision objects
     geometry_msgs::TransformStamped base_to_head_tf_msg_;   // contain transform from base to head
@@ -92,6 +84,7 @@ private:
 
     //================================ Pinocchio =================================//
 public:
+    // pinocchio joint configuration including floating base
     Eigen::VectorQVQd q_virtual_pin_;
 
 private:
@@ -135,15 +128,15 @@ public:
 
         // translation vector
         Eigen::Vector3d trans_local;    // from link frame to collision object frame
-        Eigen::Vector3d trans_global;   // from world frame to collision object frame
+        Eigen::Vector3d trans_world;   // from world frame to collision object frame
 
         // rotation matrix
         Eigen::Matrix3d rot_local;      // from link frame to collision object frame
-        Eigen::Matrix3d rot_global;     // from world frame to collision object frame
+        Eigen::Matrix3d rot_world;     // from world frame to collision object frame
 
         // for obstacle
         Eigen::Vector3d pos_base;       // obstacle position w.r.t. base frmae
-        Eigen::Vector3d vel_global;     // obstacle velocity w.r.t. world frmae
+        Eigen::Vector3d vel_world;     // obstacle velocity w.r.t. world frmae
 
         // type of collision geometry
         enum class Type
@@ -211,6 +204,11 @@ public:
     VectorXd min_distances_w_obs_;          // between robot and obstacle
     VectorXd obs_vel_projections_;          // obstacle velocity projection to the normal vector
 
+    // obstacle 인식 안됐을 때
+    bool check1 = false, check2 = false, check3 = false, check4 = false;
+    // obstacle 인식 됐을 때
+    bool check5 = false, check6 = false;
+
     /**
      * @brief Publishes the self-collision status of all collision objects of the robot
      *        to the MuJoCo simulation
@@ -237,11 +235,18 @@ public:
      * @brief Compute the Jacobian-based constraint matrix for self-collision avoidance
      *        and minimum distances between collision pairs
      * 
-     * @note This method calculates the Jacobian based on the predefined collision pairs
-     *       specified in col_pair_ids_
+     * @note This method calculates the constraint matrix for self-collision avoidance
+     *       based on the predefined collision pairs specified in col_pair_ids_
      */
     void computeSelfColAvoidJac();
 
+    /**
+     * @brief Compute the Jacobian-based constraint matrix for obstacle avoidance
+     *        , minimum distances between collision pairs, and obstacle velocity projections
+     * 
+     * @note This method calculates the constraint matrix for obstacle avoidance
+     *       between the robot's collision objects and the environment obstacles tracked in cb_obstacles_
+     */
     void computeObstacleAvoidJac();
 
     /**
@@ -328,8 +333,7 @@ private:
      */                                                                
     hpp::fcl::DistanceResult getDistanceResultBetweenCObjs(const CollisionObjectIdx obj_id1,
                                                            const CollisionObjectIdx obj_id2,
-                                                           DistanceResultOption option = Links
-                                                           );
+                                                           DistanceResultOption option = Links);
     
     /**
      * @brief Get the collision result(ColResult) between two sphere collision objects
@@ -339,30 +343,26 @@ private:
      * @param min_distance minimum distance between the nearest points of the two objects
      * @param nearest_point1 the point on object 1 that is closest to object 2, expressed in the world frame
      * @param nearest_point2 the point on object 2 that is closest to object 1, expressed in the world frame
+     * @param option  specifies which pair of objects to include in the collision result:
      * 
-     * @note The collision result contains the minimum distance between the nearest points
-     *       and the corresponding points on each object's surface
+     *               - Links: DistanceResult between two robot links
+     * 
+     *               - Link2Env: DistanceResult between a robot link and an environment object
+     * 
+     *               - Envs: DistanceResult between two environment objects
+     * 
+     * @note - The collision result contains the minimum distance between the nearest points
+     *         and the corresponding points on each object's surface
+     * 
+     *       - When the option is set to Link2Env, obj_id1 must correspond to a robot link,
+     *         and obj_id2 must correspond to an environment obstacle.
      */                                                          
-    void ColResultSphere2Sphere(const CollisionObjectIdx obj_id1, 
-                                const CollisionObjectIdx obj_id2, 
+    void ColResultSphere2Sphere(const unsigned int obj_id1, 
+                                const unsigned int obj_id2, 
                                 double &min_distance,
                                 Eigen::Vector3d &nearest_point1,
-                                Eigen::Vector3d &nearest_point2
-                                );
-    
-    void obsColResultSphere2Sphere(const unsigned int obj_id1, 
-                                   const unsigned int obj_id2, 
-                                   double &min_distance,
-                                   Eigen::Vector3d &nearest_point1,
-                                   Eigen::Vector3d &nearest_point2
-                                   );
-
-    void obsColResultSphere2Capsule(const unsigned int obj_id1, 
-                                    const unsigned int obj_id2,
-                                    double &min_distance, 
-                                    Eigen::Vector3d &nearest_point1,
-                                    Eigen::Vector3d &nearest_point2
-                                    );
+                                Eigen::Vector3d &nearest_point2,
+                                DistanceResultOption option = Links);
 
     /**
      * @brief Get the collision result(ColResult) between sphere and capsule collision objects
@@ -372,19 +372,28 @@ private:
      * @param min_distance minimum distance between the nearest points of the two objects
      * @param nearest_point1 the point on object 1 that is closest to object 2, expressed in the world frame
      * @param nearest_point2 the point on object 2 that is closest to object 1, expressed in the world frame
+     * @param option  specifies which pair of objects to include in the collision result:
      * 
-     * @note The sphere object must be assigned to obj_id1
+     *               - Links: DistanceResult between two robot links
+     * 
+     *               - Link2Env: DistanceResult between a robot link and an environment object
+     * 
+     *               - Envs: DistanceResult between two environment objects
+     * @param obs_is_sphere indicates whether the obstacle is a sphere (true) or capsule (false)
+     * 
+     * @note - The sphere object must be assigned to obj_id1
      *      
-     *       The collision result contains the minimum distance between the nearest points
-     *       and the corresponding points on each object's surface
+     *       - The collision result contains the minimum distance between the nearest points
+     *         and the corresponding points on each object's surface
      *       
      */                               
-    void ColResultSphere2Capsule(const CollisionObjectIdx obj_id1, 
-                                 const CollisionObjectIdx obj_id2,
+    void ColResultSphere2Capsule(const unsigned int obj_id1, 
+                                 const unsigned int obj_id2,
                                  double &min_distance, 
                                  Eigen::Vector3d &nearest_point1,
-                                 Eigen::Vector3d &nearest_point2
-                                 );
+                                 Eigen::Vector3d &nearest_point2,
+                                 DistanceResultOption option = Links,
+                                 bool obs_is_sphere = true);
     
     /**
      * @brief Get the collision result(ColResult) between two capsule collision objects
@@ -394,19 +403,29 @@ private:
      * @param min_distance minimum distance between the nearest points of the two objects
      * @param nearest_point1 the point on object 1 that is closest to object 2, expressed in the world frame
      * @param nearest_point2 the point on object 2 that is closest to object 1, expressed in the world frame
+     * @param option  specifies which pair of objects to include in the collision result:
      * 
-     * @note The collision result contains the minimum distance between the nearest points
-     *       and the corresponding points on each object's surface
+     *               - Links: DistanceResult between two robot links
+     * 
+     *               - Link2Env: DistanceResult between a robot link and an environment object
+     * 
+     *               - Envs: DistanceResult between two environment objects
+     * 
+     * @note - The collision result contains the minimum distance between the nearest points
+     *         and the corresponding points on each object's surface
+     * 
+     *      - When the option is set to Link2Env, obj_id1 must correspond to a robot link,
+     *        and obj_id2 must correspond to an environment obstacle.
      */                                
-    void ColResultCapsule2Capsule(const CollisionObjectIdx obj_id1, 
-                                  const CollisionObjectIdx obj_id2, 
+    void ColResultCapsule2Capsule(const unsigned int obj_id1, 
+                                  const unsigned int obj_id2, 
                                   double &min_distance, 
                                   Eigen::Vector3d &nearest_point1, 
-                                  Eigen::Vector3d &nearest_point2
-                                  );
+                                  Eigen::Vector3d &nearest_point2,
+                                  DistanceResultOption option = Links);
 
     /**
-     * @brief Compute the Jacobian-based constraint matrix for a single collision pair(ColPair) in the robot
+     * @brief Compute the Jacobian-based constraint row for a single collision pair in the robot
      * 
      * @param obj_id1 index of the first collision object
      * @param center_point1 the point on object 1 that is closest to object 2, expressed in the world frame
@@ -414,26 +433,35 @@ private:
      * @param center_point2 the point on object 2 that is closest to object 1, expressed in the world frame
      * @param sign sign of the minimum distance(positive(objects separated): 1, negative(penetration): -1)
      * 
-     * @return the Jacobian-based constraint matrix for the single collision pair
+     * @return the Jacobian-based constraint row for the single collision pair
      */                                 
-    Eigen::MatrixXd computeRobotColPairJac(const CollisionObjectIdx obj_id1,
-                                           const Eigen::Vector3d nearest_point1,
-                                           const CollisionObjectIdx obj_id2,
-                                           const Eigen::Vector3d nearest_point2,
-                                           const int sign
-                                           );
-
+    Eigen::RowVectorXd computeSelfColAvoidJacRow(const unsigned int obj_id1,
+                                                 const Eigen::Vector3d nearest_point1,
+                                                 const unsigned int obj_id2,
+                                                 const Eigen::Vector3d nearest_point2,
+                                                 const int sign);
     
-    Eigen::RowVectorXd computeColPairWithObsJac(const unsigned int obj_id,
-                                                const Eigen::Vector3d nearest_point_obj,
-                                                const unsigned int obs_id,
-                                                const Eigen::Vector3d nearest_point_obs,
-                                                double &obs_vel_projection,
-                                                const int sign
-                                                );
+    /**
+     * @brief Compute the Jacobian-based constraint row for a single collision pair between the robot and an obstacle
+     * 
+     * @param obj_id index of the collision object in the robot
+     * @param nearest_point_obj the point on the robot object that is closest to the obstacle, expressed in the world frame
+     * @param obs_id index of the collision object in the obstacle
+     * @param nearest_point_obs the point on the obstacle that is closest to the robot object, expressed in the world frame
+     * @param obs_vel_projection projection of the obstacle velocity onto the normal vector between the two nearest points
+     * @param sign sign of the minimum distance(positive(objects separated): 1, negative(penetration): -1)
+     * 
+     * @return the Jacobian-based constraint row for the single collision pair
+     */
+    Eigen::RowVectorXd computeObstacleAvoidJacRow(const unsigned int obj_id,
+                                                  const Eigen::Vector3d nearest_point_obj,
+                                                  const unsigned int obs_id,
+                                                  const Eigen::Vector3d nearest_point_obs,
+                                                  double &obs_vel_projection,
+                                                  const int sign);
 
     /**
-     * @brief Compute the Jacobian-based constraint matrix for a single collision pair(ColPair) using HPP-FCL collision library
+     * @brief Compute the Jacobian-based constraint row for a single collision pair using HPP-FCL collision library
      * 
      * @param obj_id1 index of the first collision object
      * @param nearest_point1 the point on object 1 returned by HPP-FCL that is closest to object 2, expressed in the world frame
@@ -441,14 +469,13 @@ private:
      * @param nearest_point2 the point on object 2 returned by HPP-FCL that is closest to object 1, expressed in the world frame
      * @param sign sign of the minimum distance(positive(objects separated): 1, negative(penetration): -1)
      * 
-     * @return the Jacobian-based constraint matrix for the single collision pair
+     * @return the Jacobian-based constraint row for the single collision pair
      */                                     
-    Eigen::MatrixXd computeColPairJacHPPFCL(const CollisionObjectIdx obj_id1,
+    Eigen::RowVectorXd computeSelfColAvoidJacRowHPPFCL(const CollisionObjectIdx obj_id1,
                                             const Eigen::Vector3d nearest_point1,
                                             const CollisionObjectIdx obj_id2,
                                             const Eigen::Vector3d nearest_point2,
-                                            const int sign
-                                            );
+                                            const int sign);
 
     /**
      * @brief Assign a collision object(CObj) as a sphere shape to the target object
@@ -461,8 +488,7 @@ private:
      */
     std::shared_ptr<hpp::fcl::CollisionObject> assignSphereCObj(const Eigen::Matrix3d obj_rot,
                                                                 const Eigen::Vector3d obj_trans,
-                                                                const double radius
-                                                                );
+                                                                const double radius);
     
     /**
      * @brief Assign a collision object(CObj) as a capsule shape to the target object
@@ -477,8 +503,7 @@ private:
     std::shared_ptr<hpp::fcl::CollisionObject> assignCapsuleCObj(const Eigen::Matrix3d obj_rot,
                                                                  const Eigen::Vector3d obj_trans,
                                                                  const double radius,
-                                                                 const double height
-                                                                 );
+                                                                 const double height);
     
     /**
      * @brief Assign a collision object(CObj) as a box shape to the target object
@@ -495,8 +520,7 @@ private:
                                                              const Eigen::Vector3d obj_trans,
                                                              const double size_x,
                                                              const double size_y,
-                                                             const double size_z
-                                                             );
+                                                             const double size_z);
 
     //____________________________________________________________________________//
                                                              
@@ -509,12 +533,18 @@ public:
     // rotation matrix and translation vector from world frame to base frame
     Eigen::Matrix3d world_to_base_rot_yaw_only_;
     Eigen::Vector3d world_to_base_trans_;
-
-    std::mutex meas_mutex_;
-    bool has_new_measure_ = false;
-    ros::Time last_detect_time_;
     
-    double tracking_duration, process_var, process_rate_var, measurement_var;
+    // mutex for measurement update
+    std::mutex meas_mutex_;
+
+    // flag to indicate new measurement arrival
+    bool has_new_measure_ = false;
+    
+    // Kalman filter parameters
+    double tracking_duration;                   // duration for tracking
+    double process_var;                         // process variance
+    double process_rate_var;                    // process rate variance (time derivative of process)
+    double measurement_var;                     // measurement variance
 
     /**
      * @brief Publish the transformation matrix from base frame to head frame
@@ -524,19 +554,22 @@ public:
     void pubBasetoHeadTransform();
 
     /**
-     * @brief Get the transformation matrix from base frame to QR code(ArUCo) frame
+     * @brief Callback function to process the received pose of the QR code(ArUCo) obstacle
      * 
-     * @return The transformation matrix from base frame to QR code(ArUCo) frame(object frame)
-     * 
-     * @note This method uses ROS tf2 to lookup the transformation matrix
+     * @param msg the received PoseStamped message containing the pose of the QR code(ArUCo) obstacle
      */
-    Eigen::Isometry3d getBasetoQRTransform();
-
     void BasetoQRTransformCallback(const geometry_msgs::PoseStamped &msg);
     
+    /**
+     * @brief Update the obstacle information based on the latest measurement
+     * 
+     * @note This method updates the position and velocity of the tracked obstacles
+     *       using a Kalman filter
+     */
     void updateObstacle();
 
 private:
+    // vector of tracked obstacles
     std::vector<TrackedObstacle> tracked_obstacles_;
 
     //____________________________________________________________________________//

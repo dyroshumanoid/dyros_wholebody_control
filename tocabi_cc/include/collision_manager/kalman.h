@@ -3,6 +3,8 @@
 
 #include <Eigen/Dense>
 
+// reference paper: G. Welch, and G. Bishop, "An Introduction to the Kalman Filter" (1995)
+// link: https://www.cs.unc.edu/~welch/media/pdf/kalman_intro.pdf
 class KalmanFilter
 {
 public:
