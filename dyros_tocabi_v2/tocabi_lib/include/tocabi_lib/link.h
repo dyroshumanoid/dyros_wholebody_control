@@ -196,6 +196,7 @@ public:
   Eigen::Matrix3Vd local_Jac_v;
   Eigen::Matrix3Vd local_Jac_w;
   Eigen::Matrix6Vd local_Jac;
+  Eigen::Vector6d  local_Jqdot;
 
   Eigen::Vector3d local_xpos;
   Eigen::Matrix3d local_rotm;

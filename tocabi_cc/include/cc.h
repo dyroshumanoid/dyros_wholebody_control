@@ -54,11 +54,6 @@ public:
     DynWBC dyn_wbc_;  
     TeleOperationManager teleop_;  
     
-    std::vector<std::vector<TaskInfo>> task_hierarchy;
-    std::set<std::string> task_names;
-    ContactIndicator contact_mode_;
-    unsigned int contact_dim = 12;
-
     RobotData &rd_;
     RobotData rd_cc_;
 
@@ -69,13 +64,6 @@ public:
     Eigen::VectorQd joint_vel_limit_l_;
     Eigen::VectorQd joint_vel_limit_h_;
 
-    //--- Robot State
-    void stateManager();
-    void contactStateManager();
-    void saveInitialState();
-    double getSignedDistanceFunction(LinkData &linkA_, LinkData &linkB_, Eigen::MatrixXd &J_AB);
-    
-
     //--- Initial Values
     Eigen::VectorQd q_init_;
     Eigen::VectorQd q_init_des;
@@ -83,28 +71,36 @@ public:
     void moveInitialPose();
 
     //--- Test Function
-    void movePelvPose(double traj_time, double pelv_dist);
-    void moveHandPose(double traj_time, double hand_dist);
-    void movePelvHandPose(double traj_time, double pelv_dist, double hand_dist);
-    void moveTaichiMotion(const double& traj_time, const double& pelv_dist, const double& hand_dist, const double& foot_height);
-    void bipedalWalkingController(const double& step_duration, const double& foot_height, const double& vx, const double& vy, const double& wz);
-    void runTestMotion(const double& traj_time, const double& pelv_dist, const double& hand_dist, const double& foot_height, const double& step_duration);
     TaskMotionType motion_mode_ = TaskMotionType::None;
 
     Eigen::VectorQd torque_pd;
     Eigen::VectorQd torque_idn;
-    Eigen::VectorQd torque_idn_fast;
-    Eigen::VectorQd torque_idn_container;
     Eigen::VectorQd torque_sum;
 
+    //--- Data Exchange
+    void pubDataFromSlowToFast();
+    void subDataFromSlowToFast();
+    void pubDataFromFastToSlow();
+    void subDataFromFastToSlow();
+
+    Eigen::VectorQd torque_idn_fast;
+    Eigen::VectorQd torque_idn_container;
+
+    Eigen::MatrixVVd M_fast;
+    Eigen::MatrixVVd M_container;
+    Eigen::VectorVQd G_fast;
+    Eigen::VectorVQd G_container;
+    Eigen::MatrixXd J_C_fast;
+    Eigen::MatrixXd J_C_container;
     Eigen::VectorVQd qddot_cmd_container;
     Eigen::VectorVQd qddot_cmd_fast;
     Eigen::Vector12d contact_wrench_cmd_container;
     Eigen::Vector12d contact_wrench_cmd_fast;
 
-    bool is_kinematic_control = true;
     std::atomic<bool> atb_control_command_update_{false};
     std::atomic<bool> atb_torque_update_{false};
+
+    void applyTorqueSmoothingOnce(Eigen::VectorQd &torque_target);
 
 private:
     Eigen::VectorQd ControlVal_;

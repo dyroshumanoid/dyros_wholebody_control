@@ -4,11 +4,7 @@ using namespace TOCABI;
 
 KinWBC::KinWBC(RobotData& rd) : rd_(rd) 
 {
-    task_hierarchy = {
-        {{COM_id, TaskType::Position}, {Pelvis, TaskType::Orientation}},
-        {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}},
-        {{Upper_Body, TaskType::Orientation}},
-        {{Head, TaskType::Orientation}}};
+
 }
 
 void KinWBC::setTaskHierarchy(const TaskMotionType& motion_mode_)
@@ -92,40 +88,61 @@ void KinWBC::computeTaskSpaceKinematicWBC()
 
     // qdot_des = safetyFilter();
 
-    //--- Floating-Base Integration (Base position)
-    rd_.q_desired_virtual.head(3) = rd_.local_q_virtual_.head(3) + qdot_des.segment(0,3); 
-
-    //--- Floating-Base Integration (Base orientation)
-    Eigen::Quaterniond current_quat(rd_.local_q_virtual_(39), rd_.local_q_virtual_(3), rd_.local_q_virtual_(4), rd_.local_q_virtual_(5));
-    Eigen::Quaterniond desired_quat; 
-    desired_quat = integrateQuatBodyExp(current_quat, qdot_des.segment(3,3), 1.0); 
-    rd_.q_desired_virtual.tail(3) = rd_.local_q_virtual_.tail(3) + qdot_des.segment(0,3); 
-    rd_.q_desired_virtual(3)  = desired_quat.x();   
-    rd_.q_desired_virtual(4)  = desired_quat.y();   
-    rd_.q_desired_virtual(5)  = desired_quat.z();   
-    rd_.q_desired_virtual(39) = desired_quat.w();   
-
-    //--- Floating-Base Integration (Base actuated joints)
-    rd_.q_desired_virtual.tail(MODEL_DOF) = rd_.q_ + qdot_des.tail(MODEL_DOF);
-
+    rd_.q_desired_virtual = integrate(rd_.local_q_virtual_, qdot_des);
     rd_.q_desired = rd_.q_desired_virtual.tail(MODEL_DOF);
 
+    rd_.q_ddot_desired_virtual = computeDesiredJointAcceleration(rd_.local_q_virtual_, rd_.local_q_dot_virtual_, rd_.q_desired_virtual, rd_.Kp_virtual_diag, rd_.Kd_virtual_diag);
+}
+
+Eigen::VectorQVQd KinWBC::integrate(const Eigen::VectorQVQd &q_current, const Eigen::VectorVQd &q_delta)
+{
+    Eigen::VectorQVQd q_integrated_; q_integrated_.setZero();
+
+    //--- Floating-base Integration (Base position)
+    q_integrated_.segment(0, 3) = q_current.segment(0, 3) + q_delta.segment(0,3); 
+
+    //--- Floating-base Integration (Base orientation)
+    Eigen::Quaterniond current_quat(q_current(39), q_current(3), q_current(4), q_current(5));
+    Eigen::Quaterniond desired_quat;
+    desired_quat = integrateQuatBodyExp(current_quat, q_delta.segment(3, 3), 1.0);
+    q_integrated_(3)  = desired_quat.x();   
+    q_integrated_(4)  = desired_quat.y();   
+    q_integrated_(5)  = desired_quat.z();   
+    q_integrated_(39) = desired_quat.w();   
+
+    //--- Floating-base Integration (Base actuated joints)
+    q_integrated_.segment(6, MODEL_DOF) = q_current.segment(6, MODEL_DOF) + q_delta.segment(6, MODEL_DOF);
+
+    return(q_integrated_);
+}
+
+Eigen::VectorVQd KinWBC::computeDesiredJointAcceleration(const Eigen::VectorQVQd &q_current, const Eigen::VectorVQd &qdot_current, const Eigen::VectorQVQd &q_desired, const Eigen::MatrixVVd &Kp, const Eigen::MatrixVVd &Kd)
+{
+    Eigen::VectorVQd qddot_integrated_; qddot_integrated_.setZero();
+
     //--- Joint Acceleration Command (Base position)
-    rd_.q_ddot_desired_virtual.setZero();
-    rd_.q_ddot_desired_virtual.segment(0, 3) = rd_.Kp_virtual_diag.block(0, 0, 3, 3) * (rd_.q_desired_virtual.segment(0, 3) - rd_.local_q_virtual_.segment(0, 3)) 
-                                             + rd_.Kd_virtual_diag.block(0, 0, 3, 3) * (Eigen::Vector3d::Zero() - rd_.local_q_dot_virtual_.segment(0, 3));
+    qddot_integrated_.segment(0, 3) = Kp.block(0, 0, 3, 3) * (q_desired.segment(0, 3) - q_current.segment(0, 3)) 
+                                    + Kd.block(0, 0, 3, 3) * (Eigen::Vector3d::Zero() - qdot_current.segment(0, 3));
 
     //--- Joint Acceleration Command (Base orientation)
-    Eigen::Matrix3d current_rotation = Eigen::Quaterniond(rd_.local_q_virtual_(39), rd_.local_q_virtual_(3), rd_.local_q_virtual_(4), rd_.local_q_virtual_(5)).toRotationMatrix();
-    Eigen::Matrix3d desired_rotation = Eigen::Quaterniond(rd_.q_desired_virtual(39), rd_.q_desired_virtual(3), rd_.q_desired_virtual(4), rd_.q_desired_virtual(5)).toRotationMatrix();
-    rd_.q_ddot_desired_virtual.segment(3, 3) = rd_.Kp_virtual_diag.block(3, 3, 3, 3) * (-DyrosMath::getPhi(current_rotation, desired_rotation)) 
-                                             + rd_.Kd_virtual_diag.block(3, 3, 3, 3) * (Eigen::Vector3d::Zero() - rd_.local_q_dot_virtual_.segment(3, 3));
+    Eigen::Matrix3d current_rotation = Eigen::Quaterniond(q_current(39), q_current(3), q_current(4), q_current(5)).toRotationMatrix();
+    Eigen::Matrix3d desired_rotation = Eigen::Quaterniond(q_desired(39), q_desired(3), q_desired(4), q_desired(5)).toRotationMatrix();
+    qddot_integrated_.segment(3, 3) = Kp.block(3, 3, 3, 3) * (-DyrosMath::getPhi(current_rotation, desired_rotation)) 
+                                    + Kd.block(3, 3, 3, 3) * (Eigen::Vector3d::Zero() - qdot_current.segment(3, 3));
 
     //--- Joint Acceleration Command (Base actuated joints)
-    rd_.q_ddot_desired_virtual.tail(MODEL_DOF).setZero();
-    rd_.q_ddot_desired_virtual.tail(MODEL_DOF) = rd_.Kp_virtual_diag.block(6, 6, MODEL_DOF, MODEL_DOF) * (rd_.q_desired_virtual.tail(MODEL_DOF) - rd_.q_) 
-                                               + rd_.Kd_virtual_diag.block(6, 6, MODEL_DOF, MODEL_DOF) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
+    qddot_integrated_.segment(6, MODEL_DOF) = Kp.block(6, 6, MODEL_DOF, MODEL_DOF) * (q_desired.segment(6, MODEL_DOF) - q_current.segment(6, MODEL_DOF)) 
+                                            + Kd.block(6, 6, MODEL_DOF, MODEL_DOF) * (Eigen::VectorQd::Zero() - qdot_current.segment(6, MODEL_DOF));
+
+    return (qddot_integrated_);
 }
+
+void KinWBC::setInitialConfiguration(const Eigen::VectorQd &q_init_des_)
+{
+    q_init_des.setZero();
+    q_init_des = q_init_des_;
+}
+
 
 Eigen::VectorVQd KinWBC::safetyFilter()
 {
@@ -241,57 +258,86 @@ void KinWBC::calcInequalityConstraint()
     Eigen::VectorXd ubA_qpos; ubA_qpos.setZero(MODEL_DOF); 
     for(int i = 0; i < MODEL_DOF; i++)
     {
-        lbA_qpos(i) = min(max(alpha_qpos * (rd_.q_pos_l_lim(i) - rd_.q_(i)) + (1.0 / eps_qpos), rd_.q_vel_l_lim(i)), rd_.q_vel_h_lim(i));
-        ubA_qpos(i) = max(min(alpha_qpos * (rd_.q_pos_h_lim(i) - rd_.q_(i)) - (1.0 / eps_qpos), rd_.q_vel_h_lim(i)), rd_.q_vel_l_lim(i));
+        // lbA_qpos(i) = min(max(alpha_qpos * (rd_.q_pos_l_lim(i) - rd_.q_(i)), rd_.q_vel_l_lim(i)), rd_.q_vel_h_lim(i));
+        // ubA_qpos(i) = max(min(alpha_qpos * (rd_.q_pos_h_lim(i) - rd_.q_(i)), rd_.q_vel_h_lim(i)), rd_.q_vel_l_lim(i));
+    
+        lbA_qpos(i) = alpha_qpos * (rd_.q_pos_l_lim(i) - rd_.q_(i)) + (1.0 / eps_qpos);
+        ubA_qpos(i) = alpha_qpos * (rd_.q_pos_h_lim(i) - rd_.q_(i)) - (1.0 / eps_qpos);
     }
     
     constraints_.push_back({A_qpos, lbA_qpos, ubA_qpos}); 
 
     //--- (2) Reachability constraints
-    // const int m = static_cast<int>(grad_reachability_.size()); 
-    // double alpha_reachability = 1.0;
-    // double eps_reachability = 50.0;
-    // Eigen::MatrixXd A_reachability; A_reachability.setZero(m, MODEL_DOF_VIRTUAL);
-    // Eigen::VectorXd lbA_reachability; lbA_reachability.setZero(m);
+    struct ReachPair {
+        int idx_A; int idx_B; double max_dist{0.0};
+    };
 
-    // for (int i = 0; i < m; ++i) {
-    //         A_reachability.block(i, 0, 1, MODEL_DOF_VIRTUAL) = grad_reachability_[i];
-    //         lbA_reachability(i) = (-1.0) * alpha_reachability * cbf_reachability_[i] + (1.0 / eps_reachability) * grad_reachability_[i].squaredNorm();
-    // }
+    const std::vector<ReachPair> reach_pairs = {
+        {Left_Hand,  Left_Hand  - 5, 0.50},
+        {Right_Hand, Right_Hand - 5, 0.50},
+    };
 
-    // constraints_.push_back({   
-    //     A_reachability,
-    //     lbA_reachability,
-    //     Eigen::VectorXd::Constant(A_reachability.rows(), std::numeric_limits<double>::infinity())
-    // });
+    const int m = static_cast<int>(reach_pairs.size());
+
+    std::vector<Eigen::MatrixXd> J_reachability; J_reachability.reserve(m);                
+    std::vector<double> h_reachability; h_reachability.reserve(m);
+
+    double alpha_reachability = 1.0;
+    double eps_reachability = 1.0;
+
+    std::cout << "  " << std::endl;
+
+    for (int i = 0; i < m; ++i) {
+        const auto& pr = reach_pairs[i];
+        const int idA = pr.idx_A;
+        const int idB = pr.idx_B;
+
+        Eigen::MatrixXd J_, Jqdot_; 
+        double dist_bwt_linkA_linkB = getSignedDistanceFunction(rd_.link_[idA], rd_.link_[idB], J_, Jqdot_);
+
+        std::cout << "i: " << i << ", dist_bwt_linkA_linkB: " << dist_bwt_linkA_linkB << std::endl; 
+
+        J_reachability.push_back(-J_);
+        h_reachability.push_back(pr.max_dist - dist_bwt_linkA_linkB);
+    }
+
+    Eigen::MatrixXd A_reachability; A_reachability.setZero(m, MODEL_DOF_VIRTUAL);
+    Eigen::VectorXd lbA_reachability; lbA_reachability.setZero(m);
+    Eigen::VectorXd ubA_reachability; ubA_reachability.setZero(m);
+
+    for (int i = 0; i < m; ++i) {
+            A_reachability.block(i, 0, 1, MODEL_DOF_VIRTUAL) = J_reachability[i];
+            // lbA_reachability(i) = (-1.0) * alpha_reachability * h_reachability[i];
+            lbA_reachability(i) = (-1.0) * alpha_reachability * h_reachability[i] + (1.0 / eps_reachability) * J_reachability[i].squaredNorm();
+            ubA_reachability(i) = 1e5;
+    }
+
+    constraints_.push_back({   
+        A_reachability,
+        lbA_reachability,
+        ubA_reachability
+    });
 
     // ---self, environment, reachability, ... + alpha (singularity)
 } 
 
-void KinWBC::getReachabilityConstraints(const std::vector<Eigen::MatrixXd> &J_reachability_, const std::vector<double> &h_reachability_)
-{
-    // const int m = static_cast<int>(J_reachability_.size()); 
-    // if (m == 0) return;
-    // assert(m == static_cast<int>(h_reachability_.size()) && "Reachability Constraints's Hessian and gradients size mismatch");
+double KinWBC::getSignedDistanceFunction(LinkData &linkA_, LinkData &linkB_, Eigen::MatrixXd &J_AB, Eigen::MatrixXd &Jqdot_AB)
+{   
+    // Initialization
+    double sd_AB = 0.0;
 
-    // const int n = static_cast<int>(J_reachability_[0].cols());
-    // for (int i = 0; i < m; ++i) {
-    //     assert(J_reachability_[i].rows() == 1 && J_reachability_[i].cols() == n && "J_i must be 1 x n");
-    // }
+    sd_AB = (linkA_.local_xpos - linkB_.local_xpos).norm(); 
 
-    // static bool is_reach_init_ = true;
-    // if (is_reach_init_ == true) 
-    // {
-    //     grad_reachability_.assign(m, Eigen::MatrixXd::Zero(1, n));
-    //     cbf_reachability_.assign(m, 0.0); 
+    Eigen::Vector3d normal_vector_btw_AB; normal_vector_btw_AB.setZero();
+    normal_vector_btw_AB = (linkA_.local_xpos - linkB_.local_xpos) / (linkA_.local_xpos - linkB_.local_xpos).norm();
 
-    //     is_reach_init_ = false;
-    // }
+    J_AB.setZero(1, MODEL_DOF_VIRTUAL);
+    J_AB = normal_vector_btw_AB.transpose() * (linkA_.local_Jac_v - linkB_.local_Jac_v);
 
-    // for (int i = 0; i < m; ++i) {
-    //     grad_reachability_[i] = J_reachability_[i];
-    //     cbf_reachability_[i]  = h_reachability_[i];
-    // }
+    Jqdot_AB.setZero(1, 1);
+    Jqdot_AB = normal_vector_btw_AB.transpose() * (linkA_.local_Jqdot.head(3) - linkB_.local_Jqdot.head(3));
+
+    return sd_AB;
 }
 
 void KinWBC::checkGradHessSize()
@@ -318,10 +364,4 @@ void KinWBC::checkGradHessSize()
 
         is_gradhess_init_ = false;
     }
-}
-
-void KinWBC::setInitialConfiguration(const Eigen::VectorQd &q_init_des_)
-{
-    q_init_des.setZero();
-    q_init_des = q_init_des_;
 }

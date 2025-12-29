@@ -57,13 +57,6 @@ void TaskManager::movePelvHandPose()
     rd_.link_[COM_id].x_desired(1) = rd_.link_[COM_id].support_xpos_init(1) + pelv_dist;
     rd_.link_[COM_id].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[COM_id].support_xpos_init, rd_.link_[COM_id].x_desired);
 
-    static WalkingManager wm_(rd_); 
-    wm_.setCenterOfMassHeight(rd_.link_[COM_id].support_xpos_init(2));
-    wm_.cp_desired_ = rd_.link_[COM_id].x_traj.head(2) + rd_.link_[COM_id].v_traj.head(2) / wm_.wn;
-    wm_.zmp_x_ref = rd_.link_[COM_id].x_traj(0);
-    wm_.zmp_y_ref = rd_.link_[COM_id].x_traj(1);
-    wm_.contactWrenchCalculator();
-
     //--- COM_id Trajectory (Base Frame)
     rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos;
 
@@ -98,32 +91,6 @@ void TaskManager::moveTaichiMotion()
     rd_.link_[COM_id].x_desired(1) = rd_.link_[COM_id].support_xpos_init(1) + pelv_dist;
     rd_.link_[COM_id].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[COM_id].support_xpos_init, rd_.link_[COM_id].x_desired);
     
-    //--- Contact Wrench
-    static WalkingManager wm_(rd_); 
-    wm_.setCenterOfMassHeight(rd_.link_[COM_id].support_xpos_init(2));
-    wm_.cp_measured_ = (rd_.link_[COM_id].support_xpos + rd_.link_[COM_id].support_v / wm_.wn).head(2);
-    wm_.cp_desired_ = rd_.link_[COM_id].x_traj.head(2) + rd_.link_[COM_id].v_traj.head(2) / wm_.wn;
-    wm_.zmp_x_ref = DyrosMath::cubic(sim_tick, 0, traj_time * hz_, rd_.link_[COM_id].support_xpos_init(0), 0.0, 0.0, 0.0);
-    wm_.zmp_y_ref = DyrosMath::cubic(sim_tick, 0, traj_time * hz_, rd_.link_[COM_id].support_xpos_init(1), 0.0, 0.0, 0.0);
-
-    if(support_phase_indicator_ == ContactIndicator::DoubleSupport)
-    {
-        wm_.contactWrenchCalculator();
-    }
-    else if(support_phase_indicator_ == ContactIndicator::LeftSingleSupport)
-    {
-        rd_.LF_FT_DES.setZero();
-        rd_.RF_FT_DES.setZero();
-
-        rd_.LF_FT_DES.setZero();
-        rd_.LF_FT_DES(2) = rd_.link_[COM_id].mass * GRAVITY;
-        
-        Eigen::Vector2d del_zmp = 1.4 * (wm_.cp_measured_ - wm_.cp_desired_);
-
-        rd_.LF_FT_DES(3) = -(0.0 - (wm_.zmp_y_ref + del_zmp(1)) * rd_.link_[COM_id].mass * GRAVITY);
-        rd_.LF_FT_DES(4) = +(0.0 - (wm_.zmp_x_ref + del_zmp(0)) * rd_.link_[COM_id].mass * GRAVITY);
-    }
-
     //--- COM_id Trajectory (Base Frame)
     rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos;
 
@@ -191,22 +158,7 @@ void TaskManager::bipedalWalkingController()
 
 void TaskManager::teleOperationController()
 {    
-    static WalkingManager wm_(rd_); 
-    static TeleOperationManager teleop_(rd_); 
-
-    for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
-    {
-        rd_.link_[idx].x_traj = rd_.link_[idx].local_xpos_init;
-        rd_.link_[idx].r_traj = rd_.link_[idx].local_rotm_init;
-    }
-
-    teleop_.motionRetargeting();
-
-    wm_.setCenterOfMassHeight(rd_.link_[COM_id].support_xpos_init(2));
-    wm_.cp_desired_ = rd_.link_[COM_id].x_traj.head(2) + rd_.link_[COM_id].v_traj.head(2) / wm_.wn;
-    wm_.zmp_x_ref = rd_.link_[COM_id].x_traj(0);
-    wm_.zmp_y_ref = rd_.link_[COM_id].x_traj(1);
-    wm_.contactWrenchCalculator();
+    //--- TODO
 }
 
 

@@ -13,8 +13,8 @@ void ControlManager::update()
 {
     contactStateMachine();
     mapGlobalToBase();
-    // updateDynamics();
-    // updateContact();
+    updateDynamics();
+    updateContact();
 
     static bool is_cm_init = true;
     if(is_cm_init == true)
@@ -85,6 +85,15 @@ void ControlManager::mapGlobalToBase()
 
     rd_.local_q_dot_virtual_.segment(0,3) = rd_.link_[Pelvis].local_v;
     rd_.local_q_dot_virtual_.segment(3,3) = rd_.link_[Pelvis].local_w;
+
+    for(int idx = 0; idx < LINK_NUMBER; idx++)
+    {
+        Eigen::Vector6d Jqdot; Jqdot.setZero();
+        Jqdot = RigidBodyDynamics::CalcPointAcceleration6D(model_, rd_.local_q_virtual_, rd_.local_q_dot_virtual_, Eigen::VectorVQd::Zero(), idx, Eigen::Vector3d::Zero(), true);
+
+        rd_.link_[idx].local_Jqdot.head(3) = Jqdot.tail(3);
+        rd_.link_[idx].local_Jqdot.tail(3) = Jqdot.head(3);
+    }
 }
 
 void ControlManager::updateDynamics()
@@ -106,40 +115,34 @@ void ControlManager::updateDynamics()
 
 void ControlManager::updateContact()
 {
-    rd_.ee_[0].v_contact = rd_.link_[Left_Foot].local_v;
-    rd_.ee_[0].w_contact = rd_.link_[Left_Foot].local_w;
-    rd_.ee_[1].v_contact = rd_.link_[Right_Foot].local_v;
-    rd_.ee_[1].w_contact = rd_.link_[Right_Foot].local_w;
+    // rd_.local_J_C.setZero(rd_.J_C.rows(), rd_.J_C.cols());
 
-    rd_.local_J_C.setZero(rd_.J_C.rows(), rd_.J_C.cols());
+    // if (local_LF_contact == true && local_RF_contact == true)
+    // {
+    //     rd_.local_J_C.block(0, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(0, 0, 3, MODEL_DOF);
+    //     rd_.local_J_C.block(3, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(3, 0, 3, MODEL_DOF);
+    //     rd_.local_J_C.block(6, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(6, 0, 3, MODEL_DOF);
+    //     rd_.local_J_C.block(9, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(9, 0, 3, MODEL_DOF);
+    // }
+    // else if (local_LF_contact == true || local_RF_contact == true)
+    // {
+    //     rd_.local_J_C.block(0, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(0, 0, 3, MODEL_DOF);
+    //     rd_.local_J_C.block(3, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(3, 0, 3, MODEL_DOF);
+    // }
+    // else
+    // {
+    //     ROS_ERROR("Contact Indicator are assigned with something wrong value.");
+    //     assert((local_LF_contact == true && local_RF_contact == true)
+    //         || (local_LF_contact == true && local_RF_contact != true)
+    //         || (local_LF_contact != true && local_RF_contact == true));
+    // }
 
-    if (local_LF_contact == true && local_RF_contact == true)
-    {
-        rd_.local_J_C.block(0, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(0, 0, 3, MODEL_DOF);
-        rd_.local_J_C.block(3, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(3, 0, 3, MODEL_DOF);
-        rd_.local_J_C.block(6, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(6, 0, 3, MODEL_DOF);
-        rd_.local_J_C.block(9, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(9, 0, 3, MODEL_DOF);
-    }
-    else if (local_LF_contact == true || local_RF_contact == true)
-    {
-        rd_.local_J_C.block(0, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(0, 0, 3, MODEL_DOF);
-        rd_.local_J_C.block(3, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(3, 0, 3, MODEL_DOF);
-    }
-    else
-    {
-        ROS_ERROR("Contact Indicator are assigned with something wrong value.");
-        assert((local_LF_contact == true && local_RF_contact == true)
-            || (local_LF_contact == true && local_RF_contact != true)
-            || (local_LF_contact != true && local_RF_contact == true));
-    }
+    rd_.local_J_C.setZero(12, MODEL_DOF_VIRTUAL);
 
-    // rd_.local_lambda_C.setZero(rd_.contact_index * 6, rd_.contact_index * 6);
-    // rd_.local_J_C_INV_T.setZero(MODEL_DOF_VIRTUAL, rd_.contact_index * 6);
-    // rd_.local_N_C.setZero();
-
-    // rd_.local_lambda_C = (rd_.local_J_C * rd_.local_A * rd_.local_J_C.transpose()).inverse();
-    // rd_.local_J_C_INV_T = rd_.local_lambda_C * rd_.local_J_C * rd_.local_A;
-    // rd_.local_N_C = MatrixXd::Identity(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL) - rd_.local_J_C.transpose() * rd_.local_J_C_INV_T;
+    rd_.local_J_C.block(0, 0, 3, MODEL_DOF_VIRTUAL) = base_rot.transpose() * rd_.ee_[0].jac_contact.cast<double>().topRows(3);
+    rd_.local_J_C.block(3, 0, 3, MODEL_DOF_VIRTUAL) = base_rot.transpose() * rd_.ee_[0].jac_contact.cast<double>().bottomRows(3);
+    rd_.local_J_C.block(6, 0, 3, MODEL_DOF_VIRTUAL) = base_rot.transpose() * rd_.ee_[1].jac_contact.cast<double>().topRows(3);
+    rd_.local_J_C.block(9, 0, 3, MODEL_DOF_VIRTUAL) = base_rot.transpose() * rd_.ee_[1].jac_contact.cast<double>().bottomRows(3);
 }
 
 void ControlManager::saveInitialState()

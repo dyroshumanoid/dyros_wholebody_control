@@ -11,15 +11,6 @@ Eigen::VectorQd DynWBC::computeDynamicWBC()
 {
     std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
 
-    local_LF_contact = rd_.ee_[0].contact;
-    local_RF_contact = rd_.ee_[1].contact;
-
-    local_LF_contact = true;    // TODO
-    local_RF_contact = true;    // TODO
-
-    updateContactState();
-    updateRobotStates();
-
     constraints_.clear();
     calcCostHess();
     calcCostGrad();
@@ -116,6 +107,53 @@ Eigen::VectorQd DynWBC::computeDynamicWBC()
     std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
 }
 
+void DynWBC::updateRobotStates(const Eigen::MatrixVVd &M_, const Eigen::VectorVQd &G_, const Eigen::MatrixXd &J_C_)
+{
+    //--- Robot States
+    M = M_;
+    G = G_;
+    J_C.setZero(12, MODEL_DOF_VIRTUAL);
+    J_C = J_C_;
+    J_C_T.setZero(MODEL_DOF_VIRTUAL, 12); 
+    J_C_T = J_C.transpose();
+
+    Sa_T.setZero(MODEL_DOF_VIRTUAL, MODEL_DOF); Sa_T.bottomRows(MODEL_DOF).setIdentity();
+    Sa.setZero(MODEL_DOF, MODEL_DOF_VIRTUAL);   Sa = Sa_T.transpose();
+    Sf.setZero(6, MODEL_DOF_VIRTUAL);    Sf.leftCols(6).setIdentity();
+
+    //--- Friction cone constraints (https://scaron.info/robotics/wrench-friction-cones.html)
+    Eigen::MatrixXd U_fric_dsp; U_fric_dsp.setZero(34, 12);
+    Eigen::MatrixXd U_fric_ssp; U_fric_ssp.setZero(17, 6);
+    double X = foot_size  / 2.0; 
+    double Y = foot_width / 2.0; 
+    U_fric_ssp <<  0,  0,            -1,   0,   0,  0,
+                  -1,  0,           -mu,   0,   0,  0,
+                  +1,  0,           -mu,   0,   0,  0,
+                   0, -1,           -mu,   0,   0,  0,
+                   0, +1,           -mu,   0,   0,  0,
+                   0,  0,            -Y,  -1,   0,  0,
+                   0,  0,            -Y,  +1,   0,  0,
+                   0,  0,            -X,   0,  -1,  0,
+                   0,  0,            -X,   0,  +1,  0,
+                  -Y, -X, -(X + Y) * mu, -mu, +mu, -1,
+                  +Y, +X, -(X + Y) * mu, +mu, -mu, -1,
+                  +Y, -X, -(X + Y) * mu, +mu, +mu, -1,
+                  +Y, +X, -(X + Y) * mu, +mu, +mu, -1,
+                  +Y, -X, -(X + Y) * mu, +mu, +mu, +1,
+                  +Y, +X, -(X + Y) * mu, +mu, -mu, +1,
+                  -Y, -X, -(X + Y) * mu, -mu, -mu, +1,
+                  -Y, +X, -(X + Y) * mu, -mu, +mu, +1;
+    U_fric_dsp.topLeftCorner(17, 6) = U_fric_ssp;
+    U_fric_dsp.bottomRightCorner(17, 6) = U_fric_ssp;
+
+    A_fric.setZero(34, contact_dim + MODEL_DOF_VIRTUAL + MODEL_DOF);
+    lbA_fric.setZero(34);
+    ubA_fric.setZero(34);
+
+    A_fric.leftCols(contact_dim) = U_fric_dsp;
+}
+
+
 void DynWBC::updateControlCommands(const Eigen::Vector12d& contact_wrench_cmd_, const Eigen::VectorVQd &qddot_cmd_)
 {
     contact_wrench_cmd = contact_wrench_cmd_;
@@ -183,6 +221,80 @@ void DynWBC::calcInequalityConstraint()
         Eigen::VectorXd::Constant(A_fric.rows(), -std::numeric_limits<double>::infinity()),
         ubA_fric
     });
+
+    //--- (3) Joint Limit constraints
+    Eigen::MatrixXd A_qpos; A_qpos.setZero(MODEL_DOF, contact_dim + MODEL_DOF_VIRTUAL + MODEL_DOF);
+    A_qpos.block(0, contact_dim + 6, MODEL_DOF, MODEL_DOF).setIdentity();
+
+    double alpha1_qpos = 30.0;
+    double alpha2_qpos = 30.0;
+    double epsilon_qpos = 1.0;
+    Eigen::VectorXd lbA_qpos; lbA_qpos.setZero(MODEL_DOF); 
+    Eigen::VectorXd ubA_qpos; ubA_qpos.setZero(MODEL_DOF); 
+    for(int i = 0; i < MODEL_DOF; i++)
+    {
+        lbA_qpos(i) = (-1.0) * (alpha1_qpos + alpha2_qpos) * rd_.q_dot_(i) + (alpha1_qpos * alpha2_qpos) * (rd_.q_pos_l_lim(i) - rd_.q_(i)) + (1.0 / epsilon_qpos);
+        ubA_qpos(i) = (-1.0) * (alpha1_qpos + alpha2_qpos) * rd_.q_dot_(i) + (alpha1_qpos * alpha2_qpos) * (rd_.q_pos_h_lim(i) - rd_.q_(i)) - (1.0 / epsilon_qpos);
+    }
+
+    constraints_.push_back({A_qpos, lbA_qpos, ubA_qpos}); 
+
+    //--- (3) Reachability constraints
+    struct ReachPair {
+        int idx_A; int idx_B; double max_dist{0.0};
+    };
+
+    const std::vector<ReachPair> reach_pairs = {
+        {Left_Hand,  Left_Hand  - 5, 0.50},
+        {Right_Hand, Right_Hand - 5, 0.50},
+    };
+
+    const int m = static_cast<int>(reach_pairs.size());
+
+    std::vector<Eigen::MatrixXd> J_reachability; J_reachability.reserve(m);                
+    std::vector<double> h_reachability; h_reachability.reserve(m);
+
+    double alpha1_reachability = 30.0;
+    double alpha2_reachability = 30.0;
+    double epsilon_reachability = 0.01;
+
+    std::cout << "  " << std::endl;
+    for (int i = 0; i < m; ++i) {
+        const auto& pr = reach_pairs[i];
+        const int idA = pr.idx_A;
+        const int idB = pr.idx_B;
+
+        Eigen::MatrixXd J_, Jqdot_; 
+        double dist_bwt_linkA_linkB = getSignedDistanceFunction(rd_.link_[idA], rd_.link_[idB], J_, Jqdot_);
+
+        std::cout << "i: " << i << ", dist_bwt_linkA_linkB: " << dist_bwt_linkA_linkB << std::endl; 
+        J_reachability.push_back(-J_);
+
+        h_reachability.push_back(-Jqdot_(0) 
+                                 - (alpha1_reachability + alpha2_reachability) * (J_ * rd_.local_q_dot_virtual_)(0) 
+                                 + (alpha1_reachability * alpha2_reachability) * (pr.max_dist - dist_bwt_linkA_linkB));
+        // h_reachability.push_back(-Jqdot_(0) 
+        //                          - (alpha1_reachability + alpha2_reachability) * (J_ * rd_.local_q_dot_virtual_)(0) 
+        //                          + (alpha1_reachability * alpha2_reachability) * (pr.max_dist - dist_bwt_linkA_linkB)
+        //                          - (1.0 / epsilon_reachability) * (J_ * J_.transpose())(0,0));
+    }
+
+    Eigen::MatrixXd A_reachability; A_reachability.setZero(m, contact_dim + MODEL_DOF_VIRTUAL + MODEL_DOF);
+    Eigen::VectorXd lbA_reachability; lbA_reachability.setZero(m);
+    Eigen::VectorXd ubA_reachability; ubA_reachability.setZero(m);
+
+    for (int i = 0; i < m; ++i) {
+            A_reachability.block(i, contact_dim, 1, MODEL_DOF_VIRTUAL) = J_reachability[i];
+
+            lbA_reachability(i) = (-1.0) * h_reachability[i];
+            ubA_reachability(i) = 1e5;
+    }
+
+    constraints_.push_back({   
+        A_reachability,
+        lbA_reachability,
+        ubA_reachability
+    });
 }
 
 void DynWBC::checkGradHessSize()
@@ -210,105 +322,26 @@ void DynWBC::checkGradHessSize()
     }
 }
 
-///////////////////////////////////////////
-//--- Quadratic Programming Variables ---//
-///////////////////////////////////////////
-void DynWBC::updateContactState()
-{
-    contact_dim_prev = contact_dim;
-    contact_dim = rd_.contact_index * 6;
-    contact_dim = 12;    // TODO
+//--- cbf
+double DynWBC::getSignedDistanceFunction(LinkData &linkA_, LinkData &linkB_, Eigen::MatrixXd &J_AB, Eigen::MatrixXd &Jqdot_AB)
+{   
+    // Initialization
+    double sd_AB = 0.0;
 
-    contact_wrench_cmd.setZero(contact_dim);
+    sd_AB = (linkA_.local_xpos - linkB_.local_xpos).norm(); 
 
-    if (local_LF_contact == true && local_RF_contact == true)
-    {
-        contact_wrench_cmd.head(6) = rd_.LF_FT_DES;
-        contact_wrench_cmd.tail(6) = rd_.RF_FT_DES;
-    }
-    else if (local_LF_contact == true || local_RF_contact != true)
-    {
-        contact_wrench_cmd = rd_.LF_FT_DES;
-    }
-    else if (local_LF_contact != true || local_RF_contact == true)
-    {
-        contact_wrench_cmd = rd_.RF_FT_DES;
-    }
-    else
-    {
-        ROS_ERROR("DynWBC::updateContactState() ERROR: No contact detected!");
-    }
+    Eigen::Vector3d normal_vector_btw_AB; normal_vector_btw_AB.setZero();
+    normal_vector_btw_AB = (linkA_.local_xpos - linkB_.local_xpos) / (linkA_.local_xpos - linkB_.local_xpos).norm();
+
+    J_AB.setZero(1, MODEL_DOF_VIRTUAL);
+    J_AB = normal_vector_btw_AB.transpose() * (linkA_.local_Jac_v - linkB_.local_Jac_v);
+
+    Jqdot_AB.setZero(1, 1);
+    Jqdot_AB = normal_vector_btw_AB.transpose() * (linkA_.local_Jqdot.head(3) - linkB_.local_Jqdot.head(3));
+
+    return sd_AB;
 }
 
-void DynWBC::updateRobotStates() 
-{
-    //--- Robot States
-    // M = rd_.local_A;
-    // M_inv = rd_.local_A_inv;
-    // G = rd_.local_G;
-    M = rd_.A_;
-    M_inv = rd_.A_inv_;
-    G = rd_.G;
-
-    // J_C.setZero(rd_.local_J_C.rows(), rd_.local_J_C.cols());
-    // J_C = rd_.local_J_C;
-
-    J_C.setZero(12, MODEL_DOF_VIRTUAL);  // TODO
-    J_C.topRows(6) = rd_.ee_[0].jac_contact.cast<double>();
-    J_C.bottomRows(6) = rd_.ee_[1].jac_contact.cast<double>();
-
-    J_C_T.setZero(J_C.cols(), J_C.rows());
-    J_C_T = J_C.transpose();
-
-    // N_C.setZero(rd_.local_N_C.rows(), rd_.local_N_C.cols());
-    // N_C = rd_.local_N_C;
-
-    Sa_T.setZero(MODEL_DOF_VIRTUAL, MODEL_DOF); Sa_T.bottomRows(MODEL_DOF).setIdentity();
-    Sa.setZero(MODEL_DOF, MODEL_DOF_VIRTUAL);   Sa = Sa_T.transpose();
-    Sf.setZero(6, MODEL_DOF_VIRTUAL);    Sf.leftCols(6).setIdentity();
-
-    //--- Friction cone constraints (https://scaron.info/robotics/wrench-friction-cones.html)
-    Eigen::MatrixXd U_fric_dsp; U_fric_dsp.setZero(34, 12);
-    Eigen::MatrixXd U_fric_ssp; U_fric_ssp.setZero(17, 6);
-    double X = foot_size  / 2.0; 
-    double Y = foot_width / 2.0; 
-    U_fric_ssp <<  0,  0,            -1,   0,   0,  0,
-                  -1,  0,           -mu,   0,   0,  0,
-                  +1,  0,           -mu,   0,   0,  0,
-                   0, -1,           -mu,   0,   0,  0,
-                   0, +1,           -mu,   0,   0,  0,
-                   0,  0,            -Y,  -1,   0,  0,
-                   0,  0,            -Y,  +1,   0,  0,
-                   0,  0,            -X,   0,  -1,  0,
-                   0,  0,            -X,   0,  +1,  0,
-                  -Y, -X, -(X + Y) * mu, -mu, +mu, -1,
-                  +Y, +X, -(X + Y) * mu, +mu, -mu, -1,
-                  +Y, -X, -(X + Y) * mu, +mu, +mu, -1,
-                  +Y, +X, -(X + Y) * mu, +mu, +mu, -1,
-                  +Y, -X, -(X + Y) * mu, +mu, +mu, +1,
-                  +Y, +X, -(X + Y) * mu, +mu, -mu, +1,
-                  -Y, -X, -(X + Y) * mu, -mu, -mu, +1,
-                  -Y, +X, -(X + Y) * mu, -mu, +mu, +1;
-    U_fric_dsp.topLeftCorner(17, 6) = U_fric_ssp;
-    U_fric_dsp.bottomRightCorner(17, 6) = U_fric_ssp;
-
-    if (local_LF_contact == true && local_RF_contact == true)
-    {
-        A_fric.setZero(34, contact_dim + MODEL_DOF_VIRTUAL + MODEL_DOF);
-        lbA_fric.setZero(34);
-        ubA_fric.setZero(34);
-
-        A_fric.leftCols(contact_dim) = U_fric_dsp;
-    }
-    else
-    {
-        A_fric.setZero(17, contact_dim + MODEL_DOF_VIRTUAL + MODEL_DOF);
-        lbA_fric.setZero(17);
-        ubA_fric.setZero(17);
-
-        A_fric.leftCols(contact_dim) = U_fric_ssp;
-    }
-}
 
 //--- Setter
 void DynWBC::setFrictionCoefficient(const double& mu_)

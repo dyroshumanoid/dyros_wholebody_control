@@ -19,7 +19,6 @@ private:
     RobotData &rd_;
     std::vector<std::vector<TaskInfo>> task_hierarchy;
     TaskMotionType motion_mode;
-
     bool is_cannot_solve_qp_ = true;
 
     Eigen::VectorVQd safetyFilter();
@@ -30,11 +29,8 @@ private:
         void calcEqualityConstraint();
         void calcInequalityConstraint();
         void checkGradHessSize();
+        double getSignedDistanceFunction(LinkData &linkA_, LinkData &linkB_, Eigen::MatrixXd &J_AB, Eigen::MatrixXd &Jqdot_AB);
     
-    void getReachabilityConstraints(const std::vector<Eigen::MatrixXd> &J_reachability_, const std::vector<double> &h_reachability_);
-    std::vector<Eigen::MatrixXd> grad_reachability_;       
-    std::vector<double>          cbf_reachability_;    
-
     Eigen::MatrixXd Hess; 
     Eigen::VectorXd grad;
     Eigen::MatrixXd A_const;   
@@ -46,6 +42,9 @@ private:
 
     Eigen::VectorVQd qdot_des;
     Eigen::VectorVQd qdot_safety;
+
+    Eigen::VectorQVQd integrate(const Eigen::VectorQVQd &q_current, const Eigen::VectorVQd &q_delta_);
+    Eigen::VectorVQd computeDesiredJointAcceleration(const Eigen::VectorQVQd &q_current, const Eigen::VectorVQd &qdot_current, const Eigen::VectorQVQd &q_desired, const Eigen::MatrixVVd &Kp, const Eigen::MatrixVVd &Kd);
 
     Eigen::VectorQd q_init_des;
 

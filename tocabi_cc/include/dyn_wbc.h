@@ -17,6 +17,7 @@ public:
 
     Eigen::VectorQd computeDynamicWBC();
     void updateControlCommands(const Eigen::Vector12d &contact_wrench_cmd_, const Eigen::VectorVQd &qddot_cmd_);
+    void updateRobotStates(const Eigen::MatrixVVd &M_, const Eigen::VectorVQd &G_, const Eigen::MatrixXd &J_C_);
 
     //--- Setter
     void setFrictionCoefficient(const double& mu_);
@@ -36,11 +37,7 @@ private:
         void calcEqualityConstraint();
         void calcInequalityConstraint();
         void checkGradHessSize();
-
-        void updateContactState();
-        void updateRobotStates();
-        
-        void calcNominalTorque();
+        double getSignedDistanceFunction(LinkData &linkA_, LinkData &linkB_, Eigen::MatrixXd &J_AB, Eigen::MatrixXd &Jqdot_AB);
 
         Eigen::MatrixXd Hess;  // HESSIAN
         Eigen::VectorXd grad;  // GRADIENT
