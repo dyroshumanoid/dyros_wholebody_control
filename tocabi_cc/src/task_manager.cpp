@@ -11,7 +11,6 @@ TaskManager::TaskManager(RobotData& rd) : rd_(rd)
     }
 }
 
-
 void TaskManager::runTestMotion(const TaskMotionType& motion_mode)
 {
     base_pos = rd_.link_[Pelvis].xpos;
@@ -70,6 +69,9 @@ void TaskManager::movePelvHandPose()
     rd_.link_[Left_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Left_Hand].local_xpos_init, rd_.link_[Left_Hand].x_desired);
     rd_.link_[Right_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Right_Hand].local_xpos_init, rd_.link_[Right_Hand].x_desired);
 
+    rd_.link_[Left_Hand].r_traj  = rd_.link_[Left_Hand].local_rotm_init;
+    rd_.link_[Right_Hand].r_traj = rd_.link_[Right_Hand].local_rotm_init;
+
     //--- Increment Tick
     sim_tick++;
 }
@@ -102,6 +104,9 @@ void TaskManager::moveTaichiMotion()
     }
     rd_.link_[Left_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Left_Hand].local_xpos_init, rd_.link_[Left_Hand].x_desired);
     rd_.link_[Right_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Right_Hand].local_xpos_init, rd_.link_[Right_Hand].x_desired);
+    
+    rd_.link_[Left_Hand].r_traj  = rd_.link_[Left_Hand].local_rotm_init;
+    rd_.link_[Right_Hand].r_traj = rd_.link_[Right_Hand].local_rotm_init;
 
     //--- Swing Foot Trajectory (Base Frame)
     rd_.link_[Right_Foot].x_desired(2) = rd_.link_[Right_Foot].local_xpos_init(2) + foot_height;
@@ -215,11 +220,6 @@ void TaskManager::mapBaseToSupport()
 }
 
 //--- Class Setter
-void TaskManager::setControlFrequency(double &hz)
-{
-    hz_ = hz;
-}
-
 void TaskManager::setTrajectoryDuration(double &traj_time_)
 {
     traj_time = traj_time_;

@@ -5,13 +5,14 @@
 #include <Eigen/Dense>
 #include <qpOASES.hpp>
 #include "wholebody_functions.h"
+#include "cbf_manager/cbf_manager.h"
 #include "utils.h"
 #include <iomanip>
 
 class DynWBC
 {
 public:
-    DynWBC(RobotData& rd);
+    DynWBC(RobotData& rd, CbfManager& cbf_mgr);
 
     //--- QP WBC 
 
@@ -30,6 +31,7 @@ public:
 
 private:
     RobotData &rd_;
+    CbfManager& cbf_mgr_;
 
     CQuadraticProgram QP_Dyn_Wbc;
         void calcCostGrad();

@@ -14,6 +14,7 @@
 #include "task_manager.h"
 #include "kin_wbc.h"
 #include "dyn_wbc.h"
+#include "cbf_manager/cbf_manager.h"
 #include "teleop_manager.h"
 #include "utils.h"
 
@@ -52,6 +53,7 @@ public:
     TaskManager tm_;
     KinWBC kin_wbc_;  
     DynWBC dyn_wbc_;  
+    CbfManager cbf_mgr_;  
     TeleOperationManager teleop_;  
     
     RobotData &rd_;

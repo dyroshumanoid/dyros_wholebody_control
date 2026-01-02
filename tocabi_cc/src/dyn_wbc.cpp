@@ -5,7 +5,7 @@
 using namespace Eigen;
 using namespace qpOASES;
 
-DynWBC::DynWBC(RobotData& rd) : rd_(rd) { }
+DynWBC::DynWBC(RobotData& rd, CbfManager& cbf_mgr) : rd_(rd), cbf_mgr_(cbf_mgr) { }
 
 Eigen::VectorQd DynWBC::computeDynamicWBC()
 {
@@ -16,13 +16,6 @@ Eigen::VectorQd DynWBC::computeDynamicWBC()
     calcCostGrad();
     calcEqualityConstraint();
     calcInequalityConstraint();
-
-    if (contact_dim_prev != contact_dim)
-    {
-        is_wbc_init_ = true;
-        is_gradhess_init_ = true;
-        std::cout << "[CONTACT TRIGGER] QP-based WBC formulation has been updated." << std::endl;
-    }
 
     total_num_state = constraints_.empty() ? 0 : constraints_[0].A.cols();
 
@@ -62,7 +55,7 @@ Eigen::VectorQd DynWBC::computeDynamicWBC()
 
     bool qp_status = true;
     Eigen::VectorXd X_; X_.setZero(total_num_state);
-    if(QP_Dyn_Wbc.SolveQPoases(500, X_, true))
+    if(QP_Dyn_Wbc.SolveQPoases(2000, X_, true))
     {
         contact_wrench_qp  = X_.segment(0, contact_dim);
         qddot_qp           = X_.segment(contact_dim, MODEL_DOF_VIRTUAL);
@@ -224,77 +217,23 @@ void DynWBC::calcInequalityConstraint()
 
     //--- (3) Joint Limit constraints
     Eigen::MatrixXd A_qpos; A_qpos.setZero(MODEL_DOF, contact_dim + MODEL_DOF_VIRTUAL + MODEL_DOF);
-    A_qpos.block(0, contact_dim + 6, MODEL_DOF, MODEL_DOF).setIdentity();
-
-    double alpha1_qpos = 30.0;
-    double alpha2_qpos = 30.0;
-    double epsilon_qpos = 1.0;
-    Eigen::VectorXd lbA_qpos; lbA_qpos.setZero(MODEL_DOF); 
-    Eigen::VectorXd ubA_qpos; ubA_qpos.setZero(MODEL_DOF); 
-    for(int i = 0; i < MODEL_DOF; i++)
-    {
-        lbA_qpos(i) = (-1.0) * (alpha1_qpos + alpha2_qpos) * rd_.q_dot_(i) + (alpha1_qpos * alpha2_qpos) * (rd_.q_pos_l_lim(i) - rd_.q_(i)) + (1.0 / epsilon_qpos);
-        ubA_qpos(i) = (-1.0) * (alpha1_qpos + alpha2_qpos) * rd_.q_dot_(i) + (alpha1_qpos * alpha2_qpos) * (rd_.q_pos_h_lim(i) - rd_.q_(i)) - (1.0 / epsilon_qpos);
-    }
+    Eigen::VectorQd lbA_qpos; lbA_qpos.setZero(MODEL_DOF); 
+    Eigen::VectorQd ubA_qpos; ubA_qpos.setZero(MODEL_DOF);
+    
+    A_qpos.block(0, contact_dim + 6, MODEL_DOF, MODEL_DOF) = cbf_mgr_.getJointLimitCbfConstraint(lbA_qpos, ubA_qpos);
 
     constraints_.push_back({A_qpos, lbA_qpos, ubA_qpos}); 
 
-    //--- (3) Reachability constraints
-    struct ReachPair {
-        int idx_A; int idx_B; double max_dist{0.0};
-    };
+    //--- (4) Workspace Boundary constraints
+    const int num_workspace_cbf = cbf_mgr_.getNumWorkspaceBoundaryPairs();
+    Eigen::MatrixXd A_workspace; A_workspace.setZero(num_workspace_cbf, contact_dim + MODEL_DOF_VIRTUAL + MODEL_DOF);
+    Eigen::VectorXd lbA_workspace; lbA_workspace.setZero(num_workspace_cbf); 
+    Eigen::VectorXd ubA_workspace; ubA_workspace.setZero(num_workspace_cbf);
+    
+    A_workspace.block(0, contact_dim, num_workspace_cbf, MODEL_DOF_VIRTUAL) = cbf_mgr_.getWorkspaceBoundaryCbfConstraint(lbA_workspace, ubA_workspace);
+    constraints_.push_back({A_workspace, lbA_workspace, ubA_workspace}); 
 
-    const std::vector<ReachPair> reach_pairs = {
-        {Left_Hand,  Left_Hand  - 5, 0.50},
-        {Right_Hand, Right_Hand - 5, 0.50},
-    };
-
-    const int m = static_cast<int>(reach_pairs.size());
-
-    std::vector<Eigen::MatrixXd> J_reachability; J_reachability.reserve(m);                
-    std::vector<double> h_reachability; h_reachability.reserve(m);
-
-    double alpha1_reachability = 30.0;
-    double alpha2_reachability = 30.0;
-    double epsilon_reachability = 0.01;
-
-    std::cout << "  " << std::endl;
-    for (int i = 0; i < m; ++i) {
-        const auto& pr = reach_pairs[i];
-        const int idA = pr.idx_A;
-        const int idB = pr.idx_B;
-
-        Eigen::MatrixXd J_, Jqdot_; 
-        double dist_bwt_linkA_linkB = getSignedDistanceFunction(rd_.link_[idA], rd_.link_[idB], J_, Jqdot_);
-
-        std::cout << "i: " << i << ", dist_bwt_linkA_linkB: " << dist_bwt_linkA_linkB << std::endl; 
-        J_reachability.push_back(-J_);
-
-        h_reachability.push_back(-Jqdot_(0) 
-                                 - (alpha1_reachability + alpha2_reachability) * (J_ * rd_.local_q_dot_virtual_)(0) 
-                                 + (alpha1_reachability * alpha2_reachability) * (pr.max_dist - dist_bwt_linkA_linkB));
-        // h_reachability.push_back(-Jqdot_(0) 
-        //                          - (alpha1_reachability + alpha2_reachability) * (J_ * rd_.local_q_dot_virtual_)(0) 
-        //                          + (alpha1_reachability * alpha2_reachability) * (pr.max_dist - dist_bwt_linkA_linkB)
-        //                          - (1.0 / epsilon_reachability) * (J_ * J_.transpose())(0,0));
-    }
-
-    Eigen::MatrixXd A_reachability; A_reachability.setZero(m, contact_dim + MODEL_DOF_VIRTUAL + MODEL_DOF);
-    Eigen::VectorXd lbA_reachability; lbA_reachability.setZero(m);
-    Eigen::VectorXd ubA_reachability; ubA_reachability.setZero(m);
-
-    for (int i = 0; i < m; ++i) {
-            A_reachability.block(i, contact_dim, 1, MODEL_DOF_VIRTUAL) = J_reachability[i];
-
-            lbA_reachability(i) = (-1.0) * h_reachability[i];
-            ubA_reachability(i) = 1e5;
-    }
-
-    constraints_.push_back({   
-        A_reachability,
-        lbA_reachability,
-        ubA_reachability
-    });
+    //--- (5) Self-collision avoidance constraints
 }
 
 void DynWBC::checkGradHessSize()

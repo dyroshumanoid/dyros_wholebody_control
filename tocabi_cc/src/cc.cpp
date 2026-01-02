@@ -2,16 +2,11 @@
 
 using namespace TOCABI;
 
-CustomController::CustomController(RobotData &rd) : rd_(rd), cm_(rd), tm_(rd), kin_wbc_(rd), dyn_wbc_(rd), teleop_(rd)
+CustomController::CustomController(RobotData &rd) : rd_(rd), cm_(rd), tm_(rd), cbf_mgr_(rd), kin_wbc_(rd), dyn_wbc_(rd, cbf_mgr_), teleop_(rd)
 {
     //--- ROS Node Handle
     nh_cc_.setCallbackQueue(&queue_cc_);
     ControlVal_.setZero();
-
-    //--- Class Initialization
-    tm_.setControlFrequency(hz_);
-    dyn_wbc_.setFrictionCoefficient(0.8);
-    dyn_wbc_.setFootDimension(0.3, 0.16);
 
     //--- Joy Callback
     xbox_joy_sub_ = nh_cc_.subscribe<sensor_msgs::Joy>("/joy", 10, &CustomController::xBoxJoyCallback, this);
@@ -206,6 +201,92 @@ void CustomController::xBoxJoyCallback(const sensor_msgs::Joy::ConstPtr& joy)
     }
 }
 
+//--- Data Transfer
+void CustomController::pubDataFromSlowToFast()
+{
+    if (atb_control_command_update_ == false)
+    {
+        atb_control_command_update_ = true;
+
+        M_container = rd_.local_A;
+        G_container = rd_.local_G;
+        J_C_container = rd_.local_J_C;
+
+        qddot_cmd_container = rd_.q_ddot_desired_virtual;
+
+        contact_wrench_cmd_container.head(6) = rd_.LF_FT_DES;
+        contact_wrench_cmd_container.tail(6) = rd_.RF_FT_DES;
+
+        atb_control_command_update_ = false;
+    }
+}
+
+void CustomController::subDataFromSlowToFast()
+{
+    if (atb_control_command_update_ == false)
+    {
+        atb_control_command_update_ = true;
+
+        M_fast = M_container;
+        G_fast = G_container;
+        J_C_fast = J_C_container;
+
+        contact_wrench_cmd_fast = contact_wrench_cmd_container;
+        qddot_cmd_fast = qddot_cmd_container;
+
+        atb_control_command_update_ = false;
+    }
+}
+
+void CustomController::pubDataFromFastToSlow()
+{
+    if (atb_torque_update_ == false)
+    {
+        atb_torque_update_ = true;
+        torque_idn_container = torque_idn_fast;
+        atb_torque_update_ = false;
+    }
+}
+
+void CustomController::subDataFromFastToSlow()
+{
+    if (atb_torque_update_ == false)
+    {
+        atb_torque_update_ = true;
+        torque_idn = torque_idn_container;
+        atb_torque_update_ = false;
+    }
+}
+
+//--- First Torque Initialization
+void CustomController::applyTorqueSmoothingOnce(Eigen::VectorQd &torque_target)
+{
+    static bool is_torque_save_init = true;
+    if(is_torque_save_init == true)
+    {
+        rd_.torque_init = rd_.torque_desired;
+
+        is_torque_save_init = false;
+    }
+
+    static bool is_torque_desired_init = true;
+    static int tick_torque_desired_init = 0;
+    if(is_torque_desired_init == true)
+    {
+        for (int i = 0; i < MODEL_DOF; i++) {
+            torque_target(i) = DyrosMath::cubic(tick_torque_desired_init, 0, 1000, rd_.torque_init(i), torque_target(i), 0.0, 0.0);
+        }
+
+        tick_torque_desired_init++;
+
+        if(tick_torque_desired_init >= 1000) {
+            is_torque_desired_init = false;
+            std::cout << "========== INFO: INITIAL TORQUE SMOOTHING COMPLETE ==========" << std::endl;
+        }
+    }
+}
+
+
 //--- Parameter Loader
 void CustomController::loadParams()
 {
@@ -378,96 +459,46 @@ void CustomController::loadParams()
     dyn_wbc_.setTorqueMinimizationWeight(W_torque);
     dyn_wbc_.setAccelEnergyMinimizationWeight(W_energy);
 
+    double friction_coeff, foot_size, foot_width;
+    nh_cc_.getParam("/tocabi_controller/wbid/friction_coeff", friction_coeff);
+    nh_cc_.getParam("/tocabi_controller/wbid/foot_size", foot_size);
+    nh_cc_.getParam("/tocabi_controller/wbid/foot_width", foot_width);
+    dyn_wbc_.setFrictionCoefficient(friction_coeff);
+    dyn_wbc_.setFootDimension(foot_size, foot_width);
+
     std::cout << "=====================================" << std::endl;
     std::cout << "========== WBID Parameters ========== " << std::endl;
     std::cout << "W_qddot : " << W_qddot  << std::endl;
     std::cout << "W_cwr : " << W_cwr  << std::endl;
     std::cout << "W_energy : " << W_energy  << std::endl;
+    std::cout << "friction_coeff : " << friction_coeff  << std::endl;
     std::cout << "=====================================" << std::endl;
     std::cout << " " << std::endl;
-}
 
-//--- Data Transfer
-void CustomController::pubDataFromSlowToFast()
-{
-    if (atb_control_command_update_ == false)
-    {
-        atb_control_command_update_ = true;
+    //--- CBF Parameters
+    double joint_limit_cbf_alpha1, joint_limit_cbf_alpha2, joint_limit_cbf_epsilon;
+    nh_cc_.getParam("/tocabi_controller/cbf/joint_limit_cbf_alpha1", joint_limit_cbf_alpha1);
+    nh_cc_.getParam("/tocabi_controller/cbf/joint_limit_cbf_alpha2", joint_limit_cbf_alpha2);
+    nh_cc_.getParam("/tocabi_controller/cbf/joint_limit_cbf_epsilon", joint_limit_cbf_epsilon);
+    cbf_mgr_.setJointLimitCbfParameters(joint_limit_cbf_alpha1, joint_limit_cbf_alpha2, joint_limit_cbf_epsilon);
+    cbf_mgr_.setJointLimitBoundaries(rd_.q_pos_l_lim, rd_.q_pos_h_lim);
 
-        M_container = rd_.local_A;
-        G_container = rd_.local_G;
-        J_C_container = rd_.local_J_C;
+    double workspace_boundary_cbf_alpha1, workspace_boundary_cbf_alpha2, workspace_boundary_cbf_epsilon, workspace_boundary_cbf_lhand, workspace_boundary_cbf_rhand;
+    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_alpha1", workspace_boundary_cbf_alpha1);
+    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_alpha2", workspace_boundary_cbf_alpha2);
+    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_epsilon", workspace_boundary_cbf_epsilon);
+    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_lhand", workspace_boundary_cbf_lhand);
+    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_rhand", workspace_boundary_cbf_rhand);
+    cbf_mgr_.setWorkspaceBoundaryCbfParameters(workspace_boundary_cbf_alpha1, workspace_boundary_cbf_alpha2, workspace_boundary_cbf_epsilon);
+    std::vector<WorkspaceBoundaryPair> workspace_pairs = {
+        {Left_Hand,  Left_Hand  - 5, workspace_boundary_cbf_lhand},
+        {Right_Hand, Right_Hand - 5, workspace_boundary_cbf_rhand},
+    };
+    cbf_mgr_.setWorkspaceBoundaryPairs(workspace_pairs);
 
-        qddot_cmd_container = rd_.q_ddot_desired_virtual;
-
-        contact_wrench_cmd_container.head(6) = rd_.LF_FT_DES;
-        contact_wrench_cmd_container.tail(6) = rd_.RF_FT_DES;
-
-        atb_control_command_update_ = false;
-    }
-}
-
-void CustomController::subDataFromSlowToFast()
-{
-    if (atb_control_command_update_ == false)
-    {
-        atb_control_command_update_ = true;
-
-        M_fast = M_container;
-        G_fast = G_container;
-        J_C_fast = J_C_container;
-
-        contact_wrench_cmd_fast = contact_wrench_cmd_container;
-        qddot_cmd_fast = qddot_cmd_container;
-
-        atb_control_command_update_ = false;
-    }
-}
-
-void CustomController::pubDataFromFastToSlow()
-{
-    if (atb_torque_update_ == false)
-    {
-        atb_torque_update_ = true;
-        torque_idn_container = torque_idn_fast;
-        atb_torque_update_ = false;
-    }
-}
-
-void CustomController::subDataFromFastToSlow()
-{
-    if (atb_torque_update_ == false)
-    {
-        atb_torque_update_ = true;
-        torque_idn = torque_idn_container;
-        atb_torque_update_ = false;
-    }
-}
-
-//--- First Torque Initialization
-void CustomController::applyTorqueSmoothingOnce(Eigen::VectorQd &torque_target)
-{
-    static bool is_torque_save_init = true;
-    if(is_torque_save_init == true)
-    {
-        rd_.torque_init = rd_.torque_desired;
-
-        is_torque_save_init = false;
-    }
-
-    static bool is_torque_desired_init = true;
-    static int tick_torque_desired_init = 0;
-    if(is_torque_desired_init == true)
-    {
-        for (int i = 0; i < MODEL_DOF; i++) {
-            torque_target(i) = DyrosMath::cubic(tick_torque_desired_init, 0, 1000, rd_.torque_init(i), torque_target(i), 0.0, 0.0);
-        }
-
-        tick_torque_desired_init++;
-
-        if(tick_torque_desired_init >= 1000) {
-            is_torque_desired_init = false;
-            std::cout << "========== INFO: INITIAL TORQUE SMOOTHING COMPLETE ==========" << std::endl;
-        }
-    }
+    double self_collision_cbf_alpha1, self_collision_cbf_alpha2, self_collision_cbf_epsilon;
+    nh_cc_.getParam("/tocabi_controller/cbf/self_collision_cbf_alpha1",  self_collision_cbf_alpha1);
+    nh_cc_.getParam("/tocabi_controller/cbf/self_collision_cbf_alpha2",  self_collision_cbf_alpha2);
+    nh_cc_.getParam("/tocabi_controller/cbf/self_collision_cbf_epsilon", self_collision_cbf_epsilon);
+    cbf_mgr_.setSelfCollisionCbfParameters(self_collision_cbf_alpha1, self_collision_cbf_alpha2, self_collision_cbf_epsilon);
 }

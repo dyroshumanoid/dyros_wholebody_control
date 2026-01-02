@@ -9,6 +9,8 @@ ControlManager::ControlManager(RobotData& rd) : rd_(rd)
     RigidBodyDynamics::Addons::URDFReadFromFile(urdf_path.c_str(), &model_, true, false);
 }
 
+/*------------------------*/
+/*--- PUBLIC FUNCTIONS ---*/
 void ControlManager::update()
 {
     contactStateMachine();
@@ -24,6 +26,8 @@ void ControlManager::update()
     }
 }
 
+/*-------------------------*/
+/*--- PRIVATE FUNCTIONS ---*/
 void ControlManager::contactStateMachine()
 {
     //--- Contact Change Trigger
@@ -59,7 +63,7 @@ void ControlManager::mapGlobalToBase()
     for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
     {
         //--- Base frame
-        rd_.link_[idx].local_Jac_v             = base_rot.transpose() * rd_.link_[idx].Jac().topRows(3);    // TODO : Change Dynamics Library from RBDL to Pinocchio 
+        rd_.link_[idx].local_Jac_v             = base_rot.transpose() * rd_.link_[idx].Jac().topRows(3);  
         rd_.link_[idx].local_Jac_w             = base_rot.transpose() * rd_.link_[idx].Jac().bottomRows(3); 
         rd_.link_[idx].local_Jac.topRows(3)    =                        rd_.link_[idx].local_Jac_v;
         rd_.link_[idx].local_Jac.bottomRows(3) =                        rd_.link_[idx].local_Jac_w;
@@ -115,28 +119,6 @@ void ControlManager::updateDynamics()
 
 void ControlManager::updateContact()
 {
-    // rd_.local_J_C.setZero(rd_.J_C.rows(), rd_.J_C.cols());
-
-    // if (local_LF_contact == true && local_RF_contact == true)
-    // {
-    //     rd_.local_J_C.block(0, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(0, 0, 3, MODEL_DOF);
-    //     rd_.local_J_C.block(3, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(3, 0, 3, MODEL_DOF);
-    //     rd_.local_J_C.block(6, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(6, 0, 3, MODEL_DOF);
-    //     rd_.local_J_C.block(9, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(9, 0, 3, MODEL_DOF);
-    // }
-    // else if (local_LF_contact == true || local_RF_contact == true)
-    // {
-    //     rd_.local_J_C.block(0, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(0, 0, 3, MODEL_DOF);
-    //     rd_.local_J_C.block(3, 0, 3, MODEL_DOF) = base_rot.transpose() * rd_.J_C.block(3, 0, 3, MODEL_DOF);
-    // }
-    // else
-    // {
-    //     ROS_ERROR("Contact Indicator are assigned with something wrong value.");
-    //     assert((local_LF_contact == true && local_RF_contact == true)
-    //         || (local_LF_contact == true && local_RF_contact != true)
-    //         || (local_LF_contact != true && local_RF_contact == true));
-    // }
-
     rd_.local_J_C.setZero(12, MODEL_DOF_VIRTUAL);
 
     rd_.local_J_C.block(0, 0, 3, MODEL_DOF_VIRTUAL) = base_rot.transpose() * rd_.ee_[0].jac_contact.cast<double>().topRows(3);

@@ -27,7 +27,7 @@ joint_gains:
               2, 2,
               10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 100.0]
 
-joint_limits:  # TODO : check the limits
+joint_limits:  
   pos_low_deg:  [-30.73, -30.60, -90.05, 0.00, -90.79, -90.60,
                  -30.73, -30.60, -90.05, 0.00, -90.79, -90.60,
                  -30, -30, -30,
@@ -69,5 +69,23 @@ wbid:
   W_cwr : 2.0
   W_torque : 2.5
   W_energy : 0.2
+  friction_coeff : 0.7
+  foot_size : 0.3
+  foot_width : 0.16
+
+cbf:
+  joint_limit_cbf_alpha1: 30.0
+  joint_limit_cbf_alpha2: 30.0
+  joint_limit_cbf_epsilon: 1.0
+
+  workspace_boundary_cbf_alpha1: 30.0
+  workspace_boundary_cbf_alpha2: 30.0
+  workspace_boundary_cbf_epsilon: 0.01
+  workspace_boundary_cbf_lhand: 0.625
+  workspace_boundary_cbf_rhand: 0.625
+
+  self_collision_cbf_alpha1: 30.0
+  self_collision_cbf_alpha2: 30.0
+  self_collision_cbf_epsilon: 0.01
 
 motion_mode : 1 # 0: idle, 1: simple hand motion, 2: taichi, 3: walking
