@@ -55,7 +55,7 @@
 class CollisionManager
 {
 public:
-    CollisionManager(const RobotData &rd, RigidBodyDynamics::Model &model);
+    CollisionManager(const RobotData &rd);
 
     void callAvailableQueue();
 

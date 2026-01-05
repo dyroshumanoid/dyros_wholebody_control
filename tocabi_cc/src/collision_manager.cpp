@@ -2,7 +2,7 @@
 
 using namespace TOCABI;
 
-CollisionManager::CollisionManager(const RobotData &rd, RigidBodyDynamics::Model &model) : rd_(rd)
+CollisionManager::CollisionManager(const RobotData &rd) : rd_(rd)
 {
     nh_cm_.setCallbackQueue(&queue_cm_);
 
