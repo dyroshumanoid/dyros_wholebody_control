@@ -55,7 +55,7 @@
 class CollisionManager
 {
 public:
-    CollisionManager(const RobotData &rd);
+    CollisionManager(const RobotData &rd, RigidBodyDynamics::Model &model);
 
     void callAvailableQueue();
 
@@ -108,6 +108,32 @@ private:
 
     //============================ Collision Related =============================//
 public:
+    // collision geometry shapes
+    // sphere
+    struct Sphere{
+        double radius;
+
+        Sphere() = default;
+        Sphere(double r) : radius(r) {}
+    };
+
+    // capsule
+    struct Capsule{
+        double radius;
+        double half_length;
+
+        Capsule() = default;
+        Capsule(double r, double lz) : radius(r), half_length(lz / 2) {}
+    };
+
+    // box
+    struct Box{
+        Vector3d half_side;
+
+        Box() = default;
+        Box(double x, double y, double z) : half_side(x / 2, y / 2, z / 2) {}
+    };
+
     /**
      * @brief Struct representing a single collision body,
      *        including its geometry, transform, and link association.
@@ -127,16 +153,16 @@ public:
         bool in_collision = false; 
 
         // translation vector
-        Eigen::Vector3d trans_local;    // from link frame to collision object frame
-        Eigen::Vector3d trans_world;   // from world frame to collision object frame
+        Eigen::Vector3d xpos_link;       // from link frame to collision object frame
+        Eigen::Vector3d xpos_local;      // from floating base to collision object frame (used for obstacle)
+        Eigen::Vector3d xpos;            // from world frame to collision object frame
+
+        // velocity vector
+        Eigen::Vector3d v;               // velocity of collision object in world frame
 
         // rotation matrix
-        Eigen::Matrix3d rot_local;      // from link frame to collision object frame
-        Eigen::Matrix3d rot_world;     // from world frame to collision object frame
-
-        // for obstacle
-        Eigen::Vector3d pos_base;       // obstacle position w.r.t. base frmae
-        Eigen::Vector3d vel_world;     // obstacle velocity w.r.t. world frmae
+        Eigen::Matrix3d rotm_link;       // from link frame to collision object frame
+        Eigen::Matrix3d rotm;            // from world frame to collision object frame
 
         // type of collision geometry
         enum class Type
@@ -147,9 +173,9 @@ public:
         } type;
 
         // collision geometry shapes
-        std::shared_ptr<hpp::fcl::Sphere>  sphere;    // valid if type == Sphere
-        std::shared_ptr<hpp::fcl::Capsule> capsule;   // valid if type == Capsule
-        std::shared_ptr<hpp::fcl::Box>     box;       // valid if type == Box
+        std::shared_ptr<Sphere> sphere;     // valid if type == Sphere
+        std::shared_ptr<Capsule> capsule;   // valid if type == Capsule
+        std::shared_ptr<Box> box;           // valid if type == Box
     };
 
     // enum for the ID of collision objects for the robot links
