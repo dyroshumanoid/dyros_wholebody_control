@@ -2,28 +2,16 @@
 
 using namespace TOCABI;
 
-ofstream torque_pd_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
-ofstream torque_idn_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
-ofstream torque_sum_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
-ofstream joint_pos_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_pos_log.txt");
-ofstream joint_pos_des_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_pos_des_log.txt");
-ofstream joint_vel_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_vel_log.txt");
-ofstream joint_vel_des_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_vel_des_log.txt");
-ofstream joint_acc_des_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_acc_des_log.txt");
-ofstream contact_wrench_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/contact_wrench_log.txt");
-ofstream minimum_signed_distance_log("/home/sanghyuk/MATLAB/data/minimum_signed_distance_log.txt");
-ofstream obstacle_log("/home/sanghyuk/MATLAB/data/obstacle_log.txt");
-
-CustomController::CustomController(RobotData &rd) : rd_(rd), col_mgr_(rd), cm_(rd), tm_(rd), kin_wbc_(rd, col_mgr_), dyn_wbc_(rd), teleop_(rd)
+CustomController::CustomController(RobotData &rd) : rd_(rd), cm_(rd, model), tm_(rd), cbf_mgr_(rd, model), kin_wbc_(rd), dyn_wbc_(rd, cbf_mgr_), teleop_(rd)
 {
     //--- ROS Node Handle
     nh_cc_.setCallbackQueue(&queue_cc_);
     ControlVal_.setZero();
 
-    //--- Class Initialization
-    tm_.setControlFrequency(hz_);
-    dyn_wbc_.setFrictionCoefficient(0.8);
-    dyn_wbc_.setFootDimension(0.3, 0.16);
+    //--- Load Model
+    std::string urdf_path;
+    ros::param::get("/tocabi_controller/urdf_path", urdf_path);
+    RigidBodyDynamics::Addons::URDFReadFromFile(urdf_path.c_str(), &model, true, false);
 
     //--- Joy Callback
     xbox_joy_sub_ = nh_cc_.subscribe<sensor_msgs::Joy>("/joy", 10, &CustomController::xBoxJoyCallback, this);
@@ -33,182 +21,64 @@ Eigen::VectorQd CustomController::getControl()
 {
     return ControlVal_;
 }
-/* ========================================================================================
- * Real-time Control Thread
- * Control Frequency : 2 kHz
- * 
- * Collision Manager (col_mgr_) :
- *      - Manage Environment Information,
- *      - Update Robot Collision Objects
- * 
- * Control Manager (cm_) : 
- *      - Update Robot Model,
- *      - Manage Robot State, Contact State, Dynamics
- * 
- * Task Manager (tm_) : 
- *      - Update Task trajectory (PelvHand, Taichi, Walking)
- * 
- * Kinematic WBC (kin_wbc_) : 
- *      - Compute desired joint velocity using Hierarchical Inverse Kinematics, 
- *      - Safety Joint Velocity Filter
- * ========================================================================================
- */
 
 void CustomController::computeSlow()
 {
     queue_cc_.callAvailable(ros::WallDuration());
-    col_mgr_.callAvailableQueue();
+    cbf_mgr_.callAvailableQueue();
     teleop_.callAvailableQueue();
 
-    cm_.update();
-
-    col_mgr_.pubBasetoHeadTransform();
-    col_mgr_.updateObstacle();
+    // cm_.update();
+    // cbf_mgr_.update();
 
     if (rd_.tc_.mode == 6)
     {   
-        if(is_6_init)
-        {           
-            cm_.saveInitialState();
-            is_6_init = false;
-        }
-
         CustomControllerInit();
-
         moveInitialPose();
-
     }
     else if (rd_.tc_.mode == 7)
     {
-        if(is_7_init)
-        {           
-            cm_.saveInitialState();
-            is_7_init = false;
-        }
-
-#ifdef COMPILE_SIMULATION
-            col_mgr_.pubQRObstaclePose(sim_tick_, hz_);
-            sim_tick_++;
-#endif
+        cm_.update();
+        cbf_mgr_.update();
 
         tm_.runTestMotion(motion_mode_); 
 
         kin_wbc_.computeTaskSpaceKinematicWBC();
 
-#ifdef COMPILE_SIMULATION
-        col_mgr_.pubSelfCollisionStatus();
-#endif
-
-        if(!is_kinematic_control)
-        {
-            if (atb_control_command_update_ == false)
-            {
-                atb_control_command_update_ = true;
-
-                qddot_cmd_container = rd_.q_ddot_desired_virtual;
-
-                contact_wrench_cmd_container.head(6) = rd_.LF_FT_DES;
-                contact_wrench_cmd_container.tail(6) = rd_.RF_FT_DES;
-
-                atb_control_command_update_ = false;
-            }
-        }
+        pubDataFromSlowToFast();
 
         torque_pd.setZero();
         torque_pd = (rd_.Kd_diag) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
 
         torque_idn.setZero();
-        if(!is_kinematic_control)
-        {
-            if (atb_torque_update_ == false)
-            {
-                atb_torque_update_ = true;
-                torque_idn = torque_idn_container;
-                atb_torque_update_ = false;
-            }
-        }
-        
+        subDataFromFastToSlow();
+
         torque_sum.setZero();
         torque_sum = torque_pd + torque_idn;
 
-        // --- Torque initialization
-        static bool is_torque_save_init = true;
-        if(is_torque_save_init == true)
-        {
-            rd_.torque_init = rd_.torque_desired;
-
-            is_torque_save_init = false;
-        }
-
-        static bool is_torque_desired_init = true;
-        static int tick_torque_desired_init = 0;
-        if(is_torque_desired_init == true)
-        {
-            for (int i = 0; i < MODEL_DOF; i++) {
-                torque_sum(i) = DyrosMath::cubic(tick_torque_desired_init, 0, 1000, rd_.torque_init(i), torque_sum(i), 0.0, 0.0);
-            }
-
-            tick_torque_desired_init++;
-
-            if(tick_torque_desired_init >= 1000) {
-                is_torque_desired_init = false;
-                std::cout << "========== INFO: INITIAL TORQUE SMOOTHING COMPLETE ==========" << std::endl;
-            }
-        }
+        applyTorqueSmoothingOnce(torque_sum);
 
         rd_.torque_desired = torque_sum;
-
-        torque_pd_log  << std::fixed << std::setprecision(4) << torque_pd.transpose() << std::endl;
-        torque_idn_log << std::fixed << std::setprecision(4) << torque_idn.transpose() << std::endl;
-        torque_sum_log << std::fixed << std::setprecision(4) << torque_sum.transpose() << std::endl;
-        joint_pos_log  << std::fixed << std::setprecision(4) << rd_.local_q_virtual_.transpose() << std::endl;
-        joint_pos_des_log  << std::fixed << std::setprecision(4) << rd_.q_desired_virtual.transpose() << std::endl;
-        joint_vel_log  << std::fixed << std::setprecision(4) << rd_.local_q_dot_virtual_.transpose() << std::endl;
-        joint_vel_des_log  << std::fixed << std::setprecision(4) << rd_.q_dot_desired_virtual.transpose() << std::endl;
-        joint_acc_des_log  << std::fixed << std::setprecision(4) << rd_.q_ddot_desired_virtual.transpose() << std::endl;
-        contact_wrench_log << std::fixed << std::setprecision(4) << rd_.LF_FT_DES.transpose() << " " << rd_.RF_FT_DES.transpose() << std::endl;
-        minimum_signed_distance_log << col_mgr_.min_distances_(20) << endl;
     }
     else
     {
         rd_.torque_desired = (rd_.Kp_diag * (rd_.q_desired - rd_.q_)) - (rd_.Kd_diag * rd_.q_dot_);
     }
-
-    if(!col_mgr_.cb_obstacles_.empty())
-    {
-        obstacle_log << col_mgr_.cb_obstacles_[0].trans_world[1] << "," << col_mgr_.cb_obstacles_[0].vel_world[1] << "," << col_mgr_.check5 << "," << col_mgr_.check6 << std::endl;
-    }
-    else{
-        obstacle_log << col_mgr_.check1 << "," << col_mgr_.check2 << "," << col_mgr_.check3 << "," << col_mgr_.check4 << std::endl;
-    }
 }
 
 void CustomController::computeFast()
 {
-    if (rd_.tc_.mode == 7)
-    {
-        if(!is_kinematic_control)
+    if (fast_loop_ready){
+        if (rd_.tc_.mode == 7)
         {
-            if (atb_control_command_update_ == false)
-            {
-                atb_control_command_update_ = true;
+            subDataFromSlowToFast();
 
-                contact_wrench_cmd_fast = contact_wrench_cmd_container;
-                qddot_cmd_fast = qddot_cmd_container;
-
-                atb_control_command_update_ = false;
-            }
-       
+            dyn_wbc_.updateRobotStates(M_fast, G_fast, J_C_fast);
             dyn_wbc_.updateControlCommands(contact_wrench_cmd_fast, qddot_cmd_fast);
             torque_idn_fast.setZero();
             torque_idn_fast = dyn_wbc_.computeDynamicWBC();
 
-            if (atb_torque_update_ == false)
-            {
-                atb_torque_update_ = true;
-                torque_idn_container = torque_idn_fast;
-                atb_torque_update_ = false;
-            }
+            pubDataFromFastToSlow();
         }
     }
 }
@@ -225,18 +95,26 @@ void CustomController::CustomControllerInit()
     {
         loadParams();
 
-        teleop_.setHumanParameterFromTrackers();   // TODO : APPLY GUI
-        teleop_.setRobotParameterFromModel();
-
         q_init_ = rd_.q_;
         WBC::SetContact(rd_, true, true);
 
+        M_container.setZero();
+        M_fast.setZero();
+
+        G_container.setZero();
+        G_fast.setZero();
+
+        J_C_container.setZero(12, MODEL_DOF_VIRTUAL);
+        J_C_fast.setZero(12, MODEL_DOF_VIRTUAL);
+
         contact_wrench_cmd_fast.setZero();
         contact_wrench_cmd_container.setZero();
+
         qddot_cmd_fast.setZero();
         qddot_cmd_container.setZero();
+
         torque_idn_fast.setZero();
-        torque_idn_container.setZero();
+        torque_idn_container.setZero(); 
 
         is_cc_init = false;
     }
@@ -264,6 +142,10 @@ void CustomController::moveInitialPose()
         q_init_des(9)  = 0.6; 
         q_init_des(10) = -0.36; 
         q_init_des(11) = 0.0;
+        
+        q_init_des(12) = 0.0;
+        q_init_des(13) = 0.0;
+        q_init_des(14) = 0.0;
 
         q_init_des(15) = + 15.0 * DEG2RAD; 
         q_init_des(16) = + 10.0 * DEG2RAD; 
@@ -281,27 +163,10 @@ void CustomController::moveInitialPose()
     }
     else
     {
-        // q_init_des(15) = 0.0;
-        // q_init_des(16) = 0.45;
-        // q_init_des(17) = 1.4;
-        // q_init_des(18) = -1.2;
-        // q_init_des(19) = -1.57; // elbow
-        // q_init_des(20) = 1.5;
-        // q_init_des(21) = 0.4;
-        // q_init_des(22) = -0.2;
+        q_init_des(12) = 0.0;
+        q_init_des(13) = 0.0;
+        q_init_des(14) = 0.0;
 
-        // q_init_des(23) = 0.0; // yaw
-        // q_init_des(24) = 0.0; // pitch
-
-        // q_init_des(25) = 0.0;
-        // q_init_des(26) = -0.45;
-        // q_init_des(27) = -1.4;
-        // q_init_des(28) = 1.2;
-        // q_init_des(29) = 1.57; // elbow
-        // q_init_des(30) = -1.5;
-        // q_init_des(31) = -0.4;
-        // q_init_des(32) = 0.2;
-        
         q_init_des(15) = 0.0;
         q_init_des(16) = -0.3;
         q_init_des(17) = 1.57;
@@ -335,12 +200,110 @@ void CustomController::moveInitialPose()
 //--- Joy Utils
 void CustomController::xBoxJoyCallback(const sensor_msgs::Joy::ConstPtr& joy)
 {
-    double vel_threshold = 0.1;
+    double threshold = 1.0;
 
-    target_vel_x_   = DyrosMath::minmax_cut(joy->axes[1] * vel_threshold, -vel_threshold, vel_threshold);
-    target_vel_y_   = DyrosMath::minmax_cut(joy->axes[0] * vel_threshold, -vel_threshold, vel_threshold);
-    target_vel_yaw_ = DyrosMath::minmax_cut(joy->axes[3] * vel_threshold, -vel_threshold, vel_threshold);
+    move_forward = DyrosMath::minmax_cut(joy->axes[1] * threshold, -threshold, threshold);
+    move_lateral = DyrosMath::minmax_cut(joy->axes[0] * threshold, -threshold, threshold);
+    rotate_yaw   = DyrosMath::minmax_cut(joy->axes[3] * threshold, -threshold, threshold);
+
+    if (is_joy_enable == true)
+    {
+        tm_.setStepStride(move_forward * step_length_);
+        tm_.setStepYaw(rotate_yaw * step_yaw_);
+    }
 }
+
+//--- Data Transfer
+void CustomController::pubDataFromSlowToFast()
+{
+    if (atb_control_command_update_ == false)
+    {
+        atb_control_command_update_ = true;
+
+        M_container = rd_.local_A;
+        G_container = rd_.local_G;
+        J_C_container = rd_.local_J_C;
+
+        qddot_cmd_container = rd_.q_ddot_desired_virtual;
+
+        contact_wrench_cmd_container.head(6) = rd_.LF_FT_DES;
+        contact_wrench_cmd_container.tail(6) = rd_.RF_FT_DES;
+
+        cbf_mgr_.pubDataFromSlowToFast();
+
+        fast_loop_ready = true;
+
+        atb_control_command_update_ = false;
+    }
+}
+
+void CustomController::subDataFromSlowToFast()
+{
+    if (atb_control_command_update_ == false)
+    {
+        atb_control_command_update_ = true;
+
+        M_fast = M_container;
+        G_fast = G_container;
+        J_C_fast = J_C_container;
+
+        contact_wrench_cmd_fast = contact_wrench_cmd_container;
+        qddot_cmd_fast = qddot_cmd_container;
+
+        cbf_mgr_.subDataFromSlowToFast();
+
+        atb_control_command_update_ = false;
+    }
+}
+
+void CustomController::pubDataFromFastToSlow()
+{
+    if (atb_torque_update_ == false)
+    {
+        atb_torque_update_ = true;
+        torque_idn_container = torque_idn_fast;
+        atb_torque_update_ = false;
+    }
+}
+
+void CustomController::subDataFromFastToSlow()
+{
+    if (atb_torque_update_ == false)
+    {
+        atb_torque_update_ = true;
+        torque_idn = torque_idn_container;
+        atb_torque_update_ = false;
+    }
+}
+
+//--- First Torque Initialization
+void CustomController::applyTorqueSmoothingOnce(Eigen::VectorQd &torque_target)
+{
+    static bool is_torque_save_init = true;
+    if(is_torque_save_init == true)
+    {
+        rd_.torque_init = rd_.torque_desired;
+
+        is_torque_save_init = false;
+    }
+
+    static bool is_torque_desired_init = true;
+    static int tick_torque_desired_init = 0;
+    if(is_torque_desired_init == true)
+    {
+        for (int i = 0; i < MODEL_DOF; i++) {
+            torque_target(i) = DyrosMath::cubic(tick_torque_desired_init, 0, 1000, rd_.torque_init(i), torque_target(i), 0.0, 0.0);
+        }
+
+        tick_torque_desired_init++;
+
+        if(tick_torque_desired_init >= 1000) {
+            is_torque_desired_init = false;
+            std::cout << "========== INFO: INITIAL TORQUE SMOOTHING COMPLETE ==========" << std::endl;
+        }
+    }
+}
+
 
 //--- Parameter Loader
 void CustomController::loadParams()
@@ -456,10 +419,10 @@ void CustomController::loadParams()
 
     if (motion_mode_ == TaskMotionType::Walking)
     {
-        rd_.q_pos_l_lim.segment(12, MODEL_DOF - 12).setZero();
-        rd_.q_pos_h_lim.segment(12, MODEL_DOF - 12).setZero();
-        rd_.q_vel_l_lim.segment(12, MODEL_DOF - 12).setZero();
-        rd_.q_vel_h_lim.segment(12, MODEL_DOF - 12).setZero();
+        // rd_.q_pos_l_lim.segment(12, MODEL_DOF - 12).setZero();
+        // rd_.q_pos_h_lim.segment(12, MODEL_DOF - 12).setZero();
+        // rd_.q_vel_l_lim.segment(12, MODEL_DOF - 12).setZero();
+        // rd_.q_vel_h_lim.segment(12, MODEL_DOF - 12).setZero();
 
         std::cout << "rd_.q_pos_l_lim: " << rd_.q_pos_l_lim.transpose() << std::endl;
         std::cout << "rd_.q_pos_h_lim: " << rd_.q_pos_h_lim.transpose() << std::endl; 
@@ -473,11 +436,11 @@ void CustomController::loadParams()
     std::cout << " " << std::endl;
 
     //--- Task Parameter
-    double traj_time_, pelv_dist_, hand_dist_, step_length_, foot_height_, step_duration_, dsp_duration_;
     nh_cc_.getParam("/tocabi_controller/task_param/traj_time", traj_time_);
     nh_cc_.getParam("/tocabi_controller/task_param/pelv_dist", pelv_dist_);
     nh_cc_.getParam("/tocabi_controller/task_param/hand_dist", hand_dist_);
     nh_cc_.getParam("/tocabi_controller/task_param/step_length", step_length_);
+    nh_cc_.getParam("/tocabi_controller/task_param/step_yaw", step_yaw_);
     nh_cc_.getParam("/tocabi_controller/task_param/foot_height", foot_height_);
     nh_cc_.getParam("/tocabi_controller/task_param/step_duration", step_duration_);
     nh_cc_.getParam("/tocabi_controller/task_param/dsp_duration", dsp_duration_);
@@ -514,37 +477,52 @@ void CustomController::loadParams()
     dyn_wbc_.setTorqueMinimizationWeight(W_torque);
     dyn_wbc_.setAccelEnergyMinimizationWeight(W_energy);
 
+    double friction_coeff, foot_size, foot_width;
+    nh_cc_.getParam("/tocabi_controller/wbid/friction_coeff", friction_coeff);
+    nh_cc_.getParam("/tocabi_controller/wbid/foot_size", foot_size);
+    nh_cc_.getParam("/tocabi_controller/wbid/foot_width", foot_width);
+    dyn_wbc_.setFrictionCoefficient(friction_coeff);
+    dyn_wbc_.setFootDimension(foot_size, foot_width);
+
     std::cout << "=====================================" << std::endl;
     std::cout << "========== WBID Parameters ========== " << std::endl;
     std::cout << "W_qddot : " << W_qddot  << std::endl;
     std::cout << "W_cwr : " << W_cwr  << std::endl;
     std::cout << "W_energy : " << W_energy  << std::endl;
+    std::cout << "friction_coeff : " << friction_coeff  << std::endl;
     std::cout << "=====================================" << std::endl;
     std::cout << " " << std::endl;
 
-    int is_kinematic_control_idx = -1;
-    nh_cc_.getParam("/tocabi_controller/is_kinematic_control_idx", is_kinematic_control_idx);
-    if (is_kinematic_control_idx == 0)
-    {
-        std::cout << "==========================================" << std::endl;
-        std::cout << "========== DYNAMIC CONTROL MODE ========== " << std::endl;
-        std::cout << "==========================================" << std::endl;
-        std::cout << " " << std::endl;
-        is_kinematic_control = false;
-    }
-    else if (is_kinematic_control_idx == 1)
-    {
-        std::cout << "============================================" << std::endl;
-        std::cout << "========== KINEMATIC CONTROL MODE ========== " << std::endl;
-        std::cout << "============================================" << std::endl;
-        std::cout << " " << std::endl;
+    //--- CBF Parameters
+    double joint_limit_cbf_alpha1, joint_limit_cbf_alpha2, joint_limit_cbf_epsilon;
+    nh_cc_.getParam("/tocabi_controller/cbf/joint_limit_cbf_alpha1", joint_limit_cbf_alpha1);
+    nh_cc_.getParam("/tocabi_controller/cbf/joint_limit_cbf_alpha2", joint_limit_cbf_alpha2);
+    nh_cc_.getParam("/tocabi_controller/cbf/joint_limit_cbf_epsilon", joint_limit_cbf_epsilon);
+    cbf_mgr_.setJointLimitCbfParameters(joint_limit_cbf_alpha1, joint_limit_cbf_alpha2, joint_limit_cbf_epsilon);
+    cbf_mgr_.setJointLimitBoundaries(rd_.q_pos_l_lim, rd_.q_pos_h_lim);
 
-        is_kinematic_control = true;
-    }
-    else
-    {
-        ROS_ERROR("kinematic_control_idx error: got %d", is_kinematic_control_idx);
-        assert(is_kinematic_control_idx == 0 || is_kinematic_control_idx == 1);
-    }
-    tm_.isForceTorqueSensorAvailable(is_kinematic_control);
+    double workspace_boundary_cbf_alpha1, workspace_boundary_cbf_alpha2, workspace_boundary_cbf_epsilon, workspace_boundary_cbf_lhand, workspace_boundary_cbf_rhand;
+    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_alpha1", workspace_boundary_cbf_alpha1);
+    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_alpha2", workspace_boundary_cbf_alpha2);
+    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_epsilon", workspace_boundary_cbf_epsilon);
+    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_lhand", workspace_boundary_cbf_lhand);
+    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_rhand", workspace_boundary_cbf_rhand);
+    cbf_mgr_.setWorkspaceBoundaryCbfParameters(workspace_boundary_cbf_alpha1, workspace_boundary_cbf_alpha2, workspace_boundary_cbf_epsilon);
+    std::vector<WorkspaceBoundaryPair> workspace_pairs = {
+        {Left_Hand,  Left_Hand  - 5, workspace_boundary_cbf_lhand},
+        {Right_Hand, Right_Hand - 5, workspace_boundary_cbf_rhand},
+    };
+    cbf_mgr_.setWorkspaceBoundaryPairs(workspace_pairs);
+
+    double self_collision_cbf_alpha1, self_collision_cbf_alpha2, self_collision_cbf_epsilon;
+    nh_cc_.getParam("/tocabi_controller/cbf/self_collision_cbf_alpha1",  self_collision_cbf_alpha1);
+    nh_cc_.getParam("/tocabi_controller/cbf/self_collision_cbf_alpha2",  self_collision_cbf_alpha2);
+    nh_cc_.getParam("/tocabi_controller/cbf/self_collision_cbf_epsilon", self_collision_cbf_epsilon);
+    cbf_mgr_.setSelfCollisionCbfParameters(self_collision_cbf_alpha1, self_collision_cbf_alpha2, self_collision_cbf_epsilon);
+
+    double obstacle_avoidance_cbf_alpha1, obstacle_avoidance_cbf_alpha2, obstacle_avoidance_cbf_epsilon;
+    nh_cc_.getParam("/tocabi_controller/cbf/obstacle_avoidance_cbf_alpha1",  obstacle_avoidance_cbf_alpha1);
+    nh_cc_.getParam("/tocabi_controller/cbf/obstacle_avoidance_cbf_alpha2",  obstacle_avoidance_cbf_alpha2);
+    nh_cc_.getParam("/tocabi_controller/cbf/obstacle_avoidance_cbf_epsilon", obstacle_avoidance_cbf_epsilon);
+    cbf_mgr_.setObstacleAvoidanceCbfParameters(obstacle_avoidance_cbf_alpha1, obstacle_avoidance_cbf_alpha2, obstacle_avoidance_cbf_epsilon);
 }

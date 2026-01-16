@@ -5,18 +5,20 @@
 #include <Eigen/Dense>
 #include <qpOASES.hpp>
 #include "wholebody_functions.h"
+#include "cbf_manager/cbf_manager.h"
 #include "utils.h"
 #include <iomanip>
 
 class DynWBC
 {
 public:
-    DynWBC(RobotData& rd);
+    DynWBC(RobotData& rd, CbfManager& cbf_mgr);
 
     //--- QP WBC 
 
     Eigen::VectorQd computeDynamicWBC();
     void updateControlCommands(const Eigen::Vector12d &contact_wrench_cmd_, const Eigen::VectorVQd &qddot_cmd_);
+    void updateRobotStates(const Eigen::MatrixVVd &M_, const Eigen::VectorVQd &G_, const Eigen::MatrixXd &J_C_);
 
     //--- Setter
     void setFrictionCoefficient(const double& mu_);
@@ -29,6 +31,7 @@ public:
 
 private:
     RobotData &rd_;
+    CbfManager& cbf_mgr_;
 
     CQuadraticProgram QP_Dyn_Wbc;
         void calcCostGrad();
@@ -36,11 +39,7 @@ private:
         void calcEqualityConstraint();
         void calcInequalityConstraint();
         void checkGradHessSize();
-
-        void updateContactState();
-        void updateRobotStates();
-        
-        void calcNominalTorque();
+        double getSignedDistanceFunction(LinkData &linkA_, LinkData &linkB_, Eigen::MatrixXd &J_AB, Eigen::MatrixXd &Jqdot_AB);
 
         Eigen::MatrixXd Hess;  // HESSIAN
         Eigen::VectorXd grad;  // GRADIENT

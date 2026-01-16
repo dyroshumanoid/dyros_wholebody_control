@@ -237,7 +237,7 @@ struct RobotData
     * Link data for Custom Controller
     * local : link data w.r.t. base frame
     */
-    Eigen::VectorVQd q_desired_virtual;
+    Eigen::VectorQVQd q_desired_virtual;
     Eigen::VectorVQd q_dot_desired_virtual;
     Eigen::VectorVQd q_ddot_desired_virtual;
 
@@ -248,6 +248,10 @@ struct RobotData
     Eigen::MatrixVVd local_A_inv;
     Eigen::VectorVQd local_G;
     Eigen::MatrixXd local_J_C;
+
+    Eigen::MatrixXd local_lambda_C;
+    Eigen::MatrixXd local_J_C_INV_T;
+    Eigen::MatrixXd local_N_C;
 
     Eigen::VectorQd torque_init;
 
@@ -261,7 +265,7 @@ struct RobotData
     Eigen::MatrixQQd Kp_diag;
     Eigen::MatrixQQd Kd_diag;
 
-    Eigen::Vector6d LF_FT_DES, RF_FT_DES;   
+    Eigen::Vector6d LF_FT_DES, RF_FT_DES;       
 
     bool is_left_contact_transition = false;
     bool is_right_contact_transition = false;

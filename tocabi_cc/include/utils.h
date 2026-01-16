@@ -29,7 +29,12 @@ enum class TaskMotionType {
     TeleOperation
 };
 
+struct WorkspaceBoundaryPair {
+    int idx_A; int idx_B; double max_dist{0.0};
+};
+
 Eigen::Vector3d AngvelToEulerRates(const Eigen::Vector3d& angVel, const Eigen::Vector3d& EulerAngle);
+Eigen::Quaterniond integrateQuatBodyExp(const Eigen::Quaterniond &q, const Eigen::Vector3d &omega_body, double dt);
 Eigen::Vector3d getOrientationError(const Eigen::Matrix3d& current_rotation, const Eigen::Matrix3d& desired_rotation);
 Eigen::Matrix3d hat(const Eigen::Vector3d& v);
 Eigen::Vector3d vee(const Eigen::Matrix3d& M);

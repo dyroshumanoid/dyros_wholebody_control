@@ -9,7 +9,7 @@
 class ControlManager
 {
 public:
-    ControlManager(RobotData &rd);
+    ControlManager(RobotData &rd, RigidBodyDynamics::Model &model);
 
     void update();
     void saveInitialState();
@@ -17,7 +17,7 @@ public:
 private:
     // Depedencies
     RobotData &rd_;
-    RigidBodyDynamics::Model model_;  
+    RigidBodyDynamics::Model &model_;  
 
     void contactStateMachine();
     void mapGlobalToBase();

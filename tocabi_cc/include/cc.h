@@ -1,7 +1,3 @@
-// Must inlude while using Pinocchio in noetic
-// to avoid compilation errors from differing Boost-variant sizes.
-#include <pinocchio/fwd.hpp>
-
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <Eigen/Geometry>
@@ -14,11 +10,11 @@
 #include "tocabi_lib/robot_data.h"
 #include "wholebody_functions.h"
 
-#include "collision_manager/collision_manager.h"
 #include "control_manager.h"
 #include "task_manager.h"
 #include "kin_wbc.h"
 #include "dyn_wbc.h"
+#include "cbf_manager/cbf_manager.h"
 #include "teleop_manager.h"
 #include "utils.h"
 
@@ -36,34 +32,31 @@ public:
     ros::Subscriber joy_sub_;
     ros::Subscriber xbox_joy_sub_;
 
-    double target_vel_x_ = 0.0;
-    double target_vel_y_ = 0.0;
-    double target_vel_yaw_ = 0.0;
+    double move_forward = 0.0;
+    double move_lateral = 0.0;
+    double rotate_yaw =   0.0;
 
     Eigen::Vector3d v_cmd;
     Eigen::Vector3d w_cmd;
 
     void loadParams();
+    double traj_time_, pelv_dist_, hand_dist_, step_length_, step_yaw_, foot_height_, step_duration_, dsp_duration_;
 
     //--- Thread
     void computeSlow();
     void computeFast();
     void computePlanner();
 
+    
     //--- Robot Model
-    RigidBodyDynamics::Model model_;  
-    CollisionManager col_mgr_;
+    RigidBodyDynamics::Model model;  
     ControlManager cm_;
     TaskManager tm_;
     KinWBC kin_wbc_;  
     DynWBC dyn_wbc_;  
+    CbfManager cbf_mgr_;  
     TeleOperationManager teleop_;  
     
-    std::vector<std::vector<TaskInfo>> task_hierarchy;
-    std::set<std::string> task_names;
-    ContactIndicator contact_mode_;
-    unsigned int contact_dim = 12;
-
     RobotData &rd_;
     RobotData rd_cc_;
 
@@ -74,13 +67,6 @@ public:
     Eigen::VectorQd joint_vel_limit_l_;
     Eigen::VectorQd joint_vel_limit_h_;
 
-    //--- Robot State
-    void stateManager();
-    void contactStateManager();
-    void saveInitialState();
-    double getSignedDistanceFunction(LinkData &linkA_, LinkData &linkB_, Eigen::MatrixXd &J_AB);
-    
-
     //--- Initial Values
     Eigen::VectorQd q_init_;
     Eigen::VectorQd q_init_des;
@@ -88,35 +74,45 @@ public:
     void moveInitialPose();
 
     //--- Test Function
-    void movePelvPose(double traj_time, double pelv_dist);
-    void moveHandPose(double traj_time, double hand_dist);
-    void movePelvHandPose(double traj_time, double pelv_dist, double hand_dist);
-    void moveTaichiMotion(const double& traj_time, const double& pelv_dist, const double& hand_dist, const double& foot_height);
-    void bipedalWalkingController(const double& step_duration, const double& foot_height, const double& vx, const double& vy, const double& wz);
-    void runTestMotion(const double& traj_time, const double& pelv_dist, const double& hand_dist, const double& foot_height, const double& step_duration);
     TaskMotionType motion_mode_ = TaskMotionType::None;
 
     Eigen::VectorQd torque_pd;
     Eigen::VectorQd torque_idn;
-    Eigen::VectorQd torque_idn_fast;
-    Eigen::VectorQd torque_idn_container;
     Eigen::VectorQd torque_sum;
 
+    //--- Data Exchange
+    void pubDataFromSlowToFast();
+    void subDataFromSlowToFast();
+    void pubDataFromFastToSlow();
+    void subDataFromFastToSlow();
+
+    Eigen::VectorQd torque_idn_fast;
+    Eigen::VectorQd torque_idn_container;
+
+    Eigen::MatrixVVd M_fast;
+    Eigen::MatrixVVd M_container;
+    Eigen::VectorVQd G_fast;
+    Eigen::VectorVQd G_container;
+    Eigen::MatrixXd J_C_fast;
+    Eigen::MatrixXd J_C_container;
     Eigen::VectorVQd qddot_cmd_container;
     Eigen::VectorVQd qddot_cmd_fast;
     Eigen::Vector12d contact_wrench_cmd_container;
     Eigen::Vector12d contact_wrench_cmd_fast;
 
-    bool is_kinematic_control = true;
     std::atomic<bool> atb_control_command_update_{false};
     std::atomic<bool> atb_torque_update_{false};
+
+    void applyTorqueSmoothingOnce(Eigen::VectorQd &torque_target);
 
 private:
     Eigen::VectorQd ControlVal_;
     double hz_ = 2000;
-#ifdef COMPILE_SIMULATION
-    unsigned int sim_tick_ = 0;
-#endif
+    bool is_joy_enable = false;
+
+    // Fast loop is ready to run after the first slow-loop update
+    bool fast_loop_ready = false;
+
     bool is_6_init = true;
     bool is_7_init = true;
 };
