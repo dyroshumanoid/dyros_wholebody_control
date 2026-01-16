@@ -12,11 +12,16 @@ void CbfManager::callAvailableQueue()
 
 void CbfManager::update()
 {
+    col_mgr_.pubBasetoHeadTransform();
+
     col_mgr_.updateObstacle();
     col_mgr_.updateRobotCollisionObjectsPose();
 
     col_mgr_.computeSelfColAvoidConstraintTerms();
     col_mgr_.computeObstacleAvoidConstraintTerms();
+#ifdef COMPILE_SIMULATION
+    col_mgr_.pubSelfCollisionStatus();
+#endif    
 
     computeJointLimitCbfConstraint();
     computeWorkspaceBoundaryCbfConstraint();
@@ -159,13 +164,15 @@ void CbfManager::setSelfCollisionCbfParameters(const double &alpha1, const doubl
 
 void CbfManager::computeSelfCollisionCbfConstraint()
 {
-    // Gradient
-    self_collision_avoidance_constraints.A.setZero(col_mgr_.self_collision_avoid_terms_.num_pairs, MODEL_DOF_VIRTUAL);
+    self_collision_avoidance_constraints.num_pairs = col_mgr_.self_collision_avoid_terms_.num_pairs;
+
+    // Gradient    
+    self_collision_avoidance_constraints.A.setZero(self_collision_avoidance_constraints.num_pairs, MODEL_DOF_VIRTUAL);
 
     self_collision_avoidance_constraints.A = col_mgr_.self_collision_avoid_terms_.J;
 
-    self_collision_avoidance_constraints.lbA.setZero(col_mgr_.self_collision_avoid_terms_.num_pairs);
-    self_collision_avoidance_constraints.ubA.setZero(col_mgr_.self_collision_avoid_terms_.num_pairs);
+    self_collision_avoidance_constraints.lbA.setZero(self_collision_avoidance_constraints.num_pairs);
+    self_collision_avoidance_constraints.ubA.setZero(self_collision_avoidance_constraints.num_pairs);
 
     // Lower and upper bounds
     self_collision_avoidance_constraints.lbA = - col_mgr_.self_collision_avoid_terms_.Jdotqdot
@@ -188,7 +195,7 @@ void CbfManager::getSelfCollisionCbfConstraint(Eigen::Ref<Eigen::MatrixXd> A, Ei
 
 int CbfManager::getNumSelfCollisionPairs() const
 {
-    return col_mgr_.self_collision_avoid_terms_.num_pairs;
+    return self_collision_avoidance_constraints_fast.num_pairs;
 }
 
 // ===============================
@@ -203,14 +210,16 @@ void CbfManager::setObstacleAvoidanceCbfParameters(const double &alpha1, const d
 
 void CbfManager::computeObstacleAvoidanceCbfConstraint()
 {
+    obstacle_avoidance_constraints.num_pairs = col_mgr_.obstacle_avoid_terms_.num_pairs;
+
     // Gradient
-    obstacle_avoidance_constraints.A.setZero(col_mgr_.obstacle_avoid_terms_.num_pairs, MODEL_DOF_VIRTUAL);
+    obstacle_avoidance_constraints.A.setZero(obstacle_avoidance_constraints.num_pairs, MODEL_DOF_VIRTUAL);
 
     obstacle_avoidance_constraints.A = col_mgr_.obstacle_avoid_terms_.J;
 
     // Lower and upper bounds
-    obstacle_avoidance_constraints.lbA.setZero(col_mgr_.obstacle_avoid_terms_.num_pairs);
-    obstacle_avoidance_constraints.ubA.setZero(col_mgr_.obstacle_avoid_terms_.num_pairs);
+    obstacle_avoidance_constraints.lbA.setZero(obstacle_avoidance_constraints.num_pairs);
+    obstacle_avoidance_constraints.ubA.setZero(obstacle_avoidance_constraints.num_pairs);
 
     obstacle_avoidance_constraints.lbA = - col_mgr_.obstacle_avoid_terms_.Jdotqdot
                                          - (alpha1_obstacle_avoidance + alpha2_obstacle_avoidance) * 
@@ -233,7 +242,7 @@ void CbfManager::getObstacleAvoidanceCbfConstraint(Eigen::Ref<Eigen::MatrixXd> A
 
 int CbfManager::getNumObstacleAvoidancePairs() const
 {
-    return col_mgr_.obstacle_avoid_terms_.num_pairs;
+    return obstacle_avoidance_constraints_fast.num_pairs;
 }
 
 // ===============================

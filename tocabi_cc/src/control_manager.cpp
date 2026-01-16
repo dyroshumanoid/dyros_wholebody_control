@@ -8,18 +8,16 @@ ControlManager::ControlManager(RobotData& rd, RigidBodyDynamics::Model& model) :
 
 /*------------------------*/
 /*--- PUBLIC FUNCTIONS ---*/
-void ControlManager::update()
+void ControlManager::update(bool control_mode_changed)
 {
     contactStateMachine();
     mapGlobalToBase();
     updateDynamics();
     updateContact();
 
-    static bool is_cm_init = true;
-    if(is_cm_init == true)
+    if(control_mode_changed)
     {           
         saveInitialState();
-        is_cm_init = false;
     }
 }
 

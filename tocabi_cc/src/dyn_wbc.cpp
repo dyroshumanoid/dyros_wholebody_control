@@ -17,18 +17,19 @@ Eigen::VectorQd DynWBC::computeDynamicWBC()
     calcEqualityConstraint();
     calcInequalityConstraint();
 
-    total_num_constraints = 0;
     total_num_state = constraints_.empty() ? 0 : constraints_[0].A.cols();
 
-    for (const auto& c : constraints_) {total_num_constraints += c.A.rows();}
+    int total_num_constraints_current = 0;
+    for (const auto& c : constraints_) {total_num_constraints_current += c.A.rows();}
 
-    //--- Initialization
-    if(is_wbc_init_ == true)
+    if (total_num_constraints != total_num_constraints_current){
+        num_constraints_changed = true;
+        total_num_constraints = total_num_constraints_current;
+    }
+
+    if(num_constraints_changed)
     {
-        total_num_constraints = 0;
-        for (const auto& c : constraints_) {total_num_constraints += c.A.rows();}
-
-        //--- Initialization
+        //--- Initialization or reinitialization of QP
         QP_Dyn_Wbc.InitializeProblemSize(total_num_state, total_num_constraints);
 
         A_const   = Eigen::MatrixXd::Zero(total_num_constraints, total_num_state);
@@ -37,7 +38,7 @@ Eigen::VectorQd DynWBC::computeDynamicWBC()
 
         torque_prev.setZero();
 
-        is_wbc_init_ = false;
+        num_constraints_changed = false;
     }
 
     //--- Stack Constraints
@@ -245,7 +246,7 @@ void DynWBC::calcInequalityConstraint()
     Eigen::VectorXd lbA_self_collision; lbA_self_collision.setZero(num_self_collision_cbf); 
     Eigen::VectorXd ubA_self_collision; ubA_self_collision.setZero(num_self_collision_cbf);
 
-    // cbf_mgr_.getSelfCollisionCbfConstraint(A_self_collision.block(0, contact_dim, num_self_collision_cbf, MODEL_DOF_VIRTUAL), lbA_self_collision, ubA_self_collision);
+    cbf_mgr_.getSelfCollisionCbfConstraint(A_self_collision.block(0, contact_dim, num_self_collision_cbf, MODEL_DOF_VIRTUAL), lbA_self_collision, ubA_self_collision);
 
     constraints_.push_back({A_self_collision, lbA_self_collision, ubA_self_collision});
 
@@ -255,9 +256,9 @@ void DynWBC::calcInequalityConstraint()
     Eigen::VectorXd lbA_obstacle_avoidance; lbA_obstacle_avoidance.setZero(num_obstacle_avoidance_cbf); 
     Eigen::VectorXd ubA_obstacle_avoidance; ubA_obstacle_avoidance.setZero(num_obstacle_avoidance_cbf);
 
-    // cbf_mgr_.getObstacleAvoidanceCbfConstraint(A_obstacle_avoidance.block(0, contact_dim, num_obstacle_avoidance_cbf, MODEL_DOF_VIRTUAL), lbA_obstacle_avoidance, ubA_obstacle_avoidance);
+    cbf_mgr_.getObstacleAvoidanceCbfConstraint(A_obstacle_avoidance.block(0, contact_dim, num_obstacle_avoidance_cbf, MODEL_DOF_VIRTUAL), lbA_obstacle_avoidance, ubA_obstacle_avoidance);
 
-    // constraints_.push_back({A_obstacle_avoidance, lbA_obstacle_avoidance, ubA_obstacle_avoidance});
+    constraints_.push_back({A_obstacle_avoidance, lbA_obstacle_avoidance, ubA_obstacle_avoidance});
 }
 
 void DynWBC::checkGradHessSize()

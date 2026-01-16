@@ -633,6 +633,8 @@ Eigen::RowVectorXd CollisionManager::computeObstacleAvoidConstraintTermsRow(cons
     J_row = sign * normal_vec.transpose() * world_to_base_rotm_yaw_only_.transpose() * (J_col_obj);
     obs_vel_projection = sign * normal_vec.transpose() * cb_obstacles_[0].local_v;
     Jdotqdot_projection = sign * normal_vec.transpose() * world_to_base_rotm_yaw_only_.transpose() * (Jdotqdot_col_obj);
+
+    return J_row;
 }
 
 //________________________________________________________________________________________________//
@@ -683,7 +685,7 @@ void CollisionManager::updateObstacle()
     // 장애물이 아직 하나밖에 없어서 0 인덱스로 바로 updateState 진행했슴다.
     // 후에는 장애물이 여러 개 추적될 때 새로운 장애물인지 판별하는 cost matrix
     if(!tracked_obstacles_.empty()) tracked_obstacles_[0].updateState();
-
+    
     {
         std::lock_guard<std::mutex> lk(measurement_mutex_);
         if(has_new_measure_){
@@ -745,7 +747,7 @@ void CollisionManager::pubQRObstaclePose(const int sim_tick,
     // translation
     aruco_pose_msg_.pose.position.x = 0.53;
     aruco_pose_msg_.pose.position.y = 0.4 * sin(M_PI/3 * (sim_tick/hz));
-    aruco_pose_msg_.pose.position.z = 1.24;
+    aruco_pose_msg_.pose.position.z = 1.2;
     // aruco_pose_msg_.pose.position.y = 0;
     // aruco_pose_msg_.pose.position.z = 1 + 0.4 * cos(M_PI/8 * (sim_tick/hz));
 

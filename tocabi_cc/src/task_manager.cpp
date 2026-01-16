@@ -50,14 +50,14 @@ void TaskManager::movePelvHandPose()
         rd_.link_[idx].r_traj.setIdentity();
     }
 
-    //--- COM_id Trajectory (Support Frame)
-    rd_.link_[COM_id].x_desired    = rd_.link_[COM_id].support_xpos_init;
-    rd_.link_[COM_id].x_desired.head(2).setZero();
-    rd_.link_[COM_id].x_desired(1) = rd_.link_[COM_id].support_xpos_init(1) + pelv_dist;
-    rd_.link_[COM_id].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[COM_id].support_xpos_init, rd_.link_[COM_id].x_desired);
+    // //--- COM_id Trajectory (Support Frame)
+    // rd_.link_[COM_id].x_desired    = rd_.link_[COM_id].support_xpos_init;
+    // rd_.link_[COM_id].x_desired.head(2).setZero();
+    // rd_.link_[COM_id].x_desired(1) = rd_.link_[COM_id].support_xpos_init(1) + pelv_dist;
+    // rd_.link_[COM_id].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[COM_id].support_xpos_init, rd_.link_[COM_id].x_desired);
 
-    //--- COM_id Trajectory (Base Frame)
-    rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos;
+    // //--- COM_id Trajectory (Base Frame)
+    // rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos;
 
     //--- Both Hand Trajectories (Base Frame)
     // for (int idx = 1; idx < 3; idx++)

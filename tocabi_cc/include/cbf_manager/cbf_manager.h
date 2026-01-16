@@ -114,24 +114,29 @@ private:
     double alpha2_obstacle_avoidance{0.0};
     double epsilon_obstacle_avoidance{1.0};
 
+
+    struct CollisionConstraintMatrix : public ConstraintMatrix {
+        int num_pairs;
+    };
+
     // --- Data computed in computeSlow() loop (2 kHz)
     ConstraintMatrix joint_limit_constraints;
     ConstraintMatrix workspace_boundary_constraints;
-    ConstraintMatrix self_collision_avoidance_constraints;
-    ConstraintMatrix obstacle_avoidance_constraints;
+    CollisionConstraintMatrix self_collision_avoidance_constraints;
+    CollisionConstraintMatrix obstacle_avoidance_constraints;
 
     // --- Storage for computeSlow() loop
     //     Used to transfer data to computeFast() loop
     ConstraintMatrix joint_limit_constraints_container;
     ConstraintMatrix workspace_boundary_constraints_container;
-    ConstraintMatrix self_collision_avoidance_constraints_container;
-    ConstraintMatrix obstacle_avoidance_constraints_container;
+    CollisionConstraintMatrix self_collision_avoidance_constraints_container;
+    CollisionConstraintMatrix obstacle_avoidance_constraints_container;
 
     // --- Data consumed by the computeFast() loop
     ConstraintMatrix joint_limit_constraints_fast;
     ConstraintMatrix workspace_boundary_constraints_fast;
-    ConstraintMatrix self_collision_avoidance_constraints_fast;
-    ConstraintMatrix obstacle_avoidance_constraints_fast;
+    CollisionConstraintMatrix self_collision_avoidance_constraints_fast;
+    CollisionConstraintMatrix obstacle_avoidance_constraints_fast;
 
 };
 

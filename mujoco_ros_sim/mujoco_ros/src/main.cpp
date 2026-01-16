@@ -473,7 +473,7 @@ int main(int argc, char **argv)
             ROS_INFO("Load Request");
             loadmodel();
             // uncomment the line below if using the camera
-            // visual_thread = std::thread(RGBD_sensor, m, d);
+            visual_thread = std::thread(RGBD_sensor, m, d);
         }
         else if (settings.loadrequest > 1)
             settings.loadrequest = 1;

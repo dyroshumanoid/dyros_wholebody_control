@@ -49,6 +49,7 @@ private:
         std::vector<ConstraintMatrix> constraints_; // CONSTRAINTS
         int total_num_state = 0;
         int total_num_constraints = 0;
+        bool num_constraints_changed = false;
 
     Eigen::VectorXd  contact_wrench_cmd;
     Eigen::VectorVQd qddot_cmd;
@@ -59,7 +60,6 @@ private:
     Eigen::VectorXd torque_qp; 
 
     bool is_gradhess_init_ = true;
-    bool is_wbc_init_ = true;
     bool is_cannot_solve_qp_ = true;
 
     double mu = 0.0;

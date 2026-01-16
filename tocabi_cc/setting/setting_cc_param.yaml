@@ -57,7 +57,7 @@ joint_limits:
 task_param:
   traj_time: 3.0
   pelv_dist: 0.12
-  hand_dist: 0.3
+  hand_dist: 0.2
   step_length: 0.1
   step_yaw: 0.0
   foot_height: 0.055
@@ -92,4 +92,4 @@ cbf:
   obstacle_avoidance_cbf_alpha2: 30.0
   obstacle_avoidance_cbf_epsilon: 3.0
 
-motion_mode : 3 # 0: idle, 1: simple hand motion, 2: taichi, 3: walking
+motion_mode : 1 # 0: idle, 1: simple hand motion, 2: taichi, 3: walking

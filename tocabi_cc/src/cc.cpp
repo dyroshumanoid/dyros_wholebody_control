@@ -28,19 +28,28 @@ void CustomController::computeSlow()
     cbf_mgr_.callAvailableQueue();
     teleop_.callAvailableQueue();
 
-    // cm_.update();
-    // cbf_mgr_.update();
-
     if (rd_.tc_.mode == 6)
     {   
+        control_mode_changed = std::exchange(is_6_init, false);
+
+        cm_.update(control_mode_changed);
+
+        cbf_mgr_.update();
+
         CustomControllerInit();
         moveInitialPose();
     }
     else if (rd_.tc_.mode == 7)
-    {
-        cm_.update();
-        cbf_mgr_.update();
+    {   
+        control_mode_changed = std::exchange(is_7_init, false);
 
+        cm_.update(control_mode_changed);
+
+        cbf_mgr_.update();
+#ifdef COMPILE_SIMULATION
+            cbf_mgr_.col_mgr_.pubQRObstaclePose(sim_tick_, hz_);
+            sim_tick_++;
+#endif
         tm_.runTestMotion(motion_mode_); 
 
         kin_wbc_.computeTaskSpaceKinematicWBC();
