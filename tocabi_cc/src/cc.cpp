@@ -2,6 +2,11 @@
 
 using namespace TOCABI;
 
+ofstream torque_sum_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
+ofstream torque_idn_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
+ofstream torque_pd_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
+ofstream computation_time_log("/home/kwan/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
+
 CustomController::CustomController(RobotData &rd) : rd_(rd), cm_(rd, model), tm_(rd), cbf_mgr_(rd, model), kin_wbc_(rd), dyn_wbc_(rd, cbf_mgr_), teleop_(rd)
 {
     //--- ROS Node Handle
@@ -30,9 +35,8 @@ void CustomController::computeSlow()
 
     if (rd_.tc_.mode == 6)
     {   
-        control_mode_changed = std::exchange(is_6_init, false);
-
-        cm_.update(control_mode_changed);
+        static bool cm_init_save_trigger = true;
+        cm_.update(cm_init_save_trigger);
 
         cbf_mgr_.update();
 
@@ -41,15 +45,11 @@ void CustomController::computeSlow()
     }
     else if (rd_.tc_.mode == 7)
     {   
-        control_mode_changed = std::exchange(is_7_init, false);
-
-        cm_.update(control_mode_changed);
+        static bool cm_init_save_trigger = true;
+        cm_.update(cm_init_save_trigger);
 
         cbf_mgr_.update();
-#ifdef COMPILE_SIMULATION
-            cbf_mgr_.col_mgr_.pubQRObstaclePose(sim_tick_, hz_);
-            sim_tick_++;
-#endif
+
         tm_.runTestMotion(motion_mode_); 
 
         kin_wbc_.computeTaskSpaceKinematicWBC();
@@ -67,6 +67,10 @@ void CustomController::computeSlow()
 
         applyTorqueSmoothingOnce(torque_sum);
 
+        torque_sum_log << torque_sum.transpose() << std::endl;
+        torque_idn_log << torque_idn.transpose() << std::endl;
+        torque_pd_log <<  torque_pd.transpose() << std::endl;
+
         rd_.torque_desired = torque_sum;
     }
     else
@@ -80,6 +84,8 @@ void CustomController::computeFast()
     if (fast_loop_ready){
         if (rd_.tc_.mode == 7)
         {
+            auto t1 = std::chrono::steady_clock::now();
+
             subDataFromSlowToFast();
 
             dyn_wbc_.updateRobotStates(M_fast, G_fast, J_C_fast);
@@ -87,7 +93,14 @@ void CustomController::computeFast()
             torque_idn_fast.setZero();
             torque_idn_fast = dyn_wbc_.computeDynamicWBC();
 
+
             pubDataFromFastToSlow();
+
+            auto t2 = std::chrono::steady_clock::now();
+
+            auto dt = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+
+            computation_time_log << dt << std::endl;
         }
     }
 }
@@ -439,9 +452,8 @@ void CustomController::loadParams()
         std::cout << "rd_.q_vel_h_lim: " << rd_.q_vel_h_lim.transpose() << std::endl;
     }
 
-    std::cout << "=====================================" << std::endl;
+    std::cout << " " << std::endl;
     std::cout << "===== Motion Mode : " << mode_name << " =====" << std::endl;
-    std::cout << "=====================================" << std::endl;
     std::cout << " " << std::endl;
 
     //--- Task Parameter
@@ -462,7 +474,7 @@ void CustomController::loadParams()
     tm_.setStepDuration(step_duration_);
     tm_.setDspDuration(dsp_duration_);
 
-    std::cout << "====================================" << std::endl;
+    std::cout << " " << std::endl;
     std::cout << "======== Task Parameters ========== " << std::endl;
     std::cout << "Trajectory Time : " << traj_time_ << " sec" << std::endl;
     std::cout << "Pelvis Distance : " << pelv_dist_ << " m" << std::endl;
@@ -471,7 +483,6 @@ void CustomController::loadParams()
     std::cout << "Foot Height : " << foot_height_ << " m" << std::endl;
     std::cout << "Step Duration : " << step_duration_ << " sec" << std::endl;
     std::cout << "Double Support Duration : " << dsp_duration_ << " sec" << std::endl;
-    std::cout << "====================================" << std::endl;
     std::cout << " " << std::endl;
 
     //--- Whole-body Inverse Dynamics
@@ -493,13 +504,12 @@ void CustomController::loadParams()
     dyn_wbc_.setFrictionCoefficient(friction_coeff);
     dyn_wbc_.setFootDimension(foot_size, foot_width);
 
-    std::cout << "=====================================" << std::endl;
+    std::cout << " " << std::endl;
     std::cout << "========== WBID Parameters ========== " << std::endl;
     std::cout << "W_qddot : " << W_qddot  << std::endl;
     std::cout << "W_cwr : " << W_cwr  << std::endl;
     std::cout << "W_energy : " << W_energy  << std::endl;
     std::cout << "friction_coeff : " << friction_coeff  << std::endl;
-    std::cout << "=====================================" << std::endl;
     std::cout << " " << std::endl;
 
     //--- CBF Parameters

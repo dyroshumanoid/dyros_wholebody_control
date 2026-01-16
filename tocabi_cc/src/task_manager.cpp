@@ -51,21 +51,15 @@ void TaskManager::movePelvHandPose()
     }
 
     // //--- COM_id Trajectory (Support Frame)
-    // rd_.link_[COM_id].x_desired    = rd_.link_[COM_id].support_xpos_init;
-    // rd_.link_[COM_id].x_desired.head(2).setZero();
-    // rd_.link_[COM_id].x_desired(1) = rd_.link_[COM_id].support_xpos_init(1) + pelv_dist;
-    // rd_.link_[COM_id].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[COM_id].support_xpos_init, rd_.link_[COM_id].x_desired);
+    rd_.link_[COM_id].x_desired    = rd_.link_[COM_id].support_xpos_init;
+    rd_.link_[COM_id].x_desired.head(2).setZero();
+    rd_.link_[COM_id].x_desired(1) = rd_.link_[COM_id].support_xpos_init(1) + pelv_dist;
+    rd_.link_[COM_id].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[COM_id].support_xpos_init, rd_.link_[COM_id].x_desired);
 
-    // //--- COM_id Trajectory (Base Frame)
-    // rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos;
+    //--- COM_id Trajectory (Base Frame)
+    rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos;
 
-    //--- Both Hand Trajectories (Base Frame)
-    // for (int idx = 1; idx < 3; idx++)
-    // {
-    //     rd_.link_[Left_Hand].x_desired(idx)  = rd_.link_[Left_Hand].local_xpos_init(idx)  + hand_dist;
-    //     rd_.link_[Right_Hand].x_desired(idx) = rd_.link_[Right_Hand].local_xpos_init(idx) - hand_dist;
-    // }
-
+    // --- Hand Trajectory (Base Frame)
     rd_.link_[Left_Hand].x_desired(1)  = rd_.link_[Left_Hand].local_xpos_init(1) - hand_dist;
     rd_.link_[Right_Hand].x_desired(1) = rd_.link_[Right_Hand].local_xpos_init(1) + hand_dist;
 

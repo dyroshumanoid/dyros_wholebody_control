@@ -112,10 +112,6 @@ private:
 
     // Fast loop is ready to run after the first slow-loop update
     bool fast_loop_ready = false;
-
-#ifdef COMPILE_SIMULATION
-    unsigned int sim_tick_ = 0;
-#endif
     bool control_mode_changed = false;
     bool is_6_init = true;
     bool is_7_init = true;

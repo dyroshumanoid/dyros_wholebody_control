@@ -19,9 +19,6 @@ void CbfManager::update()
 
     col_mgr_.computeSelfColAvoidConstraintTerms();
     col_mgr_.computeObstacleAvoidConstraintTerms();
-#ifdef COMPILE_SIMULATION
-    col_mgr_.pubSelfCollisionStatus();
-#endif    
 
     computeJointLimitCbfConstraint();
     computeWorkspaceBoundaryCbfConstraint();
@@ -68,11 +65,11 @@ void CbfManager::computeJointLimitCbfConstraint()
 
     // Lower and upper bounds
     joint_limit_constraints.lbA = (-1.0) * (alpha1_joint_limit + alpha2_joint_limit) * rd_.q_dot_ 
-                                + (alpha1_joint_limit * alpha2_joint_limit) * (q_pos_lb - rd_.q_) 
+                                + (alpha1_joint_limit * alpha2_joint_limit) * (q_pos_lb - rd_.q_) ;
                                 + (1.0 / epsilon_joint_limit) * Eigen::VectorQd::Ones();
     
     joint_limit_constraints.ubA = (-1.0) * (alpha1_joint_limit + alpha2_joint_limit) * rd_.q_dot_ 
-                                + (alpha1_joint_limit * alpha2_joint_limit) * (q_pos_ub - rd_.q_) 
+                                + (alpha1_joint_limit * alpha2_joint_limit) * (q_pos_ub - rd_.q_) ;
                                 - (1.0 / epsilon_joint_limit) * Eigen::VectorQd::Ones();
 }
 

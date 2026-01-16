@@ -25,12 +25,6 @@ CollisionManager::CollisionManager(RobotData &rd, RigidBodyDynamics::Model &mode
     TrackedObstacle::setSamplingTime(1.0/hz_);
     TrackedObstacle::setCounterSize(static_cast<int>(hz_* tracking_duration));
     TrackedObstacle::setCovariances(process_var, process_rate_var, measurement_var);
-
-#ifdef COMPILE_SIMULATION
-    aruco_pose_pub_ = nh_cm_.advertise<geometry_msgs::PoseStamped>("/tocabi_cc/aruco_pose", 10);
-    col_status_pub_ = nh_cm_.advertise<std_msgs::UInt8MultiArray>("/tocabi_cc/collision_status", 10);
-    col_status_msg_.data.resize(Col_Obj_Count);
-#endif
 }
 
 void CollisionManager::callAvailableQueue()
@@ -732,37 +726,6 @@ void CollisionManager::updateObstacle()
         }
     }
 }
-
-//________________________________________________________________________________________________//
-
-//====================================== Obstacle in MuJoCo ======================================//
-
-void CollisionManager::pubQRObstaclePose(const int sim_tick, 
-                                         const double hz)
-{
-    // ts_QR stores the position and orientation data of the QR obstacle in MuJoCo environment
-    aruco_pose_msg_.header.stamp = ros::Time::now();
-    aruco_pose_msg_.header.frame_id = "world";
-
-    // translation
-    aruco_pose_msg_.pose.position.x = 0.53;
-    aruco_pose_msg_.pose.position.y = 0.4 * sin(M_PI/3 * (sim_tick/hz));
-    aruco_pose_msg_.pose.position.z = 1.2;
-    // aruco_pose_msg_.pose.position.y = 0;
-    // aruco_pose_msg_.pose.position.z = 1 + 0.4 * cos(M_PI/8 * (sim_tick/hz));
-
-    // orientation (Quaternion)
-    aruco_pose_msg_.pose.orientation.x = 0.5;
-    aruco_pose_msg_.pose.orientation.y = -0.5;
-    aruco_pose_msg_.pose.orientation.z = -0.5;
-    aruco_pose_msg_.pose.orientation.w = 0.5;
-
-    // tf_broadcaster publishes the transform data
-    aruco_pose_pub_.publish(aruco_pose_msg_);
-}
-
-//________________________________________________________________________________________________//
-
 
 // ugly initialization of static members of tracked obstacles
 int    TrackedObstacle::s_fade_counter_size_     = 0;

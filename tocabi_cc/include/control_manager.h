@@ -11,7 +11,7 @@ class ControlManager
 public:
     ControlManager(RobotData &rd, RigidBodyDynamics::Model &model);
 
-    void update(bool control_mode_changed);
+    void update(bool &cm_init_save_trigger);
     void saveInitialState();
 
 private:

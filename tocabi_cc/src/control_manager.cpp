@@ -8,16 +8,21 @@ ControlManager::ControlManager(RobotData& rd, RigidBodyDynamics::Model& model) :
 
 /*------------------------*/
 /*--- PUBLIC FUNCTIONS ---*/
-void ControlManager::update(bool control_mode_changed)
+void ControlManager::update(bool &cm_init_save_trigger)
 {
     contactStateMachine();
     mapGlobalToBase();
     updateDynamics();
     updateContact();
 
-    if(control_mode_changed)
+    if(cm_init_save_trigger)
     {           
         saveInitialState();
+
+        std::cout << " " << std::endl;
+        std::cout << "===== ControlManager Initial State Saved =====" << std::endl;
+        std::cout << " " << std::endl;
+        cm_init_save_trigger = false;
     }
 }
 
@@ -93,94 +98,6 @@ void ControlManager::mapGlobalToBase()
     rd_.local_q_dot_virtual_.segment(0,3) = rd_.link_[Pelvis].local_v;
     rd_.local_q_dot_virtual_.segment(3,3) = rd_.link_[Pelvis].local_w;
 }
-
-// void ControlManager::mapGlobalToBase()
-// {
-//     //--- Robot States
-//     base_pos = rd_.link_[Pelvis].xpos; 
-//     base_rot = DyrosMath::rotateWithZ(DyrosMath::rot2Euler(rd_.link_[Pelvis].rotm)(2)); 
-    
-//     for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
-//     {
-//         //--- Base frame
-//         rd_.link_[idx].local_xpos           = base_rot.transpose() * (rd_.link_[idx].xpos - base_pos);
-//         rd_.link_[idx].local_rotm           = base_rot.transpose() *  rd_.link_[idx].rotm;                         
-//     }
-
-//     rd_.link_[Pelvis].local_v = base_rot.transpose() * rd_.link_[Pelvis].v;
-//     rd_.link_[Pelvis].local_w = base_rot.transpose() * rd_.link_[Pelvis].w;
-
-//     //--- Virtual Joints
-//     rd_.local_q_virtual_ = rd_.q_virtual_;
-//     rd_.local_q_dot_virtual_ = rd_.q_dot_virtual_;
-//     rd_.local_q_virtual_.segment(0,3) = rd_.link_[Pelvis].local_xpos;
-    
-//     Quaterniond base_quat(rd_.link_[Pelvis].local_rotm);
-//     base_quat.normalize();
-    
-//     rd_.local_q_virtual_(3)  = base_quat.x();
-//     rd_.local_q_virtual_(4)  = base_quat.y();
-//     rd_.local_q_virtual_(5)  = base_quat.z();
-//     rd_.local_q_virtual_(39) = base_quat.w();
-
-//     rd_.local_q_dot_virtual_.segment(0,3) = rd_.link_[Pelvis].local_v;
-//     rd_.local_q_dot_virtual_.segment(3,3) = rd_.link_[Pelvis].local_w;
-
-//     //--- Update Local Model
-//     // Used by: CustomController, CollisionManager, ControlManager
-//     RigidBodyDynamics::UpdateKinematics(model_, rd_.local_q_virtual_, rd_.local_q_dot_virtual_, Eigen::VectorVQd::Zero());
-
-//     rd_.link_[COM_id].local_Jac_v.setZero();
-
-//     for(int idx = 0; idx < LINK_NUMBER; idx++)
-//     {
-//         Eigen::Vector6d Jdotqdot; Jdotqdot.setZero();
-//         Jdotqdot = RigidBodyDynamics::CalcPointAcceleration6D(model_, rd_.local_q_virtual_, rd_.local_q_dot_virtual_, Eigen::VectorVQd::Zero(), idx, Eigen::Vector3d::Zero(), false);
-
-//         rd_.link_[idx].local_Jdotqdot.head(3) = Jdotqdot.tail(3);
-//         rd_.link_[idx].local_Jdotqdot.tail(3) = Jdotqdot.head(3);
-
-//         Eigen::MatrixXd jac; jac.setZero(6, MODEL_DOF_VIRTUAL);
-//         RigidBodyDynamics::CalcPointJacobian6D(model_, rd_.local_q_virtual_, idx, Eigen::Vector3d::Zero(), jac, false);
-
-//         rd_.link_[idx].local_Jac_v = jac.bottomRows(3);
-//         rd_.link_[idx].local_Jac_w = jac.topRows(3);
-//         rd_.link_[idx].local_Jac.topRows(3)    = rd_.link_[idx].local_Jac_v;
-//         rd_.link_[idx].local_Jac.bottomRows(3) = rd_.link_[idx].local_Jac_w;
-
-//         Eigen::MatrixXd local_jac_com_v; local_jac_com_v.setZero(3, MODEL_DOF_VIRTUAL);
-//         RigidBodyDynamics::CalcPointJacobian(model_, rd_.local_q_virtual_, idx, model_.mBodies[idx].mCenterOfMass, local_jac_com_v, false);
-
-//         rd_.link_[idx].local_jac_com_v = local_jac_com_v;
-        
-//         rd_.link_[COM_id].local_Jac_v += rd_.link_[idx].local_jac_com_v * rd_.link_[idx].mass / rd_.link_[COM_id].mass;
-
-//         Eigen::Vector6d local_vw = RigidBodyDynamics::CalcPointVelocity6D(model_, rd_.local_q_virtual_, rd_.local_q_dot_virtual_, idx, Eigen::Vector3d::Zero(), false);
-        
-//         rd_.link_[idx].local_v = local_vw.tail(3);
-//         rd_.link_[idx].local_w = local_vw.head(3);
-
-//         // std::cout << "rd_.link_[idx].local_Jac_v: " << rd_.link_[idx].local_Jac_v << std::endl; 
-//         // std::cout << "rd_.link_[idx].local_Jac_w: " << rd_.link_[idx].local_Jac_w << std::endl;     
-//     }
-
-//     rd_.link_[COM_id].local_v = rd_.link_[COM_id].local_Jac_v * rd_.local_q_dot_virtual_;
-
-
-//     //--- Contact Jacobian
-//     rd_.local_J_C.setZero(12, MODEL_DOF_VIRTUAL);
-
-//     Eigen::MatrixXd local_J_C_left, local_J_C_right;
-//     local_J_C_left.setZero(6, MODEL_DOF_VIRTUAL); local_J_C_right.setZero(6, MODEL_DOF_VIRTUAL);
-
-//     RigidBodyDynamics::CalcPointJacobian6D(model_, rd_.local_q_virtual_, Left_Foot, rd_.ee_[0].contact_point, local_J_C_left, false);
-//     RigidBodyDynamics::CalcPointJacobian6D(model_, rd_.local_q_virtual_, Right_Foot, rd_.ee_[1].contact_point, local_J_C_right, false);
-
-//     rd_.local_J_C.block(0, 0, 3, MODEL_DOF_VIRTUAL) = local_J_C_left.bottomRows(3);
-//     rd_.local_J_C.block(3, 0, 3, MODEL_DOF_VIRTUAL) = local_J_C_left.topRows(3);
-//     rd_.local_J_C.block(6, 0, 3, MODEL_DOF_VIRTUAL) = local_J_C_right.bottomRows(3);
-//     rd_.local_J_C.block(9, 0, 3, MODEL_DOF_VIRTUAL) = local_J_C_right.topRows(3);
-// }
 
 void ControlManager::updateDynamics()
 {

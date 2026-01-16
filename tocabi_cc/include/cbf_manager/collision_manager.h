@@ -460,20 +460,6 @@ public:
 private:
     // vector of tracked obstacles
     std::vector<TrackedObstacle> tracked_obstacles_;
-
-    //____________________________________________________________________________//
-
-    //============================ Obstacle in MuJoCo ============================//
-public:
-    /**
-     * @brief Publish the desired position and orientation of a QR code (ArUCo) obstacle
-     *        in the MuJoCo simulation environment.
-     * 
-     * @param sim_tick simulation tick at which to apply the new obstacle position.
-     * @param hz control frequency
-     */
-    void pubQRObstaclePose(const int sim_tick, 
-                           const double hz);
 };
 
 #endif // COLLISION_MANAGER_H

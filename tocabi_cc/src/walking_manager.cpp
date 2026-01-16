@@ -1,9 +1,5 @@
 #include "walking_manager.h"
 
-ofstream cp_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/cp_log.txt");
-ofstream zmp_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/zmp_log.txt");
-ofstream com_log( "/home/kwan/catkin_ws/src/tocabi_cc/data/com_log.txt");
-
 WalkingManager::WalkingManager(RobotData &rd) : rd_(rd)
 {
 }
@@ -410,10 +406,6 @@ void WalkingManager::contactWrenchCalculator()
 
     rd_.LF_FT_DES = lfoot_contact_wrench;
     rd_.RF_FT_DES = rfoot_contact_wrench;
-
-    cp_log << cp_measured_.transpose() << " " << cp_desired_.transpose() << std::endl;
-    zmp_log << zmp_x_ref << " " << zmp_y_ref << std::endl;
-    com_log << rd_.link_[COM_id].support_xpos.transpose() << " " << rd_.link_[COM_id].support_v.transpose() << std::endl;
 }
 
 void WalkingManager::footstepOptimizer()
