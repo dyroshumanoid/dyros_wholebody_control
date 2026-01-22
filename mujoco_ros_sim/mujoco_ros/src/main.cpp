@@ -456,7 +456,6 @@ int main(int argc, char **argv)
     }
 
     // start simulation thread
-    ROS_INFO("debugging--Hi");
     // // start simulation thread
     std::thread simthread(simulate);
     std::thread visual_thread;

@@ -10,7 +10,9 @@ tocabi_msgs
 eigen_conversions
 )
 
-# find_package(casadi REQUIRED)   # KW add (FOR CASADI)
+find_package(pinocchio REQUIRED)  
+find_package(casadi REQUIRED)
+
 
 catkin_package(
   INCLUDE_DIRS include
@@ -19,8 +21,8 @@ catkin_package(
   # DEPENDS system_lib
 )
 
-# set(LIBRARY_DIRS /usr/local/lib)  # KW add (FOR CASADI)
-# set(CASADI_INCLUDE_DIR /usr/local/include/casadi) # KW add (FOR CASADI)
+set(LIBRARY_DIRS /usr/local/lib)  
+set(CASADI_INCLUDE_DIR /usr/local/include/casadi)
 
 execute_process(COMMAND uname -r OUTPUT_VARIABLE UNAME_RES OUTPUT_STRIP_TRAILING_WHITESPACE)
 
@@ -38,7 +40,6 @@ endif()
 ###########
 ## Build ##
 ###########
-
 include_directories(
     include
     ${catkin_INCLUDE_DIRS}
@@ -46,21 +47,15 @@ include_directories(
 
 add_library(${PROJECT_NAME}
   src/cc.cpp
-  src/control_manager.cpp
-  src/task_manager.cpp
-  src/walking_manager.cpp
-  src/teleop_manager.cpp
-  src/cbf_manager.cpp
-  src/collision_manager.cpp
-  src/kin_wbc.cpp
-  src/dyn_wbc.cpp
-  src/utils.cpp
+  src/mpc_solver.cpp
 )
+
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES}
-  # ${LIBRARY_DIRS}/libcasadi.so  # KW add (FOR CASADI)
+  ${LIBRARY_DIRS}/libcasadi.so  
+  pinocchio::pinocchio            
 )
 
 install(TARGETS ${PROJECT_NAME}

@@ -804,7 +804,7 @@ void *TocabiController::Thread1() // Thread1, running with 2Khz.
                     RequestThread2();
                     my_cc.computeSlow();
 
-                    const int mpc_hz = 50.0;
+                    const int mpc_hz = my_cc.getMpcFrequency();
 
                     if (rd_.tc_.mode == 6 || rd_.tc_.mode == 7)
                     {
@@ -1008,7 +1008,7 @@ void *TocabiController::Thread3()
 #ifdef COMPILE_TOCABI_CC
                 if (rd_.tc_.mode == 6 || rd_.tc_.mode == 7)
                 {
-                    // my_cc.computeThread3();
+                    my_cc.computeThread3();
                 }
 #endif
 #ifdef COMPILE_TOCABI_AVATAR

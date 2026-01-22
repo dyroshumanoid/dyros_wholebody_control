@@ -1,17 +1,17 @@
 #ifndef TOCABI_CONTROLLER_H
 #define TOCABI_CONTROLLER_H
 
-#include "tocabi_controller/state_manager.h"
-#include "wholebody_functions.h"
-
-#include "tocabi_msgs/TaskGainCommand.h"
-
 #ifdef COMPILE_TOCABI_CC
 #include "cc.h"
 #endif
 #ifdef COMPILE_TOCABI_AVATAR
 #include "avatar.h"
 #endif
+
+#include "tocabi_controller/state_manager.h"
+#include "wholebody_functions.h"
+
+#include "tocabi_msgs/TaskGainCommand.h"
 
 class TocabiController
 {

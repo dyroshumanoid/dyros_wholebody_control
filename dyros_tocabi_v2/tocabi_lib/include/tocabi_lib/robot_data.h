@@ -324,7 +324,7 @@ struct DataContainer
     Vector12d qlock_des;
     bool locklower = false;
 
-    bool useSimVirtual = false;
+    bool useSimVirtual = true;
 
     double torqueOnTime = -1;
     double torqueOffTime = -1;
