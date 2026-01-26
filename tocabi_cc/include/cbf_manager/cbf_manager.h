@@ -14,6 +14,8 @@ public:
     ~CbfManager();
 
     void callAvailableQueue();
+    void setCbfMode(const CbfType& cbf_mode_);
+    CbfType getCbfMode() const { return cbf_mode; }
 
     void update();
     
@@ -30,8 +32,7 @@ public:
     // =========================
     // Joint limit CBF
     // =========================
-    void setJointLimitCbfParameters(const double& alpha1,
-                                    const double& alpha2,
+    void setJointLimitCbfParameters(const double& alpha,
                                     const double& epsilon);
     void setJointLimitBoundaries(const Eigen::VectorQd& q_pos_lb,
                                  const Eigen::VectorQd& q_pos_ub);
@@ -43,8 +44,7 @@ public:
     // =========================
     // Workspace boundary CBF
     // =========================
-    void setWorkspaceBoundaryCbfParameters(const double& alpha1,
-                                           const double& alpha2,
+    void setWorkspaceBoundaryCbfParameters(const double& alpha,
                                            const double& epsilon);
     void setWorkspaceBoundaryPairs(const std::vector<WorkspaceBoundaryPair>& pairs);
     void computeWorkspaceBoundaryCbfConstraint();
@@ -56,8 +56,7 @@ public:
     // =========================
     // Self-collision avoidance CBF
     // =========================
-    void setSelfCollisionCbfParameters(const double &alpha1, 
-                                       const double &alpha2, 
+    void setSelfCollisionCbfParameters(const double &alpha, 
                                        const double &epsilon);
     void computeSelfCollisionCbfConstraint();
     void getSelfCollisionCbfConstraint(Eigen::Ref<Eigen::MatrixXd> A,
@@ -68,8 +67,7 @@ public:
     // =========================
     // Obstacle avoidance CBF
     // =========================
-    void setObstacleAvoidanceCbfParameters(const double &alpha1, 
-                                           const double &alpha2, 
+    void setObstacleAvoidanceCbfParameters(const double &alpha, 
                                            const double &epsilon);
     void computeObstacleAvoidanceCbfConstraint();
     void getObstacleAvoidanceCbfConstraint(Eigen::Ref<Eigen::MatrixXd> A,
@@ -89,29 +87,27 @@ private:
                                      Eigen::MatrixXd& Jqdot_AB) const;
 
 private:
+    CbfType cbf_mode = CbfType::None;
+
     // --- Joint-limit CBF params & bounds
-    double alpha1_joint_limit{0.0};
-    double alpha2_joint_limit{0.0};
+    double alpha_joint_limit{0.0};
     double epsilon_joint_limit{1.0};
 
     Eigen::VectorQd q_pos_lb;
     Eigen::VectorQd q_pos_ub;
 
     // --- Workspace boundary CBF params & pairs
-    double alpha1_workspace{0.0};
-    double alpha2_workspace{0.0};
+    double alpha_workspace{0.0};
     double epsilon_workspace{1.0};
 
     std::vector<WorkspaceBoundaryPair> workspace_boundary_pairs_;
 
     // --- Self-collision avoidance CBF params
-    double alpha1_self_collision{0.0};
-    double alpha2_self_collision{0.0};
+    double alpha_self_collision{0.0};
     double epsilon_self_collision{1.0};
 
     // --- Obstacle avoidance CBF params
-    double alpha1_obstacle_avoidance{0.0};
-    double alpha2_obstacle_avoidance{0.0};
+    double alpha_obstacle_avoidance{0.0};
     double epsilon_obstacle_avoidance{1.0};
 
 

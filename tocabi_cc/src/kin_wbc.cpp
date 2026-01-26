@@ -2,10 +2,7 @@
 
 using namespace TOCABI;
 
-KinWBC::KinWBC(RobotData& rd) : rd_(rd) 
-{
-
-}
+KinWBC::KinWBC(RobotData& rd, CbfManager& cbf_mgr) : rd_(rd), cbf_mgr_(cbf_mgr) { }
 
 void KinWBC::setTaskHierarchy(const TaskMotionType& motion_mode_)
 {
@@ -86,6 +83,10 @@ void KinWBC::computeTaskSpaceKinematicWBC()
         qdot_des += J_pinv * ((q_init_des.tail(UPPERBODY_DOF) - rd_.q_.tail(UPPERBODY_DOF)) - J * qdot_des);
     }
 
+    if(cbf_mgr_.getCbfMode() == CbfType::Kin){
+        qdot_des = safetyFilter();
+    }
+
     rd_.q_desired_virtual = integrate(rd_.local_q_virtual_, qdot_des);
     rd_.q_desired = rd_.q_desired_virtual.tail(MODEL_DOF);
 
@@ -139,4 +140,174 @@ void KinWBC::setInitialConfiguration(const Eigen::VectorQd &q_init_des_)
 {
     q_init_des.setZero();
     q_init_des = q_init_des_;
+}
+
+Eigen::VectorVQd KinWBC::safetyFilter()
+{
+    constraints_.clear();
+    calcCostHess();
+    calcCostGrad();
+    calcEqualityConstraint();
+    calcInequalityConstraint();
+
+    total_num_state = constraints_.empty() ? 0 : constraints_[0].A.cols();
+
+    static bool is_filter_init_ = true;
+    if(is_filter_init_ == true)
+    {
+        total_num_constraints = 0;
+        total_num_state = constraints_.empty() ? 0 : constraints_[0].A.cols();
+        for (const auto& c : constraints_) {total_num_constraints += c.A.rows();}
+
+        QP_safety_filter.InitializeProblemSize(total_num_state, total_num_constraints);
+
+        A_const   = Eigen::MatrixXd::Zero(total_num_constraints, total_num_state);
+        lbA_const = Eigen::VectorXd::Zero(total_num_constraints);
+        ubA_const = Eigen::VectorXd::Zero(total_num_constraints);
+
+        qdot_safety.setZero();
+
+        is_filter_init_ = false;
+    }
+
+    //--- Stack Constraints
+    int row_idx  = 0;
+    for (const auto& c : constraints_) {
+        int rows = c.A.rows();
+        A_const.block(row_idx, 0, rows, total_num_state) = c.A;
+        lbA_const.segment(row_idx , rows)    = c.lbA;
+        ubA_const.segment(row_idx , rows)    = c.ubA;
+        row_idx  += rows;
+    }
+
+    checkGradHessSize();
+
+    QP_safety_filter.EnableEqualityCondition(1e-8);
+    QP_safety_filter.UpdateMinProblem(Hess, grad);
+    QP_safety_filter.DeleteSubjectToAx();
+    QP_safety_filter.UpdateSubjectToAx(A_const, lbA_const, ubA_const);
+
+    bool qp_status = true;
+    Eigen::VectorXd X_; X_.setZero(total_num_state);
+    if(QP_safety_filter.SolveQPoases(500, X_, true))
+    {
+        qdot_safety = X_.segment(0, MODEL_DOF_VIRTUAL);
+        qp_status = true;
+    }
+    else
+    {
+        //--- CONSTRAINTS VIOLATION CHECKER
+        if(is_cannot_solve_qp_ == true)   
+        {
+            Eigen::VectorXd Ax = A_const * X_; 
+
+            for (int i = 0; i < A_const.rows(); ++i)
+            {
+                double val = Ax(i);
+                double l = lbA_const(i);
+                double u = ubA_const(i);
+
+                double eps = 1e-5;
+
+                if (val < l - eps)
+                {
+                    std::cerr << "[Constraint Violation] Row " << i << ": " << val << " < lbA = " << l << std::endl;
+                }
+                else if (val > u + eps)
+                {
+                    std::cerr << "[Constraint Violation] Row " << i << ": " << val << " > ubA = " << u << std::endl;
+                }
+            }
+            is_cannot_solve_qp_ = false;
+        }
+
+        qdot_safety.setZero();
+        std::cout << "Kin WBC SolveQPoases ERROR: Unable to find a valid solution." << std::endl;
+        qp_status = false;
+    }
+
+    return (qdot_safety);
+}
+
+void KinWBC::calcCostHess()
+{
+    Hess.setIdentity(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL);
+}
+
+void KinWBC::calcCostGrad()
+{
+    grad.setZero(MODEL_DOF_VIRTUAL);
+    grad = (-1.0) * Hess * qdot_des;
+}
+
+void KinWBC::calcEqualityConstraint()
+{
+}
+
+void KinWBC::calcInequalityConstraint()
+{
+    //--- (1) Joint Limit constraints
+    Eigen::MatrixXd A_qpos; A_qpos.setZero(MODEL_DOF, MODEL_DOF_VIRTUAL);
+    Eigen::VectorQd lbA_qpos; lbA_qpos.setZero(MODEL_DOF); 
+    Eigen::VectorQd ubA_qpos; ubA_qpos.setZero(MODEL_DOF);
+    
+    cbf_mgr_.getJointLimitCbfConstraint(A_qpos.block(0, 6, MODEL_DOF, MODEL_DOF), lbA_qpos, ubA_qpos);
+
+    constraints_.push_back({A_qpos, lbA_qpos, ubA_qpos}); 
+
+    //--- (2) Workspace Boundary constraints
+    const int num_workspace_cbf = cbf_mgr_.getNumWorkspaceBoundaryPairs();
+    Eigen::MatrixXd A_workspace; A_workspace.setZero(num_workspace_cbf, MODEL_DOF_VIRTUAL);
+    Eigen::VectorXd lbA_workspace; lbA_workspace.setZero(num_workspace_cbf); 
+    Eigen::VectorXd ubA_workspace; ubA_workspace.setZero(num_workspace_cbf);
+    
+    cbf_mgr_.getWorkspaceBoundaryCbfConstraint(A_workspace, lbA_workspace, ubA_workspace);
+
+    constraints_.push_back({A_workspace, lbA_workspace, ubA_workspace});
+
+    //--- (3) Self-collision avoidance constraints
+    const int num_self_collision_cbf = cbf_mgr_.getNumSelfCollisionPairs();
+    Eigen::MatrixXd A_self_collision; A_self_collision.setZero(num_self_collision_cbf, MODEL_DOF_VIRTUAL);
+    Eigen::VectorXd lbA_self_collision; lbA_self_collision.setZero(num_self_collision_cbf); 
+    Eigen::VectorXd ubA_self_collision; ubA_self_collision.setZero(num_self_collision_cbf);
+
+    cbf_mgr_.getSelfCollisionCbfConstraint(A_self_collision, lbA_self_collision, ubA_self_collision);
+
+    constraints_.push_back({A_self_collision, lbA_self_collision, ubA_self_collision});
+
+    //--- (4) Obstacle avoidance constraints
+    const int num_obstacle_avoidance_cbf = cbf_mgr_.getNumObstacleAvoidancePairs();
+    Eigen::MatrixXd A_obstacle_avoidance; A_obstacle_avoidance.setZero(num_obstacle_avoidance_cbf, MODEL_DOF_VIRTUAL);
+    Eigen::VectorXd lbA_obstacle_avoidance; lbA_obstacle_avoidance.setZero(num_obstacle_avoidance_cbf); 
+    Eigen::VectorXd ubA_obstacle_avoidance; ubA_obstacle_avoidance.setZero(num_obstacle_avoidance_cbf);
+
+    cbf_mgr_.getObstacleAvoidanceCbfConstraint(A_obstacle_avoidance, lbA_obstacle_avoidance, ubA_obstacle_avoidance);
+    
+    constraints_.push_back({A_obstacle_avoidance, lbA_obstacle_avoidance, ubA_obstacle_avoidance});
+} 
+
+void KinWBC::checkGradHessSize()
+{
+    static bool is_gradhess_init_ = true;
+    if(is_gradhess_init_ == true)
+    {
+        std::cout << "==============================================" << std::endl;
+        std::cout << "===== KinWBC COST & CONSTRAINTS DIM INFO =====" << std::endl;
+        std::cout << "==============================================" << std::endl;
+
+        std::cout << "total_num_state: " << total_num_state << std::endl;
+        std::cout << "total_num_constraints: " << total_num_constraints << std::endl;
+        std::cout << std::endl;
+
+        std::cout << "Hess size: " << Hess.rows() << " x " << Hess.cols() << std::endl;
+        std::cout << "grad size: " << grad.size() << std::endl;
+        std::cout << std::endl;
+
+        std::cout << "A: " << A_const.rows() << " x " << A_const.cols() << std::endl;
+        std::cout << "lbA size: " << lbA_const.size() << std::endl;
+        std::cout << "ubA size: " << ubA_const.size() << std::endl;
+        std::cout << std::endl;
+
+        is_gradhess_init_ = false;
+    }
 }

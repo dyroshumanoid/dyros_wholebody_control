@@ -75,6 +75,7 @@ public:
 
     //--- Test Function
     TaskMotionType motion_mode_ = TaskMotionType::None;
+    CbfType cbf_mode_ = CbfType::None;
 
     Eigen::VectorQd torque_pd;
     Eigen::VectorQd torque_idn;

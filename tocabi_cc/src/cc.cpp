@@ -7,7 +7,13 @@ ofstream torque_idn_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_idn_log.
 ofstream torque_pd_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
 ofstream computation_time_log("/home/kwan/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
 
-CustomController::CustomController(RobotData &rd) : rd_(rd), cm_(rd, model), tm_(rd), cbf_mgr_(rd, model), kin_wbc_(rd), dyn_wbc_(rd, cbf_mgr_), teleop_(rd)
+CustomController::CustomController(RobotData &rd) : rd_(rd), 
+                                                    cm_(rd, model), 
+                                                    tm_(rd), 
+                                                    cbf_mgr_(rd, model), 
+                                                    kin_wbc_(rd, cbf_mgr_), 
+                                                    dyn_wbc_(rd, cbf_mgr_), 
+                                                    teleop_(rd)
 {
     //--- ROS Node Handle
     nh_cc_.setCallbackQueue(&queue_cc_);
@@ -92,7 +98,6 @@ void CustomController::computeFast()
             dyn_wbc_.updateControlCommands(contact_wrench_cmd_fast, qddot_cmd_fast);
             torque_idn_fast.setZero();
             torque_idn_fast = dyn_wbc_.computeDynamicWBC();
-
 
             pubDataFromFastToSlow();
 
@@ -251,7 +256,9 @@ void CustomController::pubDataFromSlowToFast()
         contact_wrench_cmd_container.head(6) = rd_.LF_FT_DES;
         contact_wrench_cmd_container.tail(6) = rd_.RF_FT_DES;
 
-        cbf_mgr_.pubDataFromSlowToFast();
+        if(cbf_mgr_.getCbfMode() == CbfType::Dyn){
+            cbf_mgr_.pubDataFromSlowToFast();
+        }
 
         fast_loop_ready = true;
 
@@ -272,7 +279,9 @@ void CustomController::subDataFromSlowToFast()
         contact_wrench_cmd_fast = contact_wrench_cmd_container;
         qddot_cmd_fast = qddot_cmd_container;
 
-        cbf_mgr_.subDataFromSlowToFast();
+        if(cbf_mgr_.getCbfMode() == CbfType::Dyn){
+            cbf_mgr_.subDataFromSlowToFast();
+        }
 
         atb_control_command_update_ = false;
     }
@@ -429,6 +438,7 @@ void CustomController::loadParams()
         ROS_ERROR("Motion mode idx error: got %d", motion_mode_idx);
         assert(motion_mode_idx == 0 || motion_mode_idx == 1 || motion_mode_idx == 2 || motion_mode_idx == 3 || motion_mode_idx == 4);
     }
+
     const char *mode_name =
         (motion_mode_ == TaskMotionType::None) ? "None" 
       : (motion_mode_ == TaskMotionType::PelvHand) ? "PelvHand"
@@ -436,6 +446,9 @@ void CustomController::loadParams()
       : (motion_mode_ == TaskMotionType::Walking)  ? "Walking"
       : (motion_mode_ == TaskMotionType::TeleOperation)  ? "TeleOperation"
       : "Unknown";
+    std::cout << " " << std::endl;
+    std::cout << "===== Motion Mode : " << mode_name << " =====" << std::endl;
+    std::cout << " " << std::endl;
 
     kin_wbc_.setTaskHierarchy(motion_mode_);
 
@@ -446,15 +459,13 @@ void CustomController::loadParams()
         // rd_.q_vel_l_lim.segment(12, MODEL_DOF - 12).setZero();
         // rd_.q_vel_h_lim.segment(12, MODEL_DOF - 12).setZero();
 
+        std::cout << " " << std::endl;
         std::cout << "rd_.q_pos_l_lim: " << rd_.q_pos_l_lim.transpose() << std::endl;
         std::cout << "rd_.q_pos_h_lim: " << rd_.q_pos_h_lim.transpose() << std::endl; 
         std::cout << "rd_.q_vel_l_lim: " << rd_.q_vel_l_lim.transpose() << std::endl;
         std::cout << "rd_.q_vel_h_lim: " << rd_.q_vel_h_lim.transpose() << std::endl;
+        std::cout << " " << std::endl;
     }
-
-    std::cout << " " << std::endl;
-    std::cout << "===== Motion Mode : " << mode_name << " =====" << std::endl;
-    std::cout << " " << std::endl;
 
     //--- Task Parameter
     nh_cc_.getParam("/tocabi_controller/task_param/traj_time", traj_time_);
@@ -513,35 +524,65 @@ void CustomController::loadParams()
     std::cout << " " << std::endl;
 
     //--- CBF Parameters
-    double joint_limit_cbf_alpha1, joint_limit_cbf_alpha2, joint_limit_cbf_epsilon;
-    nh_cc_.getParam("/tocabi_controller/cbf/joint_limit_cbf_alpha1", joint_limit_cbf_alpha1);
-    nh_cc_.getParam("/tocabi_controller/cbf/joint_limit_cbf_alpha2", joint_limit_cbf_alpha2);
-    nh_cc_.getParam("/tocabi_controller/cbf/joint_limit_cbf_epsilon", joint_limit_cbf_epsilon);
-    cbf_mgr_.setJointLimitCbfParameters(joint_limit_cbf_alpha1, joint_limit_cbf_alpha2, joint_limit_cbf_epsilon);
+    int cbf_mode_idx = 0;
+    nh_cc_.getParam("/tocabi_controller/cbf/cbf_mode", cbf_mode_idx);
+    if (cbf_mode_idx == 1){ cbf_mode_ = CbfType::Kin;}
+    else if (cbf_mode_idx == 2){ cbf_mode_ = CbfType::Dyn; }
+    else {
+        ROS_ERROR("Cbf mode idx error: got %d", cbf_mode_idx);
+        assert(cbf_mode_idx == 1 || cbf_mode_idx == 2);
+    }
+    const char *cbf_mode_name =
+        (cbf_mode_ == CbfType::Kin)  ? "Kin"
+      : (cbf_mode_ == CbfType::Dyn)  ? "Dyn"
+      : "Unknown";
+    std::cout << " " << std::endl;
+    std::cout << "========== CBF Parameters ==========" << std::endl;
+    std::cout << "CBF Mode : " << cbf_mode_name << std::endl;
+
+    cbf_mgr_.setCbfMode(cbf_mode_);
+
+    std::string cbf_ns;
+    if (cbf_mode_ == CbfType::Dyn)
+        cbf_ns = "/tocabi_controller/cbf/dyn/";
+    else if (cbf_mode_ == CbfType::Kin)
+        cbf_ns = "/tocabi_controller/cbf/kin/";
+
+    double joint_limit_cbf_alpha, joint_limit_cbf_epsilon;
+    nh_cc_.getParam(cbf_ns + "joint_limit_cbf_alpha", joint_limit_cbf_alpha);
+    nh_cc_.getParam(cbf_ns + "joint_limit_cbf_epsilon", joint_limit_cbf_epsilon);
+    cbf_mgr_.setJointLimitCbfParameters(joint_limit_cbf_alpha, joint_limit_cbf_epsilon);
     cbf_mgr_.setJointLimitBoundaries(rd_.q_pos_l_lim, rd_.q_pos_h_lim);
 
-    double workspace_boundary_cbf_alpha1, workspace_boundary_cbf_alpha2, workspace_boundary_cbf_epsilon, workspace_boundary_cbf_lhand, workspace_boundary_cbf_rhand;
-    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_alpha1", workspace_boundary_cbf_alpha1);
-    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_alpha2", workspace_boundary_cbf_alpha2);
-    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_epsilon", workspace_boundary_cbf_epsilon);
-    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_lhand", workspace_boundary_cbf_lhand);
-    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_rhand", workspace_boundary_cbf_rhand);
-    cbf_mgr_.setWorkspaceBoundaryCbfParameters(workspace_boundary_cbf_alpha1, workspace_boundary_cbf_alpha2, workspace_boundary_cbf_epsilon);
+    double workspace_boundary_cbf_alpha, workspace_boundary_cbf_epsilon, workspace_boundary_cbf_hand;
+    nh_cc_.getParam(cbf_ns + "workspace_boundary_cbf_alpha", workspace_boundary_cbf_alpha);
+    nh_cc_.getParam(cbf_ns + "workspace_boundary_cbf_epsilon", workspace_boundary_cbf_epsilon);
+    nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_hand", workspace_boundary_cbf_hand);
+    cbf_mgr_.setWorkspaceBoundaryCbfParameters(workspace_boundary_cbf_alpha, workspace_boundary_cbf_epsilon);
     std::vector<WorkspaceBoundaryPair> workspace_pairs = {
-        {Left_Hand,  Left_Hand  - 5, workspace_boundary_cbf_lhand},
-        {Right_Hand, Right_Hand - 5, workspace_boundary_cbf_rhand},
+        {Left_Hand,  Left_Hand  - 5, workspace_boundary_cbf_hand},
+        {Right_Hand, Right_Hand - 5, workspace_boundary_cbf_hand},
     };
     cbf_mgr_.setWorkspaceBoundaryPairs(workspace_pairs);
 
-    double self_collision_cbf_alpha1, self_collision_cbf_alpha2, self_collision_cbf_epsilon;
-    nh_cc_.getParam("/tocabi_controller/cbf/self_collision_cbf_alpha1",  self_collision_cbf_alpha1);
-    nh_cc_.getParam("/tocabi_controller/cbf/self_collision_cbf_alpha2",  self_collision_cbf_alpha2);
-    nh_cc_.getParam("/tocabi_controller/cbf/self_collision_cbf_epsilon", self_collision_cbf_epsilon);
-    cbf_mgr_.setSelfCollisionCbfParameters(self_collision_cbf_alpha1, self_collision_cbf_alpha2, self_collision_cbf_epsilon);
+    double self_collision_cbf_alpha, self_collision_cbf_epsilon;
+    nh_cc_.getParam(cbf_ns + "self_collision_cbf_alpha",  self_collision_cbf_alpha);
+    nh_cc_.getParam(cbf_ns + "self_collision_cbf_epsilon", self_collision_cbf_epsilon);
+    cbf_mgr_.setSelfCollisionCbfParameters(self_collision_cbf_alpha, self_collision_cbf_epsilon);
 
-    double obstacle_avoidance_cbf_alpha1, obstacle_avoidance_cbf_alpha2, obstacle_avoidance_cbf_epsilon;
-    nh_cc_.getParam("/tocabi_controller/cbf/obstacle_avoidance_cbf_alpha1",  obstacle_avoidance_cbf_alpha1);
-    nh_cc_.getParam("/tocabi_controller/cbf/obstacle_avoidance_cbf_alpha2",  obstacle_avoidance_cbf_alpha2);
-    nh_cc_.getParam("/tocabi_controller/cbf/obstacle_avoidance_cbf_epsilon", obstacle_avoidance_cbf_epsilon);
-    cbf_mgr_.setObstacleAvoidanceCbfParameters(obstacle_avoidance_cbf_alpha1, obstacle_avoidance_cbf_alpha2, obstacle_avoidance_cbf_epsilon);
+    double obstacle_avoidance_cbf_alpha, obstacle_avoidance_cbf_epsilon;
+    nh_cc_.getParam(cbf_ns + "obstacle_avoidance_cbf_alpha",  obstacle_avoidance_cbf_alpha);
+    nh_cc_.getParam(cbf_ns + "obstacle_avoidance_cbf_epsilon", obstacle_avoidance_cbf_epsilon);
+    cbf_mgr_.setObstacleAvoidanceCbfParameters(obstacle_avoidance_cbf_alpha, obstacle_avoidance_cbf_epsilon);
+
+    std::cout << " Joint Limit CBF: " << std::endl;
+    std::cout << "   alpha   : " << joint_limit_cbf_alpha << ", epsilon : " << joint_limit_cbf_epsilon << std::endl;
+    std::cout << " Workspace Boundary CBF: "  << std::endl;
+    std::cout << "   alpha   : " << workspace_boundary_cbf_alpha << ", epsilon : " << workspace_boundary_cbf_epsilon << ", hand_dist : " << workspace_boundary_cbf_hand << std::endl;
+    std::cout << " Self Collision CBF: " << std::endl;
+    std::cout << "   alpha   : " << self_collision_cbf_alpha << ", epsilon : " << self_collision_cbf_epsilon << std::endl;
+    std::cout << " Obstacle Avoidance CBF: " << std::endl;
+    std::cout << "   alpha   : " << obstacle_avoidance_cbf_alpha << ", epsilon : " << obstacle_avoidance_cbf_epsilon << std::endl;
+    std::cout << "====================================" << std::endl;
+    std::cout << " " << std::endl;
 }

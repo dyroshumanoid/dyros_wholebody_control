@@ -10,6 +10,11 @@ void CbfManager::callAvailableQueue()
     col_mgr_.callAvailableQueue();
 }
 
+void CbfManager::setCbfMode(const CbfType& cbf_mode_)
+{
+    cbf_mode = cbf_mode_;
+}
+
 void CbfManager::update()
 {
     col_mgr_.pubBasetoHeadTransform();
@@ -45,10 +50,9 @@ void CbfManager::subDataFromSlowToFast()
 // =========================
 // Joint limit CBF
 // =========================
-void CbfManager::setJointLimitCbfParameters(const double& alpha1, const double& alpha2, const double& epsilon)
+void CbfManager::setJointLimitCbfParameters(const double& alpha, const double& epsilon)
 {
-    alpha1_joint_limit = alpha1;
-    alpha2_joint_limit = alpha2;
+    alpha_joint_limit = alpha;
     epsilon_joint_limit = epsilon;
 }
 
@@ -64,32 +68,53 @@ void CbfManager::computeJointLimitCbfConstraint()
     joint_limit_constraints.A.setIdentity(MODEL_DOF, MODEL_DOF);
 
     // Lower and upper bounds
-    joint_limit_constraints.lbA = (-1.0) * (alpha1_joint_limit + alpha2_joint_limit) * rd_.q_dot_ 
-                                + (alpha1_joint_limit * alpha2_joint_limit) * (q_pos_lb - rd_.q_) ;
-                                + (1.0 / epsilon_joint_limit) * Eigen::VectorQd::Ones();
-    
-    joint_limit_constraints.ubA = (-1.0) * (alpha1_joint_limit + alpha2_joint_limit) * rd_.q_dot_ 
-                                + (alpha1_joint_limit * alpha2_joint_limit) * (q_pos_ub - rd_.q_) ;
-                                - (1.0 / epsilon_joint_limit) * Eigen::VectorQd::Ones();
+    if(cbf_mode == CbfType::Dyn)
+    {
+        joint_limit_constraints.lbA = (-1.0) * (alpha_joint_limit + alpha_joint_limit) * rd_.q_dot_ 
+                                    + (alpha_joint_limit * alpha_joint_limit) * (q_pos_lb - rd_.q_) ;
+                                    + (1.0 / epsilon_joint_limit) * Eigen::VectorQd::Ones();
+        
+        joint_limit_constraints.ubA = (-1.0) * (alpha_joint_limit + alpha_joint_limit) * rd_.q_dot_ 
+                                    + (alpha_joint_limit * alpha_joint_limit) * (q_pos_ub - rd_.q_) ;
+                                    - (1.0 / epsilon_joint_limit) * Eigen::VectorQd::Ones();
+    }
+    else if (cbf_mode == CbfType::Kin)
+    {
+        joint_limit_constraints.lbA = alpha_joint_limit * (q_pos_lb - rd_.q_) + (1.0 / epsilon_joint_limit) * Eigen::VectorQd::Ones();
+        
+        joint_limit_constraints.ubA = alpha_joint_limit * (q_pos_ub - rd_.q_) - (1.0 / epsilon_joint_limit) * Eigen::VectorQd::Ones();
+    }
+
 }
 
 void CbfManager::getJointLimitCbfConstraint(Eigen::Ref<Eigen::MatrixXd> A, Eigen::VectorQd &lbA, Eigen::VectorQd &ubA) const
 {
-    // Gradient
-    A = joint_limit_constraints_fast.A;
+    if(cbf_mode == CbfType::Dyn)
+    {
+        // Gradient
+        A = joint_limit_constraints_fast.A;
 
-    // Lower and upper bounds
-    lbA = joint_limit_constraints_fast.lbA;
-    ubA = joint_limit_constraints_fast.ubA;
+        // Lower and upper bounds
+        lbA = joint_limit_constraints_fast.lbA;
+        ubA = joint_limit_constraints_fast.ubA;
+    }
+    else if (cbf_mode == CbfType::Kin)
+    {
+        // Gradient
+        A = joint_limit_constraints.A;
+
+        // Lower and upper bounds
+        lbA = joint_limit_constraints.lbA;
+        ubA = joint_limit_constraints.ubA;
+    }
 }
 
 // =========================
 // Workspace Boundary CBF
 // =========================
-void CbfManager::setWorkspaceBoundaryCbfParameters(const double &alpha1, const double &alpha2, const double &epsilon)
-{
-    alpha1_workspace  = alpha1;
-    alpha2_workspace  = alpha2;
+void CbfManager::setWorkspaceBoundaryCbfParameters(const double &alpha, const double &epsilon)
+{   
+    alpha_workspace  = alpha;
     epsilon_workspace = epsilon;
 }
 
@@ -124,10 +149,18 @@ void CbfManager::computeWorkspaceBoundaryCbfConstraint()
         const double Jdotqdot = Jqdot_AB(0, 0);
         const double Jqdot    = (J_AB * rd_.local_q_dot_virtual_)(0, 0);
 
-        const double h = - Jdotqdot
-                         - (alpha1_workspace + alpha2_workspace) * Jqdot
-                         + (alpha1_workspace * alpha2_workspace) * (pr.max_dist - dist_AB)
-                         - (1.0 / epsilon_workspace) * (J_AB * J_AB.transpose())(0,0);
+        double h = 0.0;
+        if(cbf_mode == CbfType::Dyn)
+        {
+            h = - Jdotqdot
+                - (alpha_workspace + alpha_workspace) * Jqdot
+                + (alpha_workspace * alpha_workspace) * (pr.max_dist - dist_AB)
+                - (1.0 / epsilon_workspace) * (J_AB * J_AB.transpose())(0,0);
+        }
+        else if(cbf_mode == CbfType::Kin)
+        {
+            h = (+1.0) * alpha_workspace * (pr.max_dist - dist_AB) - (1.0 / epsilon_workspace) * (-J_AB).squaredNorm();
+        }
 
         workspace_boundary_constraints.lbA(i) = (-1.0) * h;
         workspace_boundary_constraints.ubA(i) = 1e5;
@@ -136,12 +169,24 @@ void CbfManager::computeWorkspaceBoundaryCbfConstraint()
 
 void CbfManager::getWorkspaceBoundaryCbfConstraint(Eigen::Ref<Eigen::MatrixXd> A, Eigen::VectorXd &lbA, Eigen::VectorXd &ubA) const
 {
-    // Gradient
-    A = workspace_boundary_constraints_fast.A;
+    if (cbf_mode == CbfType::Dyn)
+    {
+        // Gradient
+        A = workspace_boundary_constraints_fast.A;
 
-    // Lower and upper bounds
-    lbA = workspace_boundary_constraints_fast.lbA;
-    ubA = workspace_boundary_constraints_fast.ubA;
+        // Lower and upper bounds
+        lbA = workspace_boundary_constraints_fast.lbA;
+        ubA = workspace_boundary_constraints_fast.ubA;
+    }
+    else if (cbf_mode == CbfType::Kin)
+    {
+        // Gradient
+        A = workspace_boundary_constraints.A;
+
+        // Lower and upper bounds
+        lbA = workspace_boundary_constraints.lbA;
+        ubA = workspace_boundary_constraints.ubA;
+    }
 }
 
 int CbfManager::getNumWorkspaceBoundaryPairs() const
@@ -152,10 +197,9 @@ int CbfManager::getNumWorkspaceBoundaryPairs() const
 // ===============================
 // Self-collision constraints CBF
 // ===============================
-void CbfManager::setSelfCollisionCbfParameters(const double &alpha1, const double &alpha2, const double &epsilon)
+void CbfManager::setSelfCollisionCbfParameters(const double &alpha, const double &epsilon)
 {
-    alpha1_self_collision  = alpha1;
-    alpha2_self_collision  = alpha2;
+    alpha_self_collision  = alpha;
     epsilon_self_collision = epsilon;
 }
 
@@ -172,10 +216,18 @@ void CbfManager::computeSelfCollisionCbfConstraint()
     self_collision_avoidance_constraints.ubA.setZero(self_collision_avoidance_constraints.num_pairs);
 
     // Lower and upper bounds
-    self_collision_avoidance_constraints.lbA = - col_mgr_.self_collision_avoid_terms_.Jdotqdot
-                                               - (alpha1_self_collision + alpha2_self_collision) * (self_collision_avoidance_constraints.A * rd_.local_q_dot_virtual_) 
-                                               - (alpha1_self_collision * alpha2_self_collision) * (col_mgr_.self_collision_avoid_terms_.min_distances) 
-                                               + (1.0 / epsilon_self_collision) * self_collision_avoidance_constraints.A.rowwise().squaredNorm();
+    if(cbf_mode == CbfType::Dyn)
+    {
+        self_collision_avoidance_constraints.lbA = - col_mgr_.self_collision_avoid_terms_.Jdotqdot
+                                                   - (alpha_self_collision + alpha_self_collision) * (self_collision_avoidance_constraints.A * rd_.local_q_dot_virtual_) 
+                                                   - (alpha_self_collision * alpha_self_collision) * (col_mgr_.self_collision_avoid_terms_.min_distances) 
+                                                   + (1.0 / epsilon_self_collision) * self_collision_avoidance_constraints.A.rowwise().squaredNorm();
+    }
+    else if(cbf_mode == CbfType::Kin)
+    {
+        self_collision_avoidance_constraints.lbA = (-1.0) * (alpha_self_collision) * (col_mgr_.self_collision_avoid_terms_.min_distances) 
+                                                  + (1.0 / epsilon_self_collision) * self_collision_avoidance_constraints.A.rowwise().squaredNorm();
+    }
 
     self_collision_avoidance_constraints.ubA.setConstant(1e5);
 }
@@ -183,25 +235,46 @@ void CbfManager::computeSelfCollisionCbfConstraint()
 void CbfManager::getSelfCollisionCbfConstraint(Eigen::Ref<Eigen::MatrixXd> A, Eigen::VectorXd &lbA, Eigen::VectorXd &ubA) const
 {
     // Gradient
-    A = self_collision_avoidance_constraints_fast.A;
+    if (cbf_mode == CbfType::Dyn)
+    {
+        // Gradient
+        A = self_collision_avoidance_constraints_fast.A;
 
-    // Lower and upper bounds
-    lbA = self_collision_avoidance_constraints_fast.lbA;
-    ubA = self_collision_avoidance_constraints_fast.ubA;
+        // Lower and upper bounds
+        lbA = self_collision_avoidance_constraints_fast.lbA;
+        ubA = self_collision_avoidance_constraints_fast.ubA;
+    }
+    else if (cbf_mode == CbfType::Kin)
+    {
+        // Gradient
+        A = self_collision_avoidance_constraints.A;
+
+        // Lower and upper bounds
+        lbA = self_collision_avoidance_constraints.lbA;
+        ubA = self_collision_avoidance_constraints.ubA;
+    }
 }
 
 int CbfManager::getNumSelfCollisionPairs() const
 {
-    return self_collision_avoidance_constraints_fast.num_pairs;
+    if (cbf_mode == CbfType::Dyn)
+    {
+        return self_collision_avoidance_constraints_fast.num_pairs;
+    }
+    else if (cbf_mode == CbfType::Kin)
+    {
+        return self_collision_avoidance_constraints.num_pairs;
+    }
+
+    return 0;
 }
 
 // ===============================
 // Obstacle avoidance constraints CBF
 // ===============================
-void CbfManager::setObstacleAvoidanceCbfParameters(const double &alpha1, const double &alpha2, const double &epsilon)
+void CbfManager::setObstacleAvoidanceCbfParameters(const double &alpha, const double &epsilon)
 {
-    alpha1_obstacle_avoidance  = alpha1;
-    alpha2_obstacle_avoidance  = alpha2;
+    alpha_obstacle_avoidance  = alpha;
     epsilon_obstacle_avoidance = epsilon;
 }
 
@@ -218,28 +291,55 @@ void CbfManager::computeObstacleAvoidanceCbfConstraint()
     obstacle_avoidance_constraints.lbA.setZero(obstacle_avoidance_constraints.num_pairs);
     obstacle_avoidance_constraints.ubA.setZero(obstacle_avoidance_constraints.num_pairs);
 
-    obstacle_avoidance_constraints.lbA = - col_mgr_.obstacle_avoid_terms_.Jdotqdot
-                                         - (alpha1_obstacle_avoidance + alpha2_obstacle_avoidance) * 
-                                           (obstacle_avoidance_constraints.A * rd_.local_q_dot_virtual_ - col_mgr_.obstacle_avoid_terms_.obs_vel_projections)
-                                         - (alpha1_obstacle_avoidance * alpha2_obstacle_avoidance) * (col_mgr_.obstacle_avoid_terms_.min_distances)
-                                         + (1.0 / epsilon_obstacle_avoidance) * obstacle_avoidance_constraints.A.rowwise().squaredNorm();
+    if(cbf_mode == CbfType::Dyn){
+        obstacle_avoidance_constraints.lbA = - col_mgr_.obstacle_avoid_terms_.Jdotqdot
+                                             - (alpha_obstacle_avoidance + alpha_obstacle_avoidance) * (obstacle_avoidance_constraints.A * rd_.local_q_dot_virtual_ - col_mgr_.obstacle_avoid_terms_.obs_vel_projections)
+                                             - (alpha_obstacle_avoidance * alpha_obstacle_avoidance) * (col_mgr_.obstacle_avoid_terms_.min_distances)
+                                             + (1.0 / epsilon_obstacle_avoidance) * obstacle_avoidance_constraints.A.rowwise().squaredNorm();
+    }
+    else if(cbf_mode == CbfType::Kin)
+    {
+        obstacle_avoidance_constraints.lbA = (-1.0) * (alpha_obstacle_avoidance) * (col_mgr_.obstacle_avoid_terms_.min_distances) 
+                                            + (1.0 / epsilon_obstacle_avoidance) * obstacle_avoidance_constraints.A.rowwise().squaredNorm();
+    }
 
     obstacle_avoidance_constraints.ubA.setConstant(1e5);
 }
 
 void CbfManager::getObstacleAvoidanceCbfConstraint(Eigen::Ref<Eigen::MatrixXd> A, Eigen::VectorXd &lbA, Eigen::VectorXd &ubA) const
 {
-    // Gradient
-    A = obstacle_avoidance_constraints_fast.A;
+    if (cbf_mode == CbfType::Dyn)
+    {
+        // Gradient
+        A = obstacle_avoidance_constraints_fast.A;
 
-    // Lower and upper bounds
-    lbA = obstacle_avoidance_constraints_fast.lbA;
-    ubA = obstacle_avoidance_constraints_fast.ubA;
+        // Lower and upper bounds
+        lbA = obstacle_avoidance_constraints_fast.lbA;
+        ubA = obstacle_avoidance_constraints_fast.ubA;
+    }
+    else if (cbf_mode == CbfType::Kin)
+    {
+        // Gradient
+        A = obstacle_avoidance_constraints.A;
+
+        // Lower and upper bounds
+        lbA = obstacle_avoidance_constraints.lbA;
+        ubA = obstacle_avoidance_constraints.ubA;
+    }
 }
 
 int CbfManager::getNumObstacleAvoidancePairs() const
 {
-    return obstacle_avoidance_constraints_fast.num_pairs;
+    if (cbf_mode == CbfType::Dyn)
+    {
+        return obstacle_avoidance_constraints_fast.num_pairs;
+    }
+    else if (cbf_mode == CbfType::Kin)
+    {
+        return obstacle_avoidance_constraints.num_pairs;
+    }
+
+    return 0;
 }
 
 // ===============================

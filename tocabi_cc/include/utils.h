@@ -29,6 +29,13 @@ enum class TaskMotionType {
     TeleOperation
 };
 
+enum class CbfType {
+    None,
+    Kin,
+    Dyn
+};
+
+
 struct WorkspaceBoundaryPair {
     int idx_A; int idx_B; double max_dist{0.0};
 };
