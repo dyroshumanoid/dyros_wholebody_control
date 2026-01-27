@@ -88,7 +88,7 @@ void KinWBC::computeTaskSpaceKinematicWBC()
     }
 
     rd_.q_desired_virtual = integrate(rd_.local_q_virtual_, qdot_des);
-    rd_.q_desired = rd_.q_desired_virtual.tail(MODEL_DOF);
+    rd_.q_desired = rd_.q_desired_virtual.segment(6, MODEL_DOF);
 
     rd_.q_ddot_desired_virtual = computeDesiredJointAcceleration(rd_.local_q_virtual_, rd_.local_q_dot_virtual_, rd_.q_desired_virtual, rd_.Kp_virtual_diag, rd_.Kd_virtual_diag);
 }

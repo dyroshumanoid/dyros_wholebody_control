@@ -154,7 +154,7 @@ void TaskManager::bipedalWalkingController()
     support_phase_indicator_ = wm_.getSupportPhaseIndicator();
     mapBaseToSupport();
 
-    wm_.setWalkingParameter(step_length, step_yaw, foot_height);
+    wm_.setWalkingParameter(step_length, step_lateral, step_yaw, foot_height);
     wm_.setStepDuration(step_duration);
     wm_.setDspDuration(dsp_duration);
 
@@ -238,6 +238,11 @@ void TaskManager::setHandDistance(double &hand_dist_)
 void TaskManager::setStepStride(double step_length_)
 {
     step_length = step_length_;
+}
+
+void TaskManager::setStepLateral(double step_lateral_)
+{
+    step_lateral = step_lateral_;
 }
 
 void TaskManager::setStepYaw(double step_yaw_)

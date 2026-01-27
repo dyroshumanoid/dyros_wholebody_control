@@ -65,6 +65,10 @@ void CustomController::computeSlow()
         torque_pd.setZero();
         torque_pd = (rd_.Kd_diag) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
 
+        for(int i = 0; i < MODEL_DOF; i++) {
+            torque_pd(i) += 100.0 * (rd_.q_desired(i) - rd_.q_(i));
+        }
+
         torque_idn.setZero();
         subDataFromFastToSlow();
 
@@ -87,27 +91,25 @@ void CustomController::computeSlow()
 
 void CustomController::computeFast()
 {
-    // if (fast_loop_ready){
-        if (rd_.tc_.mode == 7)
-        {
-            auto t1 = std::chrono::steady_clock::now();
+    if (rd_.tc_.mode == 7)
+    {
+        auto t1 = std::chrono::steady_clock::now();
 
-            subDataFromSlowToFast();
+        subDataFromSlowToFast();
 
-            dyn_wbc_.updateRobotStates(M_fast, G_fast, J_C_fast);
-            dyn_wbc_.updateControlCommands(contact_wrench_cmd_fast, qddot_cmd_fast);
-            torque_idn_fast.setZero();
-            torque_idn_fast = dyn_wbc_.computeDynamicWBC();
+        dyn_wbc_.updateRobotStates(M_fast, G_fast, J_C_fast);
+        dyn_wbc_.updateControlCommands(contact_wrench_cmd_fast, qddot_cmd_fast);
+        torque_idn_fast.setZero();
+        torque_idn_fast = dyn_wbc_.computeDynamicWBC();
 
-            pubDataFromFastToSlow();
+        pubDataFromFastToSlow();
 
-            auto t2 = std::chrono::steady_clock::now();
+        auto t2 = std::chrono::steady_clock::now();
 
-            auto dt = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+        auto dt = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
 
-            computation_time_log << dt << std::endl;
-        }
-    // }
+        computation_time_log << dt << std::endl;
+    }
 }
 
 void CustomController::computePlanner()
@@ -178,14 +180,14 @@ void CustomController::moveInitialPose()
         q_init_des(16) = + 10.0 * DEG2RAD; 
         q_init_des(17) = + 80.0 * DEG2RAD; 
         q_init_des(18) = - 70.0 * DEG2RAD; 
-        q_init_des(19) = - 45.0 * DEG2RAD; 
+        q_init_des(19) = - 30.0 * DEG2RAD; 
         q_init_des(21) =   0.0 * DEG2RAD; 
 
         q_init_des(25) = - 15.0 * DEG2RAD; 
         q_init_des(26) = - 10.0 * DEG2RAD;            
         q_init_des(27) = - 80.0 * DEG2RAD;  
         q_init_des(28) = + 70.0 * DEG2RAD; 
-        q_init_des(29) = + 45.0 * DEG2RAD;       
+        q_init_des(29) = + 30.0 * DEG2RAD;       
         q_init_des(31) = - 0.0 * DEG2RAD; 
     }
     else
@@ -236,6 +238,7 @@ void CustomController::xBoxJoyCallback(const sensor_msgs::Joy::ConstPtr& joy)
     if (is_joy_enable == true)
     {
         tm_.setStepStride(move_forward * step_length_);
+        tm_.setStepLateral(move_lateral * step_lateral_);
         tm_.setStepYaw(rotate_yaw * step_yaw_);
     }
 }
@@ -259,8 +262,6 @@ void CustomController::pubDataFromSlowToFast()
         if(cbf_mgr_.getCbfMode() == CbfType::Dyn){
             cbf_mgr_.pubDataFromSlowToFast();
         }
-
-        // fast_loop_ready = true;
 
         atb_control_command_update_ = false;
     }
@@ -475,6 +476,7 @@ void CustomController::loadParams()
     nh_cc_.getParam("/tocabi_controller/task_param/pelv_dist", pelv_dist_);
     nh_cc_.getParam("/tocabi_controller/task_param/hand_dist", hand_dist_);
     nh_cc_.getParam("/tocabi_controller/task_param/step_length", step_length_);
+    nh_cc_.getParam("/tocabi_controller/task_param/step_lateral", step_lateral_);
     nh_cc_.getParam("/tocabi_controller/task_param/step_yaw", step_yaw_);
     nh_cc_.getParam("/tocabi_controller/task_param/foot_height", foot_height_);
     nh_cc_.getParam("/tocabi_controller/task_param/step_duration", step_duration_);
@@ -484,6 +486,7 @@ void CustomController::loadParams()
     tm_.setPelvisDistance(pelv_dist_);
     tm_.setHandDistance(hand_dist_);
     tm_.setStepStride(step_length_);
+    tm_.setStepLateral(step_lateral_);
     tm_.setFootHeight(foot_height_);
     tm_.setStepDuration(step_duration_);
     tm_.setDspDuration(dsp_duration_);
@@ -494,6 +497,7 @@ void CustomController::loadParams()
     std::cout << "Pelvis Distance : " << pelv_dist_ << " m" << std::endl;
     std::cout << "Hand Distance : " << hand_dist_ << " m" << std::endl;
     std::cout << "Step Length : " << step_length_ << " m" << std::endl;
+    std::cout << "Step Lateral : " << step_lateral_ << " m" << std::endl;
     std::cout << "Foot Height : " << foot_height_ << " m" << std::endl;
     std::cout << "Step Duration : " << step_duration_ << " sec" << std::endl;
     std::cout << "Double Support Duration : " << dsp_duration_ << " sec" << std::endl;

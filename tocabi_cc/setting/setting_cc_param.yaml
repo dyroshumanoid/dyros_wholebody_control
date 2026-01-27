@@ -58,11 +58,12 @@ task_param:
   traj_time: 3.0
   pelv_dist: 0.0
   hand_dist: 0.0
-  step_length: 0.0
-  step_yaw: 0.0
+  step_length: 0.1
+  step_lateral: 0.08
+  step_yaw: 0.2
   foot_height: 0.055
   step_duration: 0.6
-  dsp_duration: 0.3
+  dsp_duration: 0.1
 
 wbid:
   W_qddot : 2.0
@@ -75,7 +76,7 @@ wbid:
 
 cbf:
   cbf_mode : 1  # 0: idle, 1: kin, 2: dyn
-  workspace_boundary_cbf_hand: 0.625
+  workspace_boundary_cbf_hand: 0.65
 
   kin:
     joint_limit_cbf_alpha: 1.0
