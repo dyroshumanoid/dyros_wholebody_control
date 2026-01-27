@@ -25,6 +25,7 @@
 
 #include "math_type_define.h"
 #include "tocabi_lib/robot_data.h"
+#include "utils.h"
 #include "cbf_manager/tracked_obstacle.h"
 
 class CollisionManager
@@ -210,19 +211,23 @@ public:
      * @brief Compute the Jacobian-based constraint matrix for self-collision avoidance
      *        and minimum distances between collision pairs
      * 
+     * @param cbf_mode the type of control barrier function (None, Kin, Dyn)
+     * 
      * @note This method calculates the constraint matrix for self-collision avoidance
      *       based on the predefined collision pairs specified in col_pair_ids_
      */
-    void computeSelfColAvoidConstraintTerms();
+    void computeSelfColAvoidConstraintTerms(const CbfType cbf_mode);
 
     /**
      * @brief Compute the Jacobian-based constraint matrix for obstacle avoidance
      *        , minimum distances between collision pairs, and obstacle velocity projections
      * 
+     * @param cbf_mode the type of control barrier function (None, Kin, Dyn)
+     * 
      * @note This method calculates the constraint matrix for obstacle avoidance
      *       between the robot's collision objects and the environment obstacles tracked in cb_obstacles_
      */
-    void computeObstacleAvoidConstraintTerms();
+    void computeObstacleAvoidConstraintTerms(const CbfType cbf_mode);
 
     /**
      * @brief Check for self-collisions among the robot's collision objects
@@ -374,6 +379,7 @@ private:
      * @param J_row the Jacobian-based constraint row for the single collision pair
      * @param Jdotqdot_projection the projection of Jdot*qdot term ((Jdot_1-Jdot_2)*qdot)
      *                            onto the normal vector between the two nearest points 
+     * @param cbf_mode the type of control barrier function (None, Kin, Dyn)
      * 
      * @note RigidBodyDynamics::UpdateKinematics() must be called before using this method
      */                                 
@@ -383,7 +389,8 @@ private:
                                                const Eigen::Vector3d nearest_point2,
                                                const int sign,
                                                Eigen::Ref<Eigen::RowVectorXd, 0, Eigen::Stride<1, Eigen::Dynamic>> J_row,
-                                               double &Jdotqdot_projection);
+                                               double &Jdotqdot_projection,
+                                               const CbfType cbf_mode);
     
     /**
      * @brief Compute the row-wise terms (Jacobian-based row, Jdot*qdot projection,
@@ -396,7 +403,8 @@ private:
      * @param sign sign of the minimum distance (positive (objects separated): 1, negative (penetration): -1)
      * @param Jdotqdot_projection the projection of Jdot*qdot of the robot onto the normal vector between the two nearest points
      * @param obs_vel_projection the projection of the obstacle velocity onto the normal vector between the two nearest points
-     *
+     * @param cbf_mode the type of control barrier function (None, Kin, Dyn)
+     * 
      * @return the Jacobian-based constraint row for the single collision pair
      * 
      * @note The Jacobian row is returned by value since the number of constraints is determined at runtime
@@ -409,7 +417,8 @@ private:
                                                               const Eigen::Vector3d nearest_point_obs,
                                                               const int sign,
                                                               double &Jdotqdot_projection,
-                                                              double &obs_vel_projection);
+                                                              double &obs_vel_projection,
+                                                              const CbfType cbf_mode);
 
     //____________________________________________________________________________//
                                                              

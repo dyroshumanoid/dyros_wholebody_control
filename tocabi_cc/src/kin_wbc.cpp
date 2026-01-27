@@ -152,13 +152,17 @@ Eigen::VectorVQd KinWBC::safetyFilter()
 
     total_num_state = constraints_.empty() ? 0 : constraints_[0].A.cols();
 
-    static bool is_filter_init_ = true;
-    if(is_filter_init_ == true)
-    {
-        total_num_constraints = 0;
-        total_num_state = constraints_.empty() ? 0 : constraints_[0].A.cols();
-        for (const auto& c : constraints_) {total_num_constraints += c.A.rows();}
+    int total_num_constraints_current = 0;
+    for (const auto& c : constraints_) {total_num_constraints_current += c.A.rows();}
 
+    if (total_num_constraints != total_num_constraints_current){
+        num_constraints_changed = true;
+        total_num_constraints = total_num_constraints_current;
+    }
+
+    if(num_constraints_changed)
+    {
+        //--- Initialization or reinitialization of QP
         QP_safety_filter.InitializeProblemSize(total_num_state, total_num_constraints);
 
         A_const   = Eigen::MatrixXd::Zero(total_num_constraints, total_num_state);
@@ -167,7 +171,7 @@ Eigen::VectorVQd KinWBC::safetyFilter()
 
         qdot_safety.setZero();
 
-        is_filter_init_ = false;
+        num_constraints_changed = false;
     }
 
     //--- Stack Constraints

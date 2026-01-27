@@ -2,10 +2,10 @@
 
 using namespace TOCABI;
 
-ofstream torque_sum_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
-ofstream torque_idn_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
-ofstream torque_pd_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
-ofstream computation_time_log("/home/kwan/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
+ofstream torque_sum_log      ("/home/sanghyuk/tocabi_ws/src/tocabi_cc/data/torque_sum_log.txt");
+ofstream torque_idn_log      ("/home/sanghyuk/tocabi_ws/src/tocabi_cc/data/torque_idn_log.txt");
+ofstream torque_pd_log       ("/home/sanghyuk/tocabi_ws/src/tocabi_cc/data/torque_pd_log.txt");
+ofstream computation_time_log("/home/sanghyuk/tocabi_ws/src/tocabi_cc/data/computation_time_log.txt");
 
 CustomController::CustomController(RobotData &rd) : rd_(rd), 
                                                     cm_(rd, model), 
@@ -190,9 +190,9 @@ void CustomController::moveInitialPose()
     }
     else
     {
-        q_init_des(12) = 0.0;
-        q_init_des(13) = 0.0;
-        q_init_des(14) = 0.0;
+        q_init_des(12) = 0.0;   // yaw
+        q_init_des(13) = 0.0;   // pitch
+        q_init_des(14) = 0.0;   // roll
 
         q_init_des(15) = 0.0;
         q_init_des(16) = -0.3;
@@ -203,14 +203,14 @@ void CustomController::moveInitialPose()
         q_init_des(21) = 0.4;
         q_init_des(22) = -0.2;
 
-        q_init_des(23) = 0.0; // yaw
-        q_init_des(24) = 0.0; // pitch
+        q_init_des(23) = 0.0;   // yaw
+        q_init_des(24) = 0.0;   // pitch
 
         q_init_des(25) = 0.0;
         q_init_des(26) = 0.3;
         q_init_des(27) = -1.57;
         q_init_des(28) = 1.2;
-        q_init_des(29) = 1.57; // elbow
+        q_init_des(29) = 1.57;  // elbow
         q_init_des(30) = -1.5;
         q_init_des(31) = -0.4;
         q_init_des(32) = 0.2;

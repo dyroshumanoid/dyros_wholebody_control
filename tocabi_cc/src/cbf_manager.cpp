@@ -22,8 +22,8 @@ void CbfManager::update()
     col_mgr_.updateObstacle();
     col_mgr_.updateRobotCollisionObjectsPose();
 
-    col_mgr_.computeSelfColAvoidConstraintTerms();
-    col_mgr_.computeObstacleAvoidConstraintTerms();
+    col_mgr_.computeSelfColAvoidConstraintTerms(cbf_mode);
+    col_mgr_.computeObstacleAvoidConstraintTerms(cbf_mode);
 
     computeJointLimitCbfConstraint();
     computeWorkspaceBoundaryCbfConstraint();
@@ -225,8 +225,8 @@ void CbfManager::computeSelfCollisionCbfConstraint()
     }
     else if(cbf_mode == CbfType::Kin)
     {
-        self_collision_avoidance_constraints.lbA = (-1.0) * (alpha_self_collision) * (col_mgr_.self_collision_avoid_terms_.min_distances) 
-                                                  + (1.0 / epsilon_self_collision) * self_collision_avoidance_constraints.A.rowwise().squaredNorm();
+        self_collision_avoidance_constraints.lbA =   (-1.0) * (alpha_self_collision) * (col_mgr_.self_collision_avoid_terms_.min_distances) 
+                                                   + (1.0 / epsilon_self_collision) * self_collision_avoidance_constraints.A.rowwise().squaredNorm();
     }
 
     self_collision_avoidance_constraints.ubA.setConstant(1e5);
@@ -299,8 +299,9 @@ void CbfManager::computeObstacleAvoidanceCbfConstraint()
     }
     else if(cbf_mode == CbfType::Kin)
     {
-        obstacle_avoidance_constraints.lbA = (-1.0) * (alpha_obstacle_avoidance) * (col_mgr_.obstacle_avoid_terms_.min_distances) 
-                                            + (1.0 / epsilon_obstacle_avoidance) * obstacle_avoidance_constraints.A.rowwise().squaredNorm();
+        obstacle_avoidance_constraints.lbA =   (-1.0) * (alpha_obstacle_avoidance) * (col_mgr_.obstacle_avoid_terms_.min_distances)
+                                             + col_mgr_.obstacle_avoid_terms_.obs_vel_projections
+                                             + (1.0 / epsilon_obstacle_avoidance) * obstacle_avoidance_constraints.A.rowwise().squaredNorm();
     }
 
     obstacle_avoidance_constraints.ubA.setConstant(1e5);

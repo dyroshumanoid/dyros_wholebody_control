@@ -61,7 +61,7 @@ void CollisionManager::updateRobotCollisionObjectsPose()
 }
 
 
-void CollisionManager::computeSelfColAvoidConstraintTerms()
+void CollisionManager::computeSelfColAvoidConstraintTerms(const CbfType cbf_mode)
 {
     for(unsigned int i = 0; i < self_collision_avoid_terms_.num_pairs; i++)
     {
@@ -89,17 +89,18 @@ void CollisionManager::computeSelfColAvoidConstraintTerms()
         }
 
         computeSelfColAvoidConstraintTermsRow(id1, nearest_point1,
-                                             id2, nearest_point2,
-                                             DyrosMath::sign(self_collision_avoid_terms_.min_distances(i)),
-                                             self_collision_avoid_terms_.J.row(i),
-                                             self_collision_avoid_terms_.Jdotqdot(i));
+                                              id2, nearest_point2,
+                                              DyrosMath::sign(self_collision_avoid_terms_.min_distances(i)),
+                                              self_collision_avoid_terms_.J.row(i),
+                                              self_collision_avoid_terms_.Jdotqdot(i),
+                                              cbf_mode);
     }
 
     for(unsigned int id = 0; id < Col_Obj_Count; id++) cb_robot_[id].in_collision = collision_flags_[id] > 0;
 
 }
 
-void CollisionManager::computeObstacleAvoidConstraintTerms()
+void CollisionManager::computeObstacleAvoidConstraintTerms(const CbfType cbf_mode)
 {
     std::vector<double> min_distances;
     std::vector<RowVectorXd> J_col_rows;
@@ -141,7 +142,8 @@ void CollisionManager::computeObstacleAvoidConstraintTerms()
                                                                                 i, nearest_point_obs,
                                                                                 DyrosMath::sign(min_distance),
                                                                                 Jdotqdot_projection,
-                                                                                obs_vel_projection));
+                                                                                obs_vel_projection,
+                                                                                cbf_mode));
                     min_distances.push_back(min_distance);
                     Jdotqdot_projections.push_back(Jdotqdot_projection);
                     obstacle_speeds.push_back(obs_vel_projection);
@@ -560,12 +562,14 @@ void CollisionManager::computeSelfColAvoidConstraintTermsRow(const unsigned int 
                                                              const Eigen::Vector3d nearest_point2, 
                                                              const int sign,
                                                              Eigen::Ref<Eigen::RowVectorXd, 0, Eigen::Stride<1, Eigen::Dynamic>> J_row,
-                                                             double &Jdotqdot_projection)
+                                                             double &Jdotqdot_projection,
+                                                             const CbfType cbf_mode)
 {
     // reference paper: C. Khazoom, D. Gonzalez-Diaz, Y. Ding and S. Kim, "Humanoid Self-Collision Avoidance Using Whole-Body Control with Control Barrier Functions" (Humanoids, 2022)
     // link: https://ieeexplore.ieee.org/abstract/document/10000235
 
     J_row.setZero();
+    Jdotqdot_projection = 0.0;
 
     // unit vector connecting the two closest points between two collision objects
     Vector3d normal_vec = (nearest_point1 - nearest_point2) / (nearest_point1 - nearest_point2).norm();
@@ -573,8 +577,6 @@ void CollisionManager::computeSelfColAvoidConstraintTermsRow(const unsigned int 
     // linear parts of Jacobians from base to trans_joint_to_nearestcenter
     MatrixXd J_col_obj1, J_col_obj2;
     J_col_obj1.setZero(3,MODEL_DOF_VIRTUAL); J_col_obj2.setZero(3,MODEL_DOF_VIRTUAL);
-    Vector3d Jdotqdot_col_obj1, Jdotqdot_col_obj2;
-    Jdotqdot_col_obj1.setZero(); Jdotqdot_col_obj2.setZero();
 
     // first collision object
     // vector stores translation vector in link frame from the joint to the nearest point on the collision object's center (sphere: center or capsule: axis point)
@@ -582,7 +584,6 @@ void CollisionManager::computeSelfColAvoidConstraintTermsRow(const unsigned int 
 
     // calcate linear part of Jacobian for the first collision object
     RigidBodyDynamics::CalcPointJacobian(rd_.model_, rd_.q_virtual_, rd_.link_[cb_robot_[obj_id1].link_id].id, link_xpos_joint_to_nearestcenter1, J_col_obj1, false);
-    Jdotqdot_col_obj1 = RigidBodyDynamics::CalcPointAcceleration(rd_.model_, rd_.q_virtual_, rd_.q_dot_virtual_, Eigen::Vector3d::Zero(), rd_.link_[cb_robot_[obj_id1].link_id].id, link_xpos_joint_to_nearestcenter1, false);
 
     // second collision object
     // vector stores translation vector in link frame from the joint to the nearest point on the collision object's center (sphere: center or capsule: axis point)
@@ -590,10 +591,21 @@ void CollisionManager::computeSelfColAvoidConstraintTermsRow(const unsigned int 
 
     // calcate linear part of Jacobian for the second collision object
     RigidBodyDynamics::CalcPointJacobian(rd_.model_, rd_.q_virtual_, rd_.link_[cb_robot_[obj_id2].link_id].id, link_xpos_joint_to_nearestcenter2, J_col_obj2, false);
-    Jdotqdot_col_obj2 = RigidBodyDynamics::CalcPointAcceleration(rd_.model_, rd_.q_virtual_, rd_.q_dot_virtual_, Eigen::Vector3d::Zero(), rd_.link_[cb_robot_[obj_id2].link_id].id, link_xpos_joint_to_nearestcenter2, false);
 
     J_row = sign * normal_vec.transpose() * world_to_base_rotm_yaw_only_.transpose() * (J_col_obj1 - J_col_obj2);
-    Jdotqdot_projection = sign * normal_vec.transpose() * world_to_base_rotm_yaw_only_.transpose() * (Jdotqdot_col_obj1 - Jdotqdot_col_obj2);
+
+    if (cbf_mode == CbfType::Dyn){
+        // linear part of Jdot*qdot for both collision objects
+        Vector3d Jdotqdot_col_obj1, Jdotqdot_col_obj2;
+        Jdotqdot_col_obj1.setZero(); Jdotqdot_col_obj2.setZero();
+
+        // calculate linear part of Jdot*qdot for both collision objects
+        // a = Jdot*qdot + J*qddot -> here qddot is set to zero(Eigen::Vector3d::Zero()) vector
+        Jdotqdot_col_obj1 = RigidBodyDynamics::CalcPointAcceleration(rd_.model_, rd_.q_virtual_, rd_.q_dot_virtual_, Eigen::Vector3d::Zero(), rd_.link_[cb_robot_[obj_id1].link_id].id, link_xpos_joint_to_nearestcenter1, false);
+        Jdotqdot_col_obj2 = RigidBodyDynamics::CalcPointAcceleration(rd_.model_, rd_.q_virtual_, rd_.q_dot_virtual_, Eigen::Vector3d::Zero(), rd_.link_[cb_robot_[obj_id2].link_id].id, link_xpos_joint_to_nearestcenter2, false);
+
+        Jdotqdot_projection = sign * normal_vec.transpose() * world_to_base_rotm_yaw_only_.transpose() * (Jdotqdot_col_obj1 - Jdotqdot_col_obj2);
+    }
 }
 
 Eigen::RowVectorXd CollisionManager::computeObstacleAvoidConstraintTermsRow(const unsigned int obj_id, 
@@ -602,11 +614,14 @@ Eigen::RowVectorXd CollisionManager::computeObstacleAvoidConstraintTermsRow(cons
                                                                             const Eigen::Vector3d nearest_point_obs, 
                                                                             const int sign,
                                                                             double &Jdotqdot_projection,
-                                                                            double &obs_vel_projection)
+                                                                            double &obs_vel_projection,
+                                                                            const CbfType cbf_mode)
 {
-    // Jacobian used for the self-collision avoidance constraint
+    // Jacobian used for the obstacle avoidance constraint
     RowVectorXd J_row;
+
     J_row.setZero(MODEL_DOF_VIRTUAL);
+    Jdotqdot_projection = 0.0;
 
     // unit vector connecting the two closest points between two collision objects
     Vector3d normal_vec = (nearest_point_obj - nearest_point_obs) / (nearest_point_obj - nearest_point_obs).norm();
@@ -614,19 +629,27 @@ Eigen::RowVectorXd CollisionManager::computeObstacleAvoidConstraintTermsRow(cons
     // linear part of Jacobian from base to trans_joint_to_nearestcenter
     MatrixXd J_col_obj;
     J_col_obj.setZero(3,MODEL_DOF_VIRTUAL);
-    VectorXd Jdotqdot_col_obj;
-    Jdotqdot_col_obj.setZero(MODEL_DOF_VIRTUAL);
 
     // vector stores translation vector in link frame from the joint to the nearest point on the collision object's center (sphere: center or capsule: axis point)
     Vector3d link_xpos_joint_to_nearestcenter = rd_.link_[cb_robot_[obj_id].link_id].local_rotm.transpose() * (nearest_point_obj - rd_.link_[cb_robot_[obj_id].link_id].local_xpos);
 
     // calcate linear part of Jacobian for the first collision object
     RigidBodyDynamics::CalcPointJacobian(rd_.model_, rd_.q_virtual_, rd_.link_[cb_robot_[obj_id].link_id].id, link_xpos_joint_to_nearestcenter, J_col_obj, false);
-    Jdotqdot_col_obj = RigidBodyDynamics::CalcPointAcceleration(rd_.model_, rd_.q_virtual_, rd_.q_dot_virtual_, Eigen::Vector3d::Zero(), rd_.link_[cb_robot_[obj_id].link_id].id, link_xpos_joint_to_nearestcenter, false);
 
     J_row = sign * normal_vec.transpose() * world_to_base_rotm_yaw_only_.transpose() * (J_col_obj);
     obs_vel_projection = sign * normal_vec.transpose() * cb_obstacles_[0].local_v;
-    Jdotqdot_projection = sign * normal_vec.transpose() * world_to_base_rotm_yaw_only_.transpose() * (Jdotqdot_col_obj);
+
+    if (cbf_mode == CbfType::Dyn){
+        // linear part of Jdot*qdot for the collision object
+        VectorXd Jdotqdot_col_obj;
+        Jdotqdot_col_obj.setZero(MODEL_DOF_VIRTUAL);
+
+        // calculate linear part of Jdot*qdot for the collision object
+        // a = Jdot*qdot + J*qddot -> here qddot is set to zero(Eigen::Vector3d::Zero()) vector
+        Jdotqdot_col_obj = RigidBodyDynamics::CalcPointAcceleration(rd_.model_, rd_.q_virtual_, rd_.q_dot_virtual_, Eigen::Vector3d::Zero(), rd_.link_[cb_robot_[obj_id].link_id].id, link_xpos_joint_to_nearestcenter, false);
+
+        Jdotqdot_projection = sign * normal_vec.transpose() * world_to_base_rotm_yaw_only_.transpose() * (Jdotqdot_col_obj);
+    }
 
     return J_row;
 }

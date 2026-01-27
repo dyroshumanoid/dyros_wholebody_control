@@ -41,6 +41,7 @@ private:
     std::vector<ConstraintMatrix> constraints_;
     int total_num_state = 0;
     int total_num_constraints = 0;
+    bool num_constraints_changed = false;
 
     Eigen::VectorVQd qdot_des;
     Eigen::VectorVQd qdot_safety;
