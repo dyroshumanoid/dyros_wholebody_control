@@ -347,7 +347,12 @@ void WalkingManager::getComTrajectory()
     p_err_sum_x_(0) += ((C * com_x_dx_ddx_next)(0) - zmp_x_traj(step_tick + 1));
     p_err_sum_y_(0) += ((C * com_y_dy_ddy_next)(0) - zmp_y_traj(step_tick + 1));
 
-    rd_.link_[Pelvis].r_traj.setIdentity();
+    //--- Pelvis Traj
+    if(step_cnt == 0)
+    {
+        rd_.link_[Pelvis].r_traj = DyrosMath::rotationCubic(step_tick, 0, transfer_duration * hz_, rd_.link_[Pelvis].local_rotm_init, Eigen::Matrix3d::Identity());
+    }
+    // rd_.link_[Pelvis].r_traj.setIdentity();
 }
 
 void WalkingManager::contactWrenchCalculator()

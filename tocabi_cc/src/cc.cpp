@@ -87,7 +87,7 @@ void CustomController::computeSlow()
 
 void CustomController::computeFast()
 {
-    if (fast_loop_ready){
+    // if (fast_loop_ready){
         if (rd_.tc_.mode == 7)
         {
             auto t1 = std::chrono::steady_clock::now();
@@ -107,7 +107,7 @@ void CustomController::computeFast()
 
             computation_time_log << dt << std::endl;
         }
-    }
+    // }
 }
 
 void CustomController::computePlanner()
@@ -260,7 +260,7 @@ void CustomController::pubDataFromSlowToFast()
             cbf_mgr_.pubDataFromSlowToFast();
         }
 
-        fast_loop_ready = true;
+        // fast_loop_ready = true;
 
         atb_control_command_update_ = false;
     }
@@ -318,17 +318,20 @@ void CustomController::applyTorqueSmoothingOnce(Eigen::VectorQd &torque_target)
         is_torque_save_init = false;
     }
 
+    const double interpol_time = 0.5;
+    double interpol_tick_end = interpol_time * hz_;
+
     static bool is_torque_desired_init = true;
     static int tick_torque_desired_init = 0;
     if(is_torque_desired_init == true)
     {
         for (int i = 0; i < MODEL_DOF; i++) {
-            torque_target(i) = DyrosMath::cubic(tick_torque_desired_init, 0, 1000, rd_.torque_init(i), torque_target(i), 0.0, 0.0);
+            torque_target(i) = DyrosMath::cubic(tick_torque_desired_init, 0, interpol_tick_end, rd_.torque_init(i), torque_target(i), 0.0, 0.0);
         }
 
         tick_torque_desired_init++;
 
-        if(tick_torque_desired_init >= 1000) {
+        if(tick_torque_desired_init >= interpol_tick_end) {
             is_torque_desired_init = false;
             std::cout << "========== INFO: INITIAL TORQUE SMOOTHING COMPLETE ==========" << std::endl;
         }
