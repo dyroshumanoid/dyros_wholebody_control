@@ -16,6 +16,7 @@
 #include <std_msgs/Bool.h>
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Point.h>
+#include <geometry_msgs/Twist.h>
 #include <mujoco_ros_msgs/ImageRequest.h>
 #include <mujoco_ros_msgs/ImgReqAction.h>
 #include "actionlib/server/simple_action_server.h"
@@ -372,7 +373,8 @@ int main(int argc, char **argv)
 
     force_apply_sub = nh.subscribe("/tocabi_avatar/applied_ext_force", 10, &force_apply_callback);
 
-    aruco_pose_sub = nh.subscribe("/tocabi_cc/aruco_pose", 10, QRPoseCallback);
+    // aruco_pose_sub = nh.subscribe("/tocabi_cc/aruco_pose", 10, QRPoseCallback);
+    aruco_vel_sub = nh.subscribe("/aruco_velocity", 10, QRVelCallback);
     collision_sub = nh.subscribe("/tocabi_cc/collision_status", 10, collisionCallback);
 
     image_transport::ImageTransport it(nh);
@@ -473,7 +475,7 @@ int main(int argc, char **argv)
             ROS_INFO("Load Request");
             loadmodel();
             // uncomment the line below if using the camera
-            // visual_thread = std::thread(RGBD_sensor, m, d);
+            visual_thread = std::thread(RGBD_sensor, m, d);
         }
         else if (settings.loadrequest > 1)
             settings.loadrequest = 1;

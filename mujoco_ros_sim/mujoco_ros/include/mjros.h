@@ -28,6 +28,7 @@
 #include <sensor_msgs/JointState.h>
 #include <tf/transform_datatypes.h>
 #include <geometry_msgs/Point.h>
+#include <geometry_msgs/Twist.h>
 
 #include <deque>
 
@@ -298,6 +299,7 @@ ros::Subscriber new_obj_pose_sub;
 // ros::Publisher obj_pose_pub;
 ros::Subscriber force_apply_sub;    // apply external force
 ros::Subscriber aruco_pose_sub;     // move a QR code(ArUCo) attached obstacle
+ros::Subscriber aruco_vel_sub;      // set velocity of a QR code(ArUCo) attached obstacle
 ros::Subscriber collision_sub;      // get collision status of collision objects
 
 // std_msgs::Float32MultiArray ext_force_msg_;
@@ -311,8 +313,9 @@ void makeArrow(mjvGeom* arrow);
 
 // QR(aruco) box related variables
 const int mocap_aruco_id = 0;
-double pos_aruco_desired[3];
-double quat_aruco_desired[4];
+double pos_aruco_desired[3] = {0.53, 0.0, 1.3};
+double vel_aruco_desired[3] = {0.0, 0.0, 0.0};
+double quat_aruco_desired[4] = {0.5, 0.5, -0.5, -0.5};
 bool aruco_pos_cmd_applied = false;
 
 // collision object related functions and variables
@@ -420,6 +423,7 @@ void mycontroller(const mjModel *m, mjData *d);
 void NewObjPoseCallback(const geometry_msgs::PoseConstPtr &msg);
 void force_apply_callback(const std_msgs::Float32MultiArray &msg);
 void QRPoseCallback(const geometry_msgs::PoseStamped & msg);            // get the desired pos.&ori. of a QR code(ArUCo) attached obstacle
+void QRVelCallback(const geometry_msgs::Twist & msg);                   // get the desired vel.&ang.vel. of a QR code(ArUCo) attached obstacle
 void collisionCallback(const std_msgs::UInt8MultiArray & msg);          // get collision status of collision objects from Collision Manager
 
 #endif

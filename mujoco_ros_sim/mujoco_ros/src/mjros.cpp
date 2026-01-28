@@ -201,6 +201,14 @@ void QRPoseCallback(const geometry_msgs::PoseStamped & msg)
     aruco_pos_cmd_applied = true;
 }
 
+void QRVelCallback(const geometry_msgs::Twist & msg)
+{
+    // linear velocity(vx, vy, vz)
+    vel_aruco_desired[0] = (msg.linear.x);
+    vel_aruco_desired[1] = (msg.linear.y);
+    vel_aruco_desired[2] = (msg.linear.z);
+}
+
 void collisionCallback(const std_msgs::UInt8MultiArray & msg)
 {
     for (size_t i = 0; i < msg.data.size(); i++)
@@ -569,11 +577,23 @@ void mycontroller(const mjModel *m, mjData *d)
         {
             state_publisher();
 
-            if (aruco_pos_cmd_applied)
-            {
-                // Mocap 바디에 적용
+            // check whether there are obstacles
+            if(m->nmocap > 0){
+                // ArUco mocap pos control
+                // if (aruco_pos_cmd_applied)
+                // {
+                //     // Apply desired position and orientation to the ArUco mocap body
+                //     memcpy(&d->mocap_pos[3*mocap_aruco_id], pos_aruco_desired, 3 * sizeof(double));
+                //     memcpy(&d->mocap_quat[4*mocap_aruco_id], quat_aruco_desired, 4 * sizeof(double));
+                // }
+                
+                // ArUco mocap pos control with velocity
+                pos_aruco_desired[0] += vel_aruco_desired[0] * m->opt.timestep;
+                pos_aruco_desired[1] += vel_aruco_desired[1] * m->opt.timestep;
+                pos_aruco_desired[2] += vel_aruco_desired[2] * m->opt.timestep;
+
                 memcpy(&d->mocap_pos[3*mocap_aruco_id], pos_aruco_desired, 3 * sizeof(double));
-                memcpy(&d->mocap_quat[4*mocap_aruco_id], quat_aruco_desired, 4 * sizeof(double));
+                // memcpy(&d->mocap_quat[4*mocap_aruco_id], quat_aruco_desired, 4 * sizeof(double));
             }
 
             // Color change of collgion objects (red: in collision, blue: no collision)

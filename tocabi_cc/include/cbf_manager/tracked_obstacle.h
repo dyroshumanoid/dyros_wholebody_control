@@ -140,15 +140,19 @@ private:
 
         kf_x_.q_pred(1) = obstacle_.vel_(0);
         kf_y_.q_pred(1) = obstacle_.vel_(1);
-        kf_y_.q_pred(1) = obstacle_.vel_(2);
+        kf_z_.q_pred(1) = obstacle_.vel_(2);
 
         kf_x_.q_est(0) = obstacle_.pos_(0);
-        kf_z_.q_est(0) = obstacle_.pos_(1);
-        kf_y_.q_est(0) = obstacle_.pos_(2);
+        kf_y_.q_est(0) = obstacle_.pos_(1);
+        kf_z_.q_est(0) = obstacle_.pos_(2);
 
         kf_x_.q_est(1) = obstacle_.vel_(0);
         kf_y_.q_est(1) = obstacle_.vel_(1);
         kf_z_.q_est(1) = obstacle_.vel_(2);
+
+        kf_x_.y(0) = obstacle_.pos_(0);
+        kf_y_.y(0) = obstacle_.pos_(1);
+        kf_z_.y(0) = obstacle_.pos_(2);
     }
 };
 

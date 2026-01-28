@@ -87,7 +87,7 @@ cbf:
     self_collision_cbf_alpha: 1.0
     self_collision_cbf_epsilon: 50.0
 
-    obstacle_avoidance_cbf_alpha: 1.0
+    obstacle_avoidance_cbf_alpha: 3.0
     obstacle_avoidance_cbf_epsilon: 50.0
   dyn:
     joint_limit_cbf_alpha: 50.0

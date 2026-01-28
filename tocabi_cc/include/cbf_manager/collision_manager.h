@@ -469,6 +469,10 @@ public:
 private:
     // vector of tracked obstacles
     std::vector<TrackedObstacle> tracked_obstacles_;
+
+    // flag to indicate whether the state inside the Kalman filter has been corrected
+    bool state_corrected = false;
+    double dt;
 };
 
 #endif // COLLISION_MANAGER_H

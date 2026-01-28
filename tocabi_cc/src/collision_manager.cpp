@@ -22,7 +22,8 @@ CollisionManager::CollisionManager(RobotData &rd, RigidBodyDynamics::Model &mode
     ros::param::get("/kalman_filter/process_rate_variance", process_rate_var);
     ros::param::get("/kalman_filter/measurement_variance", measurement_var);
 
-    TrackedObstacle::setSamplingTime(1.0/hz_);
+    dt = 1.0 / hz_;
+    TrackedObstacle::setSamplingTime(dt);
     TrackedObstacle::setCounterSize(static_cast<int>(hz_* tracking_duration));
     TrackedObstacle::setCovariances(process_var, process_rate_var, measurement_var);
 }
@@ -712,6 +713,7 @@ void CollisionManager::updateObstacle()
             }
             else{
                 tracked_obstacles_[0].correctState(base_to_qr_transform_.translation());
+                state_corrected = true;
             }
 
             has_new_measure_ = false;
@@ -722,10 +724,12 @@ void CollisionManager::updateObstacle()
         if(tracked_obstacles_[0].hasFaded()){
             tracked_obstacles_.clear();
             cb_obstacles_.clear();
+            state_corrected = false;
         }
         else{
             if(cb_obstacles_.empty()){
                 CollisionBody cb;
+                
                 cb.local_xpos = tracked_obstacles_[0].getObstacle().pos_;
                 // cb.local_xpos = base_to_qr_transform_.translation();
 

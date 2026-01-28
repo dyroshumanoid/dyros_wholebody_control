@@ -6,6 +6,7 @@ ofstream torque_sum_log      ("/home/sanghyuk/tocabi_ws/src/tocabi_cc/data/torqu
 ofstream torque_idn_log      ("/home/sanghyuk/tocabi_ws/src/tocabi_cc/data/torque_idn_log.txt");
 ofstream torque_pd_log       ("/home/sanghyuk/tocabi_ws/src/tocabi_cc/data/torque_pd_log.txt");
 ofstream computation_time_log("/home/sanghyuk/tocabi_ws/src/tocabi_cc/data/computation_time_log.txt");
+ofstream kalman_filter_log   ("/home/sanghyuk/tocabi_ws/src/tocabi_cc/data/kalman_filter_log.txt");
 
 CustomController::CustomController(RobotData &rd) : rd_(rd), 
                                                     cm_(rd, model), 
@@ -76,6 +77,18 @@ void CustomController::computeSlow()
         torque_sum_log << torque_sum.transpose() << std::endl;
         torque_idn_log << torque_idn.transpose() << std::endl;
         torque_pd_log <<  torque_pd.transpose() << std::endl;
+        if(!cbf_mgr_.col_mgr_.cb_obstacles_.empty())
+        {
+            kalman_filter_log << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_xpos[0]         << ", "
+                              << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_xpos[1]         << ", "
+                              << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_xpos[2]         << ", "
+                              << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_v[0]            << ", "
+                              << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_v[1]            << ", "
+                              << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_v[2]            << ", "
+                              << cbf_mgr_.col_mgr_.base_to_qr_transform_.translation()(0) << ", "
+                              << cbf_mgr_.col_mgr_.base_to_qr_transform_.translation()(1) << ", "
+                              << cbf_mgr_.col_mgr_.base_to_qr_transform_.translation()(2) << std::endl;
+        }
 
         rd_.torque_desired = torque_sum;
     }
