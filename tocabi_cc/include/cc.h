@@ -40,7 +40,7 @@ public:
     Eigen::Vector3d w_cmd;
 
     void loadParams();
-    double traj_time_, pelv_dist_, hand_dist_, step_length_, step_yaw_, foot_height_, step_duration_, dsp_duration_;
+    double traj_time_, pelv_dist_, hand_dist_, step_length_, step_lateral_, step_yaw_, foot_height_, step_duration_, dsp_duration_;
 
     //--- Thread
     void computeSlow();
@@ -109,10 +109,9 @@ public:
 private:
     Eigen::VectorQd ControlVal_;
     double hz_ = 2000;
-    bool is_joy_enable = false;
+    bool is_joy_enable = true;
 
     // Fast loop is ready to run after the first slow-loop update
-    bool fast_loop_ready = false;
     bool control_mode_changed = false;
     bool is_6_init = true;
     bool is_7_init = true;

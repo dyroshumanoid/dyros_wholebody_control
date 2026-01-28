@@ -19,7 +19,9 @@ void updateSupportPhaseIndicator();
 void updateContactState(const bool &local_LF_contact_, const bool &local_RF_contact_);
 void setControlFrequency(const double &hz);
 void setCenterOfMassHeight(const double &com_height_);
-void setWalkingParameter(const double &step_length_, const double &foot_yaw_angle_, const double &foot_height_);
+// void setWalkingParameter(const double &step_length_, const double &foot_yaw_angle_, const double &foot_height_);
+void setWalkingParameter(const double &step_length_, const double &step_lateral_, const double &foot_yaw_angle_, const double &foot_height_);
+
 void setStepDuration(const double &step_duration_);
 void setDspDuration(const double &dsp_duration_);
 void setTransferDuration(const double &transfer_duration_);
@@ -78,6 +80,7 @@ CQuadraticProgram QP_stepping;
 void mapSupportToBase();
 
 Eigen::Vector2d footstep_des;
+Eigen::Vector2d footstep_delta;
 
 const int preview_idx = 4;
 Eigen::Vector2d step_command;
@@ -86,6 +89,7 @@ std::deque<double> step_yaw_queue;
 std::deque<Eigen::Vector2d> cp_end_queue;
 double step_length    = 0.0;
 double step_width     = 0.0;
+double step_lateral     = 0.0;
 double foot_yaw_angle = 0.0;
 double foot_height = 0.0;
 

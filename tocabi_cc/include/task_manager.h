@@ -22,6 +22,7 @@ public:
   void setPelvisDistance(double &pelv_dist_);
   void setHandDistance(double &hand_dist_);
   void setStepStride(double step_length_);
+  void setStepLateral(double step_lateral_);
   void setStepYaw(double step_yaw_);
   void setFootHeight(double &foot_height_);
 
@@ -47,6 +48,7 @@ private:
   double pelv_dist = 0.0;
   double hand_dist = 0.0;
   double step_length = 0.0;
+  double step_lateral = 0.0;
   double step_yaw = 0.0;
   double foot_height = 0.0;
   double step_duration = 0.0;

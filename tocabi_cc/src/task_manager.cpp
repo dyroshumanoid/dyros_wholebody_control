@@ -56,6 +56,8 @@ void TaskManager::movePelvHandPose()
     rd_.link_[COM_id].x_desired(1) = rd_.link_[COM_id].support_xpos_init(1) + pelv_dist;
     rd_.link_[COM_id].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[COM_id].support_xpos_init, rd_.link_[COM_id].x_desired);
 
+    rd_.link_[Pelvis].r_traj = DyrosMath::rotationCubic(sim_tick, 0, traj_time * hz_, rd_.link_[Pelvis].local_rotm_init, Eigen::Matrix3d::Identity());
+
     //--- COM_id Trajectory (Base Frame)
     rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos;
 
@@ -152,7 +154,7 @@ void TaskManager::bipedalWalkingController()
     support_phase_indicator_ = wm_.getSupportPhaseIndicator();
     mapBaseToSupport();
 
-    wm_.setWalkingParameter(step_length, step_yaw, foot_height);
+    wm_.setWalkingParameter(step_length, step_lateral, step_yaw, foot_height);
     wm_.setStepDuration(step_duration);
     wm_.setDspDuration(dsp_duration);
 
@@ -236,6 +238,11 @@ void TaskManager::setHandDistance(double &hand_dist_)
 void TaskManager::setStepStride(double step_length_)
 {
     step_length = step_length_;
+}
+
+void TaskManager::setStepLateral(double step_lateral_)
+{
+    step_lateral = step_lateral_;
 }
 
 void TaskManager::setStepYaw(double step_yaw_)

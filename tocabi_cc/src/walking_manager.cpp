@@ -19,6 +19,7 @@ void WalkingManager::computeWalkingMotion()
     getZmpTrajectory();
     getComTrajectory();
     contactWrenchCalculator();
+    // footstepOptimizer();
     getFootTrajectory();
     updateFootPoseFromContactWrench();
 
@@ -64,7 +65,7 @@ void WalkingManager::calcFootstepQueue()
     {
         if (is_footstep_update == true)
         {
-            int foot_sign = (preview_idx % 2 == 0) ? -1 : ((preview_idx < 0) ? 1 : 0);
+            int is_final_preview_same_foot = (preview_idx % 2 == 0) ? -1 : 0;
 
             Eigen::Vector2d step_command_first = step_queue.front();
 
@@ -77,7 +78,16 @@ void WalkingManager::calcFootstepQueue()
             step_yaw_queue.pop_front();
 
             Eigen::Vector2d step_command_back = step_queue.back();
-            Eigen::Vector2d step_command_new = step_command_back + Eigen::Vector2d(step_length, foot_sign * foot_contact_idx * step_width);
+
+            // Eigen::Vector2d step_command_new = step_command_back + Eigen::Vector2d(step_length, is_final_preview_same_foot * foot_contact_idx * step_width);
+
+            if(is_final_preview_same_foot * foot_contact_idx < 0){
+                step_lateral = DyrosMath::minmax_cut(step_lateral, -0.1, 0.03);
+            }
+            else{
+                step_lateral = DyrosMath::minmax_cut(step_lateral, -0.03, 0.1);
+            }
+            Eigen::Vector2d step_command_new = step_command_back + Eigen::Vector2d(step_length, is_final_preview_same_foot * foot_contact_idx * step_width - is_final_preview_same_foot *  step_lateral);
 
             step_queue.push_back(step_command_new);
             step_yaw_queue.push_back(foot_yaw_angle);
@@ -347,7 +357,15 @@ void WalkingManager::getComTrajectory()
     p_err_sum_x_(0) += ((C * com_x_dx_ddx_next)(0) - zmp_x_traj(step_tick + 1));
     p_err_sum_y_(0) += ((C * com_y_dy_ddy_next)(0) - zmp_y_traj(step_tick + 1));
 
-    rd_.link_[Pelvis].r_traj.setIdentity();
+    //--- Pelvis Traj
+    if(step_cnt == 0)
+    {
+        rd_.link_[Pelvis].r_traj = DyrosMath::rotationCubic(step_tick, 0, transfer_duration * hz_, rd_.link_[Pelvis].local_rotm_init, Eigen::Matrix3d::Identity());
+    }
+    else
+    {
+        rd_.link_[Pelvis].r_traj.setIdentity();
+    }
 }
 
 void WalkingManager::contactWrenchCalculator()
@@ -398,8 +416,21 @@ void WalkingManager::contactWrenchCalculator()
     Tau_L_x =     alpha  * Tau_all_x;
     Tau_L_y =     alpha  * Tau_all_y;
 
-    lfoot_contact_wrench << 0.0, 0.0, F_L, Tau_L_x, Tau_L_y, 0.0;
-    rfoot_contact_wrench << 0.0, 0.0, F_R, Tau_R_x, Tau_R_y, 0.0;
+    if(support_phase_indicator_ == ContactIndicator::LeftSingleSupport)
+    {
+        lfoot_contact_wrench << 0.0, 0.0, F_L, Tau_L_x, Tau_L_y, 0.0;
+        rfoot_contact_wrench << 0.0, 0.0, F_R, 0.0, 0.0, 0.0;
+    }
+    else if (support_phase_indicator_ == ContactIndicator::RightSingleSupport)
+    {
+        lfoot_contact_wrench << 0.0, 0.0, F_L, 0.0, 0.0, 0.0;
+        rfoot_contact_wrench << 0.0, 0.0, F_R, Tau_R_x, Tau_R_y, 0.0;
+    }
+    else 
+    {
+        lfoot_contact_wrench << 0.0, 0.0, F_L, Tau_L_x, Tau_L_y, 0.0;
+        rfoot_contact_wrench << 0.0, 0.0, F_R, Tau_R_x, Tau_R_y, 0.0;
+    }
 
     lfoot_contact_wrench *= (-1.0);
     rfoot_contact_wrench *= (-1.0);
@@ -410,90 +441,95 @@ void WalkingManager::contactWrenchCalculator()
 
 void WalkingManager::footstepOptimizer()
 {   
-    double w1_step = 1.0, w2_step = 1.0, w3_step = 1.0, w4_step = 5.0, w5_step = 5.0;
+    const int opt_dof = 4;
 
-    double L_nom = step_queue[0](0);     
-    double L_min = L_nom - 0.2;
-    double L_max = L_nom + 0.2;
+    double w1 = 1.0, w2 = 1.0, w3 = 1.0, w4 = 1.0;
 
-    double W_nom = step_queue[0](1);   
-    double W_min = W_nom - 0.1; 
-    double W_max = W_nom + 0.1; 
-    
-    double T_nom = step_duration;
-    double T_min = T_nom - 0.2;  
-    double T_max = T_nom + 0.2;
-    double tau_nom = exp(wn*T_nom); 
-    
-    double b_nom_x = L_nom / (exp(wn*T_nom) - 1.0); 
-    double b_nom_y = W_nom / (exp(wn*T_nom) - 1.0); 
+    double L_min = -0.2;
+    double L_max = +0.2;
 
-    double u0_x = 0.0;
-    double u0_y = 0.0;
+    double W_min = -0.15; 
+    double W_max = +0.15; 
+
+    if(support_phase_indicator_ == ContactIndicator::LeftSingleSupport)
+    {
+        W_max = +0.03;
+    }
+    else if (support_phase_indicator_ == ContactIndicator::RightSingleSupport)
+    {
+        W_min = -0.03;
+    }
 
     Eigen::MatrixXd H_step;
     Eigen::VectorXd g_step; 
     
-    H_step.setZero(5,5);
-    H_step(0,0) = w1_step; // step position in x-direction
-    H_step(1,1) = w2_step; // step position in y-direction
-    H_step(2,2) = w3_step; // step timing
-    H_step(3,3) = w4_step; // DCM offset in x
-    H_step(4,4) = w5_step; // DCM offset in y
+    H_step.setZero(opt_dof, opt_dof);
+    H_step(0,0) = w1; 
+    H_step(1,1) = w2; 
+    H_step(2,2) = w3; 
+    H_step(3,3) = w4; 
     
-    g_step.setZero(5);
-    g_step(0) = -w1_step * L_nom;
-    g_step(1) = -w2_step * W_nom; 
-    g_step(2) = -w3_step * tau_nom;
-    g_step(3) = -w4_step * b_nom_x;  
-    g_step(4) = -w5_step * b_nom_y;  
+    g_step.setZero(opt_dof);
 
-    Eigen::VectorXd lb_step;
-    Eigen::VectorXd ub_step;
-    Eigen::MatrixXd A_step;         
+    Eigen::VectorXd lbA_step;
+    Eigen::VectorXd ubA_step;
+    Eigen::MatrixXd A_step;
 
-    A_step.setZero(5,5);
-    A_step << 1,    0,  -(cp_measured_(0) - u0_x) * exp(-wn * (step_tick/ hz_) ),   1,  0,
-              0,    1,  -(cp_measured_(1) - u0_y) * exp(-wn * (step_tick/ hz_) ),   0,  1,
-              1,    0,    0,                                                        0,  0,
-              0,    1,    0,                                                        0,  0,
-              0,    0,    1,                                                        0,  0;
+    A_step.setZero(6, opt_dof);
+    A_step.block(0, 0, 2, 2)  = Eigen::Matrix2d::Identity();
+    A_step.block(0, 2, 2, 2) = Eigen::Matrix2d::Identity();
 
-    lb_step.setZero(5);
-    ub_step.setZero(5);
+    A_step.block(2, 0, 4, 4) = Eigen::Matrix4d::Identity();
 
-    lb_step(0) = u0_x;
-    lb_step(1) = u0_y;
-    lb_step(2) = L_min;
-    lb_step(3) = W_min;
-    lb_step(4) = exp(wn*T_min);
+
+    lbA_step.setZero(6);
+    ubA_step.setZero(6);
+
+    lbA_step(0) = exp(wn * (step_duration - step_time)) * (cp_error_(0) - del_zmp(0)) + del_zmp(0);
+    lbA_step(1) = exp(wn * (step_duration - step_time)) * (cp_error_(1) - del_zmp(1)) + del_zmp(1);
+    lbA_step(2) = L_min; 
+    lbA_step(3) = W_min; 
+    lbA_step(4) =-1e6;
+    lbA_step(5) =-1e6;
     
-    ub_step(0) = u0_x;
-    ub_step(1) = u0_y;
-    ub_step(2) = L_max;
-    ub_step(3) = W_max;
-    ub_step(4) = exp(wn*T_max);
-    
-    Eigen::VectorXd stepping_qp; stepping_qp.setZero(5);
-    Eigen::VectorXd stepping_input; stepping_input.setZero(5);
-    if (local_LF_contact == true || local_RF_contact == true)
+    ubA_step(0) = exp(wn * (step_duration - step_time)) * (cp_error_(0) - del_zmp(0)) + del_zmp(0);
+    ubA_step(1) = exp(wn * (step_duration - step_time)) * (cp_error_(1) - del_zmp(1)) + del_zmp(1);
+    ubA_step(2) = L_max;
+    ubA_step(3) = W_max;
+    ubA_step(4) = 1e6;
+    ubA_step(5) = 1e6;
+
+    static bool is_qp_init = true;
+    if(is_qp_init == true)
+    {
+        QP_stepping.InitializeProblemSize(opt_dof, 6);
+
+        is_qp_init = false;
+    }
+
+    Eigen::VectorXd stepping_qp; stepping_qp.setZero(opt_dof);
+    Eigen::VectorXd stepping_input; stepping_input.setZero(opt_dof);
+    if(support_phase_indicator_ == ContactIndicator::LeftSingleSupport || support_phase_indicator_ == ContactIndicator::RightSingleSupport)
     {   
-        QP_stepping.InitializeProblemSize(5, 5);
         QP_stepping.EnableEqualityCondition(1e-8);
         QP_stepping.UpdateMinProblem(H_step, g_step);
         QP_stepping.DeleteSubjectToAx();      
-        QP_stepping.UpdateSubjectToAx(A_step, lb_step, ub_step);
-    
+        QP_stepping.UpdateSubjectToAx(A_step, lbA_step, ubA_step);
         if(QP_stepping.SolveQPoases(200, stepping_qp))
         {   
-            stepping_input = stepping_qp.segment(0, 5);
+            stepping_input = stepping_qp.segment(0, opt_dof);
         }
         else
         {
-        }
-    }
+            std::cout << "Footstep Optimizer ERROR: Unable to find a valid solution." << std::endl;
 
-    std::cout << "stepping_input: " << stepping_input.transpose() << std::endl;
+        }
+    
+        footstep_delta.setZero();
+        footstep_delta = stepping_input.head(2);
+
+        std::cout << "footstep_delta: " << footstep_delta.transpose() << std::endl;
+    }
 }
 
 void WalkingManager::updateFootPoseFromContactWrench()
@@ -510,7 +546,7 @@ void WalkingManager::updateFootPoseFromContactWrench()
     J_rel = rd_.link_[Left_Foot].local_Jac - rd_.link_[Right_Foot].local_Jac;
 
     K_rel_inv.setZero();
-    K_rel_inv = J_rel * rd_.A_inv_ * J_rel.transpose();
+    K_rel_inv = J_rel * rd_.local_A_inv * J_rel.transpose();
 
     Eigen::Vector6d wrench_rel; wrench_rel.setZero();
     wrench_rel = (lfoot_contact_wrench - rfoot_contact_wrench);
@@ -534,7 +570,7 @@ void WalkingManager::updateFootPoseFromContactWrench()
 
     Eigen::MatrixXd local_lambda_C_inv; local_lambda_C_inv.setZero(12, 12);
 
-    local_lambda_C_inv = J_C * rd_.A_inv_ * J_C.transpose();
+    local_lambda_C_inv = J_C * rd_.local_A_inv * J_C.transpose();
     foot_acc_des = local_lambda_C_inv * (-foot_contact_wrench);
 
     Eigen::Vector6d lfoot_acc_des = foot_acc_des.head<6>();
@@ -551,8 +587,19 @@ void WalkingManager::updateFootPoseFromContactWrench()
                          * DyrosMath::rotateWithY(dtheta_R(1))
                          * DyrosMath::rotateWithX(dtheta_R(0));
 
-    rd_.link_[Left_Foot].r_traj  = rd_.link_[Left_Foot].r_traj  * dR_L;
-    rd_.link_[Right_Foot].r_traj = rd_.link_[Right_Foot].r_traj * dR_R;
+    if(support_phase_indicator_ == ContactIndicator::LeftSingleSupport)
+    {
+        rd_.link_[Left_Foot].r_traj  = rd_.link_[Left_Foot].r_traj  * dR_L;
+    }
+    else if (support_phase_indicator_ == ContactIndicator::RightSingleSupport)
+    {
+        rd_.link_[Right_Foot].r_traj = rd_.link_[Right_Foot].r_traj * dR_R;
+    }
+    else 
+    {
+        rd_.link_[Left_Foot].r_traj  = rd_.link_[Left_Foot].r_traj  * dR_L;
+        rd_.link_[Right_Foot].r_traj = rd_.link_[Right_Foot].r_traj * dR_R;
+    }
 }
 
 void WalkingManager::mapSupportToBase()
@@ -708,10 +755,11 @@ void WalkingManager::updateContactState(const bool &local_LF_contact_, const boo
     local_RF_contact = local_RF_contact_;
 }
 
-void WalkingManager::setWalkingParameter(const double &step_length_, const double &foot_yaw_angle_, const double &foot_height_)
+void WalkingManager::setWalkingParameter(const double &step_length_, const double &step_lateral_, const double &foot_yaw_angle_, const double &foot_height_)
 {
     step_length = step_length_;
-    step_width = 0.22;
+    step_width = 0.25;
+    step_lateral = step_lateral_;
     foot_yaw_angle = foot_yaw_angle_;
     foot_height = foot_height_;
 }
