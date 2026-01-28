@@ -65,8 +65,8 @@ void CustomController::computeSlow()
         torque_pd.setZero();
         torque_pd = (rd_.Kd_diag) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
 
-        for(int i = 0; i < MODEL_DOF; i++) {
-            torque_pd(i) += 100.0 * (rd_.q_desired(i) - rd_.q_(i));
+        for(int i = 12; i < MODEL_DOF; i++) {
+            torque_pd(i) += 400.0 * (rd_.q_desired(i) - rd_.q_(i));
         }
 
         torque_idn.setZero();
@@ -234,6 +234,15 @@ void CustomController::xBoxJoyCallback(const sensor_msgs::Joy::ConstPtr& joy)
     move_forward = DyrosMath::minmax_cut(joy->axes[1] * threshold, -threshold, threshold);
     move_lateral = DyrosMath::minmax_cut(joy->axes[0] * threshold, -threshold, threshold);
     rotate_yaw   = DyrosMath::minmax_cut(joy->axes[3] * threshold, -threshold, threshold);
+
+    static int zz = 0;
+    if(zz % 1000 == 0)
+    {
+        std::cout << "move_forward: " << move_forward << std::endl;
+        std::cout << "move_lateral: " << move_lateral << std::endl;
+        std::cout << "rotate_yaw: " << rotate_yaw << std::endl;
+    }
+    zz++;
 
     if (is_joy_enable == true)
     {

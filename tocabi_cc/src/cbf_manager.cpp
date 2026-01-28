@@ -159,7 +159,7 @@ void CbfManager::computeWorkspaceBoundaryCbfConstraint()
         }
         else if(cbf_mode == CbfType::Kin)
         {
-            h = (+1.0) * alpha_workspace * (pr.max_dist - dist_AB) - (1.0 / epsilon_workspace) * (-J_AB).squaredNorm();
+            h = (+1.0) * alpha_workspace * (pr.max_dist - dist_AB); // - (1.0 / epsilon_workspace) * (-J_AB).squaredNorm();
         }
 
         workspace_boundary_constraints.lbA(i) = (-1.0) * h;
@@ -225,8 +225,8 @@ void CbfManager::computeSelfCollisionCbfConstraint()
     }
     else if(cbf_mode == CbfType::Kin)
     {
-        self_collision_avoidance_constraints.lbA =   (-1.0) * (alpha_self_collision) * (col_mgr_.self_collision_avoid_terms_.min_distances) 
-                                                   + (1.0 / epsilon_self_collision) * self_collision_avoidance_constraints.A.rowwise().squaredNorm();
+        self_collision_avoidance_constraints.lbA =   (-1.0) * (alpha_self_collision) * (col_mgr_.self_collision_avoid_terms_.min_distances); 
+                                                 //  + (1.0 / epsilon_self_collision) * self_collision_avoidance_constraints.A.rowwise().squaredNorm();
     }
 
     self_collision_avoidance_constraints.ubA.setConstant(1e5);
@@ -300,8 +300,8 @@ void CbfManager::computeObstacleAvoidanceCbfConstraint()
     else if(cbf_mode == CbfType::Kin)
     {
         obstacle_avoidance_constraints.lbA =   (-1.0) * (alpha_obstacle_avoidance) * (col_mgr_.obstacle_avoid_terms_.min_distances)
-                                             + col_mgr_.obstacle_avoid_terms_.obs_vel_projections
-                                             + (1.0 / epsilon_obstacle_avoidance) * obstacle_avoidance_constraints.A.rowwise().squaredNorm();
+                                             + col_mgr_.obstacle_avoid_terms_.obs_vel_projections;
+                                            //  + (1.0 / epsilon_obstacle_avoidance) * obstacle_avoidance_constraints.A.rowwise().squaredNorm();
     }
 
     obstacle_avoidance_constraints.ubA.setConstant(1e5);
