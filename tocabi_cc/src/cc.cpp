@@ -67,7 +67,7 @@ void CustomController::computeSlow()
         torque_pd = (rd_.Kd_diag) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
 
         for(int i = 12; i < MODEL_DOF; i++) {
-            torque_pd(i) += 400.0 * (rd_.q_desired(i) - rd_.q_(i));
+            torque_pd(i) += 100.0 * (rd_.q_desired(i) - rd_.q_(i));
         }
 
         torque_idn.setZero();
@@ -169,7 +169,7 @@ void CustomController::moveInitialPose()
     q_init_des; q_init_des.setZero();
     q_init_des = q_init_;
 
-    if(motion_mode_ == TaskMotionType::Walking)
+    if(motion_mode_ == TaskMotionType::Walking || motion_mode_ == TaskMotionType::TeleOperation)
     {
         q_init_des(0) = 0.0; 
         q_init_des(1) = 0.0; 

@@ -82,6 +82,26 @@ void KinWBC::computeTaskSpaceKinematicWBC()
 
         qdot_des += J_pinv * ((q_init_des.tail(UPPERBODY_DOF) - rd_.q_.tail(UPPERBODY_DOF)) - J * qdot_des);
     }
+    else if (motion_mode == TaskMotionType::TeleOperation)
+    {
+        // Eigen::MatrixXd J(6, MODEL_DOF_VIRTUAL); J.setZero();
+        // Eigen::VectorXd de(6);
+
+        // J.block(0, 0, 3, MODEL_DOF_VIRTUAL) = rd_.link_[Left_Hand - 5].local_Jac_w;
+        // J.block(3, 0, 3, MODEL_DOF_VIRTUAL) = rd_.link_[Right_Hand - 5].local_Jac_w;
+        // Eigen::MatrixXd J_pre = J * Ni;
+
+        // de.head(3) = (-1.0) * DyrosMath::getPhi(rd_.link_[Left_Hand - 5].local_rotm,  rd_.link_[Left_Hand - 5].r_traj);
+        // de.tail(3) = (-1.0) * DyrosMath::getPhi(rd_.link_[Right_Hand - 5].local_rotm, rd_.link_[Right_Hand - 5].r_traj);
+
+        // double w_ik = 0.9; double w_elbow = 0.1;
+        // Eigen::MatrixXd J_weighted; J_weighted.setZero(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL);
+
+        // J_weighted = w_ik * Eigen::MatrixXd::Identity(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL) + w_elbow * J_pre.transpose() * J_pre;
+        // Eigen::LDLT<Eigen::MatrixXd> ldlt(J_weighted);
+        // qdot_des = ldlt.solve(w_ik * qdot_des + w_elbow * J_pre.transpose() * de);
+    }
+
 
     if(cbf_mgr_.getCbfMode() == CbfType::Kin){
         qdot_des = safetyFilter();

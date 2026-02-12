@@ -163,7 +163,73 @@ void TaskManager::bipedalWalkingController()
 
 void TaskManager::teleOperationController()
 {    
-    //--- TODO
+    static TeleOperationManager teleop_(rd_); 
+    static bool calibration_done = false;
+    static bool ready_pose_mode = false;
+    static bool avatar_mode = false;
+
+    for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
+    {
+        rd_.link_[idx].x_traj = rd_.link_[idx].local_xpos_init;
+        rd_.link_[idx].r_traj = rd_.link_[idx].local_rotm_init;
+    }
+
+    //--- User Command
+    if(teleop_.leftSecondaryPressedOnce())
+    {
+        std::cout << "========== CALIBRATION MODE ==========" << std::endl;
+
+        calibration_done = teleop_.transformAllOK();    // IF ALL TFs ARE RECEIVED, THEN TRUE; ELSE FALSE
+        if(!calibration_done){
+            std::cout << "TF MISSING DURING CALIBRATION!" << std::endl;
+            std::cout << "PLEASE TRY RETARGET AGAIN!" << std::endl;
+        }
+    }
+    else if(teleop_.leftPrimaryPressedOnce())
+    {
+        if(calibration_done) {
+            std::cout << "========== READY POSE ===========" << std::endl;
+            
+            ready_pose_mode = true;
+        }
+        else{
+            std::cout << "========== PLEASE DO CALIBRATION FIRST ==========" << std::endl;
+        }
+    }
+    else if(teleop_.rightSecondaryPressedOnce())
+    {
+        if(calibration_done) {
+            std::cout << "========== PAUSE MODE ==========" << std::endl;
+
+            for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
+            {
+                //--- Base frame
+                rd_.link_[idx].local_xpos_init = rd_.link_[idx].local_xpos;
+                rd_.link_[idx].local_rotm_init = rd_.link_[idx].local_rotm;                             
+            }
+
+            avatar_mode = false;        
+        }
+        else{
+            std::cout << "========== PLEASE DO CALIBRATION FIRST ==========" << std::endl;
+        }
+    }
+    else if(teleop_.rightPrimaryPressedOnce())
+    {
+        if(calibration_done) {
+            std::cout << "========== AVATAR MODE ===========" << std::endl;
+            avatar_mode = true;
+        }
+        else{
+            std::cout << "========== PLEASE DO CALIBRATION FIRST ==========" << std::endl;
+        }
+    }
+
+    //--- Teleoperation Control
+    teleop_.updateTrackerFromTF();
+    teleop_.calibrationFunction(calibration_done);
+    teleop_.motionRetargeting(avatar_mode);
+    teleop_.sendReadyPoseToRobot(ready_pose_mode);
 }
 
 

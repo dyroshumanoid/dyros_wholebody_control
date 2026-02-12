@@ -48,6 +48,7 @@ Eigen::Vector3d vee(const Eigen::Matrix3d& M);
 Eigen::Matrix2d rotZaxis2d(double theta);
 double cubicBezierPolynomial(double current_time, double start_time, double end_time, double p_init, double p_mid, double p_end);
 double cubicDotBezierPolynomial(double current_time, double start_time, double end_time, double p_init, double p_mid, double p_end);
+Eigen::Isometry3d blendIsometry(const Eigen::Isometry3d &A, const Eigen::Isometry3d &B, double s);
 inline std::string contactIndicatorToString(const ContactIndicator& mode)
 {
     switch (mode)

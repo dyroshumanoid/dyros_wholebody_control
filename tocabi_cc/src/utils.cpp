@@ -179,3 +179,22 @@ Eigen::Quaterniond integrateQuatBodyExp(const Eigen::Quaterniond &q, const Eigen
     Eigen::Quaterniond q_next = (q * dq).normalized();
     return q_next;
 }
+
+Eigen::Isometry3d blendIsometry(
+    const Eigen::Isometry3d& A,
+    const Eigen::Isometry3d& B,
+    double s)
+{
+    Eigen::Isometry3d T;
+
+    // position lerp
+    T.translation() = (1.0 - s) * A.translation() + s * B.translation();
+
+    // rotation slerp
+    Eigen::Quaterniond qA(A.linear());
+    Eigen::Quaterniond qB(B.linear());
+    Eigen::Quaterniond q = qA.slerp(s, qB);
+
+    T.linear() = q.toRotationMatrix();
+    return T;
+}

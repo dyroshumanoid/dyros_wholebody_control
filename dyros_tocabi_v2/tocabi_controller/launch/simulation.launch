@@ -51,4 +51,13 @@
         </node>
     </group>
 
+    <group if="$(arg gui)">
+        <node name="rviz"
+            pkg="rviz"
+            type="rviz"
+            args="-d $(find tocabi_cc)/rviz/tf_checker.rviz"
+            output="screen"/>
+    </group>
+
+
 </launch>

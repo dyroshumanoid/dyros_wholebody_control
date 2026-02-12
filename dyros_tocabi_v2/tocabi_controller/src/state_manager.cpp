@@ -2308,7 +2308,7 @@ void StateManager::PublishData()
     ts.transform.translation.y = q_virtual_(1);
     ts.transform.translation.z = q_virtual_(2);
 
-    br.sendTransform(ts);
+    // br.sendTransform(ts);
 
     joint_state_msg_.header.stamp = ros::Time::now();
     for (int i = 0; i < MODEL_DOF; i++)

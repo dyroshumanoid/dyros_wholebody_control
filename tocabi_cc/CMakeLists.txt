@@ -7,7 +7,9 @@ find_package(catkin REQUIRED
 roscpp
 tocabi_lib
 tocabi_msgs  
+xr_msgs  
 eigen_conversions
+tf
 )
 
 # find_package(casadi REQUIRED)   # KW add (FOR CASADI)
@@ -15,7 +17,7 @@ eigen_conversions
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS tocabi_lib tocabi_msgs
+  CATKIN_DEPENDS tocabi_lib tocabi_msgs xr_msgs tf
   # DEPENDS system_lib
 )
 
