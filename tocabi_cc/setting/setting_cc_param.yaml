@@ -103,4 +103,4 @@ cbf:
     obstacle_avoidance_cbf_alpha: 30.0
     obstacle_avoidance_cbf_epsilon: 3.0
 
-motion_mode : 4 # 0: idle, 1: simple hand motion, 2: taichi, 3: walking, 4: teleop
+motion_mode : 3 # 0: idle, 1: simple hand motion, 2: taichi, 3: walking, 4: teleop

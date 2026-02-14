@@ -227,6 +227,8 @@ void TaskManager::teleOperationController()
 
     //--- Teleoperation Control
     teleop_.updateTrackerFromTF();
+    support_phase_indicator_ = teleop_.getSupportPhaseIndicator();
+    mapBaseToSupport();
     teleop_.calibrationFunction(calibration_done);
     teleop_.motionRetargeting(avatar_mode);
     teleop_.sendReadyPoseToRobot(ready_pose_mode);

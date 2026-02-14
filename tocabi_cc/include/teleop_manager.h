@@ -21,7 +21,9 @@ public:
     void calibrationFunction(const bool &calibration_done);
     void sendReadyPoseToRobot(const bool &ready_pose_mode);
     void motionRetargeting(const bool &avatar_mode);
-
+    ContactIndicator getSupportPhaseIndicator() {
+        return (human_contact_indicator_);
+    }
 
     bool leftPrimaryPressedOnce();
     bool leftSecondaryPressedOnce();
@@ -46,6 +48,8 @@ private:
     double pelvis_height_ratio = 0.0;
     double larm_length_ratio = 0.0;
     double rarm_length_ratio = 0.0;
+    double lleg_length_ratio = 0.0;
+    double rleg_length_ratio = 0.0;
 
     //--- Tracker
     Eigen::Isometry3d tracker_head_pose_raw_;
@@ -57,9 +61,11 @@ private:
     Eigen::Isometry3d tracker_relbow_pose_raw_;
     Eigen::Isometry3d tracker_lhand_pose_raw_;
     Eigen::Isometry3d tracker_rhand_pose_raw_;
+    Eigen::Isometry3d tracker_lhip_pose_raw_;
+    Eigen::Isometry3d tracker_rhip_pose_raw_;
     Eigen::Isometry3d tracker_lfoot_pose_raw_;
     Eigen::Isometry3d tracker_rfoot_pose_raw_;
-
+    
     Eigen::Isometry3d tracker_head_pose_mapped_;
     Eigen::Isometry3d tracker_chest_pose_mapped_;
     Eigen::Isometry3d tracker_pelv_pose_mapped_;
@@ -69,10 +75,17 @@ private:
     Eigen::Isometry3d tracker_relbow_pose_mapped_;
     Eigen::Isometry3d tracker_lhand_pose_mapped_;
     Eigen::Isometry3d tracker_rhand_pose_mapped_;
+    Eigen::Isometry3d tracker_lhip_pose_mapped_;
+    Eigen::Isometry3d tracker_rhip_pose_mapped_;
     Eigen::Isometry3d tracker_lfoot_pose_mapped_;
     Eigen::Isometry3d tracker_rfoot_pose_mapped_;
 
-    Eigen::Matrix3d tracker_pelv_pos_init_;
+    Eigen::Vector3d tracker_pelv_pos_mapped_support_;
+    Eigen::Vector3d tracker_lfoot_pos_mapped_support_;
+    Eigen::Vector3d tracker_rfoot_pos_mapped_support_;
+    Eigen::Vector3d tracker_pelv_pos_mapped_support_init_;
+    Eigen::Vector3d tracker_lfoot_pos_mapped_support_init_;
+    Eigen::Vector3d tracker_rfoot_pos_mapped_support_init_;
 
     Eigen::Matrix3d tracker_head_rotm_init_;
     Eigen::Matrix3d tracker_chest_rotm_init_;
@@ -85,6 +98,8 @@ private:
     Eigen::Matrix3d tracker_rfoot_rotm_init_;
 
     //--- Robot
+    Eigen::Vector3d robot_com_pos_init_;
+
     Eigen::Matrix3d robot_head_rotm_init_;
     Eigen::Matrix3d robot_chest_rotm_init_;
     Eigen::Matrix3d robot_pelv_rotm_init_;
@@ -114,6 +129,8 @@ private:
     Eigen::Isometry3d robot_rhand_pose_retarget_;
     Eigen::Isometry3d robot_lfoot_pose_retarget_;
     Eigen::Isometry3d robot_rfoot_pose_retarget_;
+    Eigen::Isometry3d robot_com_pose_retarget_;
+
 
     //--- Retargeting
     bool tf_all_ok_ = false;
@@ -126,6 +143,8 @@ private:
         bool ok_rhand = false;
         bool ok_rshould = false;
         bool ok_relbow = false;
+        bool ok_lhip = false;
+        bool ok_rhip = false;
         bool ok_lfoot = false;
         bool ok_rfoot = false;
 
@@ -137,4 +156,10 @@ private:
     bool left_controller_primary_button = false;
     bool left_controller_secondary_button = false;
     double left_controller_trigger = 0.0;
+
+    //--- Human Contact Indicator
+    ContactIndicator human_contact_indicator_ = ContactIndicator::DoubleSupport;
+
+    //--- Lowerbody Disable
+    bool lowerbody_disable_ = false;
 };

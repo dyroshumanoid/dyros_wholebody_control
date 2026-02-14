@@ -28,6 +28,8 @@ void TeleOperationManager::updateTrackerFromTF()
     ok_rhand    = lookupTF("map", "pico_right_hand",    tracker_rhand_pose_raw_);
     ok_rshould  = lookupTF("map", "pico_right_shoulder",tracker_rshoulder_pose_raw_);
     ok_relbow   = lookupTF("map", "pico_right_elbow",   tracker_relbow_pose_raw_);
+    ok_lhip     = lookupTF("map", "pico_left_hip",      tracker_lhip_pose_raw_);
+    ok_rhip     = lookupTF("map", "pico_right_hip",     tracker_rhip_pose_raw_);
     ok_lfoot    = lookupTF("map", "pico_left_foot",     tracker_lfoot_pose_raw_);
     ok_rfoot    = lookupTF("map", "pico_right_foot",    tracker_rfoot_pose_raw_);
 
@@ -50,19 +52,16 @@ void TeleOperationManager::updateTrackerFromTF()
         if (!ok_rhand)   ss << "rhand ";
         if (!ok_rshould) ss << "rshoulder ";
         if (!ok_relbow)  ss << "relbow ";
+        if (!ok_lhip)    ss << "lhip ";
+        if (!ok_rhip)    ss << "rhip ";
         if (!ok_lfoot)   ss << "lfoot ";
         if (!ok_rfoot)   ss << "rfoot ";
 
         ROS_WARN_THROTTLE(1.0, "%s", ss.str().c_str());
         return;
     }
-}
 
-void TeleOperationManager::calibrationFunction(const bool &calibration_done)
-{
-    static bool save_initial_configuration = false;
-    static bool calibration_done_prev = false;
-    //--- Tracker Info
+    //--- Tracker Mapping for Local Frame
     Eigen::Isometry3d T_world_;
     T_world_.linear().setZero();
     T_world_.translation().setZero();
@@ -78,8 +77,58 @@ void TeleOperationManager::calibrationFunction(const bool &calibration_done)
     tracker_relbow_pose_mapped_    = DyrosMath::inverseIsometry3d(T_world_) * tracker_relbow_pose_raw_;
     tracker_lhand_pose_mapped_     = DyrosMath::inverseIsometry3d(T_world_) * tracker_lhand_pose_raw_;
     tracker_rhand_pose_mapped_     = DyrosMath::inverseIsometry3d(T_world_) * tracker_rhand_pose_raw_;
+    tracker_lhip_pose_mapped_      = DyrosMath::inverseIsometry3d(T_world_) * tracker_lhip_pose_raw_;
+    tracker_rhip_pose_mapped_      = DyrosMath::inverseIsometry3d(T_world_) * tracker_rhip_pose_raw_;
     tracker_lfoot_pose_mapped_     = DyrosMath::inverseIsometry3d(T_world_) * tracker_lfoot_pose_raw_;
     tracker_rfoot_pose_mapped_     = DyrosMath::inverseIsometry3d(T_world_) * tracker_rfoot_pose_raw_;
+
+    //--- Human Contact State Estimation
+    double lift_threshold = 0.05; 
+    double foot_height_gap = tracker_lfoot_pose_mapped_.translation()(2) - tracker_rfoot_pose_mapped_.translation()(2);
+    if (foot_height_gap > lift_threshold){
+        human_contact_indicator_ = ContactIndicator::RightSingleSupport;
+    }
+    else if (foot_height_gap < -lift_threshold){
+        human_contact_indicator_ = ContactIndicator::LeftSingleSupport;
+    }
+    else{
+        human_contact_indicator_ = ContactIndicator::DoubleSupport;
+    }
+
+    //--- Tracker Mapping for Support Foot
+    if(human_contact_indicator_ == ContactIndicator::DoubleSupport)
+    {
+        tracker_pelv_pos_mapped_support_ = tracker_pelv_pose_mapped_.translation()   - tracker_lfoot_pose_mapped_.translation();
+        tracker_lfoot_pos_mapped_support_ = tracker_lfoot_pose_mapped_.translation() - tracker_lfoot_pose_mapped_.translation();
+        tracker_rfoot_pos_mapped_support_ = tracker_rfoot_pose_mapped_.translation() - tracker_lfoot_pose_mapped_.translation();
+    }
+    else if(human_contact_indicator_ == ContactIndicator::LeftSingleSupport)
+    {
+        tracker_pelv_pos_mapped_support_ = tracker_pelv_pose_mapped_.translation()   - tracker_lfoot_pose_mapped_.translation();
+        tracker_lfoot_pos_mapped_support_ = tracker_lfoot_pose_mapped_.translation() - tracker_lfoot_pose_mapped_.translation();
+        tracker_rfoot_pos_mapped_support_ = tracker_rfoot_pose_mapped_.translation() - tracker_lfoot_pose_mapped_.translation();
+    }
+    else if(human_contact_indicator_ == ContactIndicator::RightSingleSupport)
+    {
+        tracker_pelv_pos_mapped_support_ = tracker_pelv_pose_mapped_.translation()   - tracker_rfoot_pose_mapped_.translation();
+        tracker_lfoot_pos_mapped_support_ = tracker_lfoot_pose_mapped_.translation() - tracker_rfoot_pose_mapped_.translation();
+        tracker_rfoot_pos_mapped_support_ = tracker_rfoot_pose_mapped_.translation() - tracker_rfoot_pose_mapped_.translation();
+    }
+    else
+    {
+        ROS_ERROR("CONTACT MISSING");
+        assert((human_contact_indicator_ == ContactIndicator::DoubleSupport)
+            || (human_contact_indicator_ == ContactIndicator::LeftSingleSupport)
+            || (human_contact_indicator_ == ContactIndicator::RightSingleSupport));
+    }
+
+
+}
+
+void TeleOperationManager::calibrationFunction(const bool &calibration_done)
+{
+    static bool save_initial_configuration = false;
+    static bool calibration_done_prev = false;
 
     if (calibration_done && !calibration_done_prev){
         save_initial_configuration = true;
@@ -109,10 +158,19 @@ void TeleOperationManager::calibrationFunction(const bool &calibration_done)
             robot_lfoot_rotm_init_  = rd_.link_[Left_Foot].local_rotm;
             robot_rfoot_rotm_init_  = rd_.link_[Right_Foot].local_rotm;
 
+            tracker_pelv_pos_mapped_support_init_ = tracker_pelv_pos_mapped_support_;
+            tracker_lfoot_pos_mapped_support_init_ = tracker_lfoot_pos_mapped_support_;
+            tracker_rfoot_pos_mapped_support_init_ = tracker_rfoot_pos_mapped_support_;
+
             //--- Pelvis Height Ratio
-            double robot_pelv_height = rd_.link_[Pelvis].local_xpos(2) - (rd_.link_[Left_Foot].local_xpos(2) + rd_.link_[Right_Foot].local_xpos(2)) / 2.0;
-            double human_pelv_height = tracker_pelv_pose_mapped_.translation()(2) - (tracker_lfoot_pose_mapped_.translation()(2) + tracker_rfoot_pose_mapped_.translation()(2)) / 2.0;
+            double robot_pelv_height = rd_.link_[Pelvis].support_xpos_init(2);
+            double human_pelv_height = tracker_pelv_pos_mapped_support_init_(2);
             pelvis_height_ratio = robot_pelv_height / human_pelv_height;
+
+            std::cout << "[Pelvis Calibration Info]" << std::endl;
+            std::cout << "Robot_pelv_height: " << robot_pelv_height << std::endl;
+            std::cout << "Human_pelv_height: " << human_pelv_height << std::endl;
+            std::cout << "Pelvis Height Ratio: " << pelvis_height_ratio << std::endl;
 
             //--- Arm Length Ratio
             double robot_larm_length = (rd_.link_[Left_Hand].local_xpos - rd_.link_[Left_Hand - 5].local_xpos).norm();
@@ -122,6 +180,31 @@ void TeleOperationManager::calibrationFunction(const bool &calibration_done)
             double robot_rarm_length = (rd_.link_[Right_Hand].local_xpos - rd_.link_[Right_Hand - 5].local_xpos).norm();
             double human_rarm_length = (tracker_rshoulder_pose_mapped_.translation() - tracker_rhand_pose_mapped_.translation()).norm();
             rarm_length_ratio = robot_rarm_length / human_rarm_length;
+
+            std::cout << "[Arm Length Calibration Info]" << std::endl;
+            std::cout << "Robot_larm_length: " << robot_larm_length << std::endl;
+            std::cout << "Human_larm_length: " << human_larm_length << std::endl;
+            std::cout << "Larm Length Ratio: " << larm_length_ratio << std::endl;
+            std::cout << "Robot_rarm_length: " << robot_rarm_length << std::endl;
+            std::cout << "Human_rarm_length: " << human_rarm_length << std::endl;
+            std::cout << "Rarm Length Ratio: " << rarm_length_ratio << std::endl;
+
+            //--- Leg Length Ratio
+            double robot_lleg_length = (rd_.link_[Left_Foot].local_xpos - rd_.link_[Left_Foot - 5].local_xpos).norm();
+            double human_lleg_length = (tracker_lfoot_pose_mapped_.translation() - tracker_lhip_pose_mapped_.translation()).norm();
+            lleg_length_ratio = robot_lleg_length / human_lleg_length;
+
+            double robot_rleg_length = (rd_.link_[Right_Foot].local_xpos - rd_.link_[Right_Foot - 5].local_xpos).norm();
+            double human_rleg_length = (tracker_rfoot_pose_mapped_.translation() - tracker_rhip_pose_mapped_.translation()).norm();
+            rleg_length_ratio = robot_rleg_length / human_rleg_length;
+
+            std::cout << "[Leg Length Calibration Info]" << std::endl;
+            std::cout << "Robot_lleg_length: " << robot_lleg_length << std::endl;
+            std::cout << "Human_lleg_length: " << human_lleg_length << std::endl;
+            std::cout << "Lleg Length Ratio: " << lleg_length_ratio << std::endl;
+            std::cout << "Robot_rleg_length: " << robot_rleg_length << std::endl;
+            std::cout << "Human_rleg_length: " << human_rleg_length << std::endl;
+            std::cout << "Rleg Length Ratio: " << rleg_length_ratio << std::endl;
 
             save_initial_configuration = false;
         }
@@ -145,6 +228,17 @@ void TeleOperationManager::calibrationFunction(const bool &calibration_done)
     //--- Hand Position Retargeting
     robot_lhand_pose_retarget_.translation() = rd_.link_[Left_Hand - 6].local_xpos  + larm_length_ratio * (tracker_lhand_pose_mapped_.translation() - tracker_lshoulder_pose_mapped_.translation());
     robot_rhand_pose_retarget_.translation() = rd_.link_[Right_Hand - 6].local_xpos + rarm_length_ratio * (tracker_rhand_pose_mapped_.translation() - tracker_rshoulder_pose_mapped_.translation());
+
+    //--- Foot Position Retargeting
+    // TODO
+
+    //--- CoM Position Retargeting
+    robot_com_pose_retarget_.translation()(2) = rd_.link_[COM_id].support_xpos_init(2) + pelvis_height_ratio * (tracker_pelv_pos_mapped_support_(2) - tracker_pelv_pos_mapped_support_init_(2));
+    robot_com_pose_retarget_.translation() -= rd_.link_[Pelvis].support_xpos;
+    double com_horizontal_offset =((tracker_pelv_pose_mapped_.translation().head(2)  - tracker_lfoot_pose_mapped_.translation().head(2)).transpose() * (tracker_rfoot_pose_mapped_.translation().head(2) - tracker_lfoot_pose_mapped_.translation().head(2)))(0)
+                                 /((tracker_rfoot_pose_mapped_.translation().head(2) - tracker_lfoot_pose_mapped_.translation().head(2)).transpose() * (tracker_rfoot_pose_mapped_.translation().head(2) - tracker_lfoot_pose_mapped_.translation().head(2)))(0);
+    robot_com_pose_retarget_.translation().head(2) = rd_.link_[Left_Foot].local_xpos.head(2) + com_horizontal_offset * (rd_.link_[Right_Foot].local_xpos.head(2) - rd_.link_[Left_Foot].local_xpos.head(2)); 
+
 }
 
 void TeleOperationManager::sendReadyPoseToRobot(const bool &ready_pose_mode)
@@ -248,11 +342,17 @@ void TeleOperationManager::motionRetargeting(const bool &avatar_mode)
             T_to_[Right_Hand] = robot_rhand_pose_retarget_;
             T_to_[Left_Hand - 5]  = robot_lelbow_pose_retarget_;
             T_to_[Right_Hand - 5] = robot_relbow_pose_retarget_;
-            
-            T_to_[COM_id].translation()  = rd_.link_[COM_id].local_xpos_init;
+            if(lowerbody_disable_){
+                T_to_[COM_id].translation() = rd_.link_[COM_id].local_xpos_init;
+                T_to_[Left_Foot].translation()  = rd_.link_[Left_Foot].local_xpos_init;
+                T_to_[Right_Foot].translation() = rd_.link_[Right_Foot].local_xpos_init;
+            }
+            else{
+                T_to_[COM_id].translation() = robot_com_pose_retarget_.translation();
+                T_to_[Left_Foot].translation()  = robot_lfoot_pose_retarget_.translation();
+                T_to_[Right_Foot].translation() = robot_rfoot_pose_retarget_.translation();
+            }
 
-            T_to_[Left_Foot].translation()  = rd_.link_[Left_Foot].local_xpos_init;
-            T_to_[Right_Foot].translation() = rd_.link_[Right_Foot].local_xpos_init;
             T_to_[Left_Foot].linear()  = rd_.link_[Left_Foot].local_rotm_init;
             T_to_[Right_Foot].linear() = rd_.link_[Right_Foot].local_rotm_init;
         }
@@ -265,11 +365,17 @@ void TeleOperationManager::motionRetargeting(const bool &avatar_mode)
             T_from_[Right_Hand] = robot_rhand_pose_retarget_;
             T_from_[Left_Hand - 5]  = robot_lelbow_pose_retarget_;
             T_from_[Right_Hand - 5] = robot_relbow_pose_retarget_;
+            if(lowerbody_disable_){
+                T_from_[COM_id].translation() = rd_.link_[COM_id].local_xpos_init;
+                T_from_[Left_Foot].translation()  = rd_.link_[Left_Foot].local_xpos_init;
+                T_from_[Right_Foot].translation() = rd_.link_[Right_Foot].local_xpos_init;
+            }
+            else{
+                T_from_[COM_id].translation() = robot_com_pose_retarget_.translation();
+                T_from_[Left_Foot].translation()  = rd_.link_[Left_Foot].local_xpos_init;
+                T_from_[Right_Foot].translation() = rd_.link_[Right_Foot].local_xpos_init;
+            }
 
-            T_from_[COM_id].translation()  = rd_.link_[COM_id].local_xpos_init;
-
-            T_from_[Left_Foot].translation()  = rd_.link_[Left_Foot].local_xpos_init;
-            T_from_[Right_Foot].translation() = rd_.link_[Right_Foot].local_xpos_init;
             T_from_[Left_Foot].linear()  = rd_.link_[Left_Foot].local_rotm_init;
             T_from_[Right_Foot].linear() = rd_.link_[Right_Foot].local_rotm_init;
 
@@ -312,6 +418,16 @@ void TeleOperationManager::motionRetargeting(const bool &avatar_mode)
         //--- Translation
         rd_.link_[Left_Hand].x_traj  = robot_lhand_pose_retarget_.translation();
         rd_.link_[Right_Hand].x_traj = robot_rhand_pose_retarget_.translation();
+        if(lowerbody_disable_){
+            rd_.link_[COM_id].x_traj = rd_.link_[COM_id].local_xpos_init;
+            rd_.link_[Left_Foot].x_traj  = rd_.link_[Left_Foot].local_xpos_init;
+            rd_.link_[Right_Foot].x_traj = rd_.link_[Right_Foot].local_xpos_init;
+        }
+        else{
+            rd_.link_[COM_id].x_traj = robot_com_pose_retarget_.translation();
+            rd_.link_[Left_Foot].x_traj  = rd_.link_[Left_Foot].local_xpos_init;
+            rd_.link_[Right_Foot].x_traj = rd_.link_[Right_Foot].local_xpos_init;
+        }
     }
     else
     {
