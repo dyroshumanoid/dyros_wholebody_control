@@ -110,9 +110,18 @@ private:
     Eigen::VectorQd ControlVal_;
     double hz_ = 2000;
     bool is_joy_enable = true;
+    int tc_mode_prev = 0;
 
     // Fast loop is ready to run after the first slow-loop update
     bool control_mode_changed = false;
     bool is_6_init = true;
     bool is_7_init = true;
+
+    //--- Joint Logging
+    int    sinusoid_joint_target_ = 0;
+    double sinusoid_joint_min_    = 0.0;
+    double sinusoid_joint_max_    = 0.0;
+    double sinusoid_period_       = 1.0;
+    bool is_step = false;
+
 };

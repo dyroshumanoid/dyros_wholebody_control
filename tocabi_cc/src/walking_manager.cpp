@@ -21,7 +21,7 @@ void WalkingManager::computeWalkingMotion()
     contactWrenchCalculator();
     // footstepOptimizer();
     getFootTrajectory();
-    updateFootPoseFromContactWrench();
+    // updateFootPoseFromContactWrench();
 
     mapSupportToBase();
 
@@ -103,8 +103,8 @@ void WalkingManager::getZmpTrajectory()
     int foot_contact_idx = local_LF_contact ? -1 : +1;
 
     double zmp_offset_x = 0.02;
-    // double zmp_offset_y = 0.03;
-    double zmp_offset_y = 0.01;
+    // double zmp_offset_y = 0.01;
+    double zmp_offset_y = 0.025;
 
     if (step_cnt == 0) // DSP
     {
@@ -365,6 +365,8 @@ void WalkingManager::getComTrajectory()
     else
     {
         rd_.link_[Pelvis].r_traj.setIdentity();
+        rd_.link_[Pelvis].r_traj = DyrosMath::rotationCubic(step_time, 0.0, step_duration, rd_.link_[Pelvis].r_traj, DyrosMath::rotateWithZ(step_yaw_queue.front() / 2.0));
+
     }
 }
 
@@ -432,9 +434,16 @@ void WalkingManager::contactWrenchCalculator()
         rfoot_contact_wrench << 0.0, 0.0, F_R, Tau_R_x, Tau_R_y, 0.0;
     }
 
+    //--- Force Feedback Control
+    double kp_force = 1.0;
+
+    lfoot_contact_wrench(2) += kp_force * (lfoot_contact_wrench(2) - rd_.LF_FT(2));
+    rfoot_contact_wrench(2) += kp_force * (rfoot_contact_wrench(2) - rd_.RF_FT(2));
+
     lfoot_contact_wrench *= (-1.0);
     rfoot_contact_wrench *= (-1.0);
 
+    //--- Send Whole-body controller
     rd_.LF_FT_DES = lfoot_contact_wrench;
     rd_.RF_FT_DES = rfoot_contact_wrench;
 }
@@ -758,7 +767,7 @@ void WalkingManager::updateContactState(const bool &local_LF_contact_, const boo
 void WalkingManager::setWalkingParameter(const double &step_length_, const double &step_lateral_, const double &foot_yaw_angle_, const double &foot_height_)
 {
     step_length = step_length_;
-    step_width = 0.25;
+    step_width = 0.22;
     step_lateral = step_lateral_;
     foot_yaw_angle = foot_yaw_angle_;
     foot_height = foot_height_;

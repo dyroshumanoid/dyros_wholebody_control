@@ -240,18 +240,18 @@ void CollisionManager::initCollisionBody()
     cb_robot_[Left_Lower_Leg_Col_ID].capsule = std::make_shared<Capsule>(0.075, 0.3); // radius, height
 
     // Left Inner Foot
-    cb_robot_[Left_Inner_Foot_Col_ID].link_name = "L_Foot_Link";
-    cb_robot_[Left_Inner_Foot_Col_ID].link_id = TOCABI::Left_Foot;
-    cb_robot_[Left_Inner_Foot_Col_ID].link_xpos = Eigen::Vector3d(0.03, -0.0455, -0.15);
-    cb_robot_[Left_Inner_Foot_Col_ID].link_rotm = DyrosMath::rotateWithY(-M_PI / 2.0);
-    cb_robot_[Left_Inner_Foot_Col_ID].capsule = std::make_shared<Capsule>(0.0432, 0.24); // radius, height
+    // cb_robot_[Left_Inner_Foot_Col_ID].link_name = "L_Foot_Link";
+    // cb_robot_[Left_Inner_Foot_Col_ID].link_id = TOCABI::Left_Foot;
+    // cb_robot_[Left_Inner_Foot_Col_ID].link_xpos = Eigen::Vector3d(0.03, -0.0455, -0.15);
+    // cb_robot_[Left_Inner_Foot_Col_ID].link_rotm = DyrosMath::rotateWithY(-M_PI / 2.0);
+    // cb_robot_[Left_Inner_Foot_Col_ID].capsule = std::make_shared<Capsule>(0.0432, 0.24); // radius, height
 
-    // Left Outer Foot
-    cb_robot_[Left_Outer_Foot_Col_ID].link_name = "L_Foot_Link";
-    cb_robot_[Left_Outer_Foot_Col_ID].link_id = TOCABI::Left_Foot;
-    cb_robot_[Left_Outer_Foot_Col_ID].link_xpos = Eigen::Vector3d(0.03, 0.0455, -0.15);
-    cb_robot_[Left_Outer_Foot_Col_ID].link_rotm = DyrosMath::rotateWithY(-M_PI / 2.0);
-    cb_robot_[Left_Outer_Foot_Col_ID].capsule = std::make_shared<Capsule>(0.0432, 0.24); // radius, height
+    // // Left Outer Foot
+    // cb_robot_[Left_Outer_Foot_Col_ID].link_name = "L_Foot_Link";
+    // cb_robot_[Left_Outer_Foot_Col_ID].link_id = TOCABI::Left_Foot;
+    // cb_robot_[Left_Outer_Foot_Col_ID].link_xpos = Eigen::Vector3d(0.03, 0.0455, -0.15);
+    // cb_robot_[Left_Outer_Foot_Col_ID].link_rotm = DyrosMath::rotateWithY(-M_PI / 2.0);
+    // cb_robot_[Left_Outer_Foot_Col_ID].capsule = std::make_shared<Capsule>(0.0432, 0.24); // radius, height
 
     // Right Upper Leg
     cb_robot_[Right_Upper_Leg_Col_ID].link_name = "R_Thigh_Link";
@@ -268,18 +268,18 @@ void CollisionManager::initCollisionBody()
     cb_robot_[Right_Lower_Leg_Col_ID].capsule = std::make_shared<Capsule>(0.075, 0.30); // radius, height
 
     // Right Inner Foot
-    cb_robot_[Right_Inner_Foot_Col_ID].link_name = "R_Foot_Link";
-    cb_robot_[Right_Inner_Foot_Col_ID].link_id = TOCABI::Right_Foot;
-    cb_robot_[Right_Inner_Foot_Col_ID].link_xpos = Eigen::Vector3d(0.03, 0.0455, -0.15);
-    cb_robot_[Right_Inner_Foot_Col_ID].link_rotm = DyrosMath::rotateWithY(-M_PI / 2.0);
-    cb_robot_[Right_Inner_Foot_Col_ID].capsule = std::make_shared<Capsule>(0.0432, 0.24); // radius, height
+    // cb_robot_[Right_Inner_Foot_Col_ID].link_name = "R_Foot_Link";
+    // cb_robot_[Right_Inner_Foot_Col_ID].link_id = TOCABI::Right_Foot;
+    // cb_robot_[Right_Inner_Foot_Col_ID].link_xpos = Eigen::Vector3d(0.03, 0.0455, -0.15);
+    // cb_robot_[Right_Inner_Foot_Col_ID].link_rotm = DyrosMath::rotateWithY(-M_PI / 2.0);
+    // cb_robot_[Right_Inner_Foot_Col_ID].capsule = std::make_shared<Capsule>(0.0432, 0.24); // radius, height
 
-    // Right Outer Foot
-    cb_robot_[Right_Outer_Foot_Col_ID].link_name = "R_Foot_Link";
-    cb_robot_[Right_Outer_Foot_Col_ID].link_id = TOCABI::Right_Foot;
-    cb_robot_[Right_Outer_Foot_Col_ID].link_xpos = Eigen::Vector3d(0.03, -0.0455, -0.15);
-    cb_robot_[Right_Outer_Foot_Col_ID].link_rotm = DyrosMath::rotateWithY(-M_PI / 2.0);
-    cb_robot_[Right_Outer_Foot_Col_ID].capsule = std::make_shared<Capsule>(0.0432, 0.24); // radius, height
+    // // Right Outer Foot
+    // cb_robot_[Right_Outer_Foot_Col_ID].link_name = "R_Foot_Link";
+    // cb_robot_[Right_Outer_Foot_Col_ID].link_id = TOCABI::Right_Foot;
+    // cb_robot_[Right_Outer_Foot_Col_ID].link_xpos = Eigen::Vector3d(0.03, -0.0455, -0.15);
+    // cb_robot_[Right_Outer_Foot_Col_ID].link_rotm = DyrosMath::rotateWithY(-M_PI / 2.0);
+    // cb_robot_[Right_Outer_Foot_Col_ID].capsule = std::make_shared<Capsule>(0.0432, 0.24); // radius, height
 
     // // Left Upper Body
     // cb_robot_[Left_Upper_Body_Col_ID].link_name = "Upperbody_Link";

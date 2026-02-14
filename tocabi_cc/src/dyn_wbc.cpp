@@ -5,7 +5,7 @@
 using namespace Eigen;
 using namespace qpOASES;
 
-DynWBC::DynWBC(RobotData& rd, CbfManager& cbf_mgr) : rd_(rd), cbf_mgr_(cbf_mgr) { }
+DynWBC::DynWBC(RobotData& rd, CbfManager& cbf_mgr, RigidBodyDynamics::Model& model) : rd_(rd), cbf_mgr_(cbf_mgr), model_(model) {}
 
 Eigen::VectorQd DynWBC::computeDynamicWBC()
 {
@@ -289,24 +289,73 @@ void DynWBC::checkGradHessSize()
     }
 }
 
-//--- cbf
-double DynWBC::getSignedDistanceFunction(LinkData &linkA_, LinkData &linkB_, Eigen::MatrixXd &J_AB, Eigen::MatrixXd &Jqdot_AB)
-{   
-    // Initialization
-    double sd_AB = 0.0;
+void DynWBC::recursiveNewtonEulerAlgorithm(const Eigen::VectorVQd &qddot,
+                                           const Eigen::Vector12d &contact_wrench,
+                                           Eigen::VectorQd &torque)
+{
+    // RBDL Input
+    RigidBodyDynamics::Math::VectorNd Q(MODEL_DOF_QVIRTUAL);
+    RigidBodyDynamics::Math::VectorNd QDot(MODEL_DOF_VIRTUAL);
+    RigidBodyDynamics::Math::VectorNd QDDot(MODEL_DOF_VIRTUAL);
+    RigidBodyDynamics::Math::VectorNd Tau(MODEL_DOF_VIRTUAL);
 
-    sd_AB = (linkA_.local_xpos - linkB_.local_xpos).norm(); 
+    Q     = rd_.local_q_virtual_;
+    QDot  = rd_.local_q_dot_virtual_;
+    QDDot = qddot;
 
-    Eigen::Vector3d normal_vector_btw_AB; normal_vector_btw_AB.setZero();
-    normal_vector_btw_AB = (linkA_.local_xpos - linkB_.local_xpos) / (linkA_.local_xpos - linkB_.local_xpos).norm();
+    // External force container (per body)
+    std::vector<RigidBodyDynamics::Math::SpatialVector> f_ext(
+        model_.mBodies.size(),
+        RigidBodyDynamics::Math::SpatialVector::Zero()
+    );
 
-    J_AB.setZero(1, MODEL_DOF_VIRTUAL);
-    J_AB = normal_vector_btw_AB.transpose() * (linkA_.local_Jac_v - linkB_.local_Jac_v);
+    // Map contact wrench -> SpatialVector
+    // contact_wrench = [Lf(6), Rf(6)]
+    // assumed order: (fx, fy, fz, mx, my, mz)
+    // RBDL order   : (mx, my, mz, fx, fy, fz)
+    // --------------------------------------------------
 
-    Jqdot_AB.setZero(1, 1);
-    Jqdot_AB = normal_vector_btw_AB.transpose() * (linkA_.local_Jdotqdot.head(3) - linkB_.local_Jdotqdot.head(3));
+    // Left foot wrench
+    RigidBodyDynamics::Math::SpatialVector f_left =
+        RigidBodyDynamics::Math::SpatialVector::Zero();
+    f_left[0] = contact_wrench[3]; // mx
+    f_left[1] = contact_wrench[4]; // my
+    f_left[2] = contact_wrench[5]; // mz
+    f_left[3] = contact_wrench[0]; // fx
+    f_left[4] = contact_wrench[1]; // fy
+    f_left[5] = contact_wrench[2]; // fz
 
-    return sd_AB;
+    // Right foot wrench
+    RigidBodyDynamics::Math::SpatialVector f_right =
+        RigidBodyDynamics::Math::SpatialVector::Zero();
+    f_right[0] = contact_wrench[9];   // mx
+    f_right[1] = contact_wrench[10];  // my
+    f_right[2] = contact_wrench[11];  // mz
+    f_right[3] = contact_wrench[6];   // fx
+    f_right[4] = contact_wrench[7];   // fy
+    f_right[5] = contact_wrench[8];   // fz
+
+    // Assign external forces to RBDL body IDs
+    const unsigned int left_foot_id  = Left_Foot;
+    const unsigned int right_foot_id = Right_Foot;
+
+    f_ext[left_foot_id]  = f_left;
+    f_ext[right_foot_id] = f_right;
+
+    // Recursive Newton-Euler via RBDL
+    RigidBodyDynamics::InverseDynamics(
+        model_,
+        Q,
+        QDot,
+        QDDot,
+        Tau,
+        &f_ext
+    );
+
+    // Extract actuated joint torques
+    // Tau = [base(6), actuated_joints(MODEL_DOF)]
+
+    torque = Tau.segment(6, MODEL_DOF);
 }
 
 

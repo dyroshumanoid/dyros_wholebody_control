@@ -12,13 +12,16 @@
 class DynWBC
 {
 public:
-    DynWBC(RobotData& rd, CbfManager& cbf_mgr);
+    DynWBC(RobotData& rd, CbfManager& cbf_mgr, RigidBodyDynamics::Model& model);
 
     //--- QP WBC 
 
     Eigen::VectorQd computeDynamicWBC();
     void updateControlCommands(const Eigen::Vector12d &contact_wrench_cmd_, const Eigen::VectorVQd &qddot_cmd_);
     void updateRobotStates(const Eigen::MatrixVVd &M_, const Eigen::VectorVQd &G_, const Eigen::MatrixXd &J_C_);
+    void recursiveNewtonEulerAlgorithm(const Eigen::VectorVQd &qddot,
+                                       const Eigen::Vector12d &contact_wrench,
+                                       Eigen::VectorQd &torque);
 
     //--- Setter
     void setFrictionCoefficient(const double& mu_);
@@ -32,6 +35,7 @@ public:
 private:
     RobotData &rd_;
     CbfManager& cbf_mgr_;
+    RigidBodyDynamics::Model &model_;  
 
     CQuadraticProgram QP_Dyn_Wbc;
         void calcCostGrad();
@@ -39,7 +43,6 @@ private:
         void calcEqualityConstraint();
         void calcInequalityConstraint();
         void checkGradHessSize();
-        double getSignedDistanceFunction(LinkData &linkA_, LinkData &linkB_, Eigen::MatrixXd &J_AB, Eigen::MatrixXd &Jqdot_AB);
 
         Eigen::MatrixXd Hess;  // HESSIAN
         Eigen::VectorXd grad;  // GRADIENT

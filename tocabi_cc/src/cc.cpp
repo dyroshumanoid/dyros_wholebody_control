@@ -2,18 +2,21 @@
 
 using namespace TOCABI;
 
-ofstream torque_sum_log      ("/home/sanghyuk/tocabi_ws/src/tocabi_cc/data/torque_sum_log.txt");
-ofstream torque_idn_log      ("/home/sanghyuk/tocabi_ws/src/tocabi_cc/data/torque_idn_log.txt");
-ofstream torque_pd_log       ("/home/sanghyuk/tocabi_ws/src/tocabi_cc/data/torque_pd_log.txt");
-ofstream computation_time_log("/home/sanghyuk/tocabi_ws/src/tocabi_cc/data/computation_time_log.txt");
-ofstream kalman_filter_log   ("/home/sanghyuk/tocabi_ws/src/tocabi_cc/data/kalman_filter_log.txt");
+ofstream torque_sum_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
+ofstream torque_idn_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
+ofstream torque_pd_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
+ofstream joint_desired_log("/home/kwan/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
+ofstream joint_position_log("/home/kwan/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
+ofstream joint_velocity_log("/home/kwan/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
+ofstream computation_time_log("/home/kwan/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
+ofstream kalman_filter_log("/home/kwan/catkin_ws/src/tocabi_cc/data/kalman_filter_log.txt");
 
-CustomController::CustomController(RobotData &rd) : rd_(rd), 
-                                                    cm_(rd, model), 
-                                                    tm_(rd), 
-                                                    cbf_mgr_(rd, model), 
-                                                    kin_wbc_(rd, cbf_mgr_), 
-                                                    dyn_wbc_(rd, cbf_mgr_), 
+CustomController::CustomController(RobotData &rd) : rd_(rd),
+                                                    cm_(rd, model),
+                                                    tm_(rd),
+                                                    cbf_mgr_(rd, model),
+                                                    kin_wbc_(rd, cbf_mgr_),
+                                                    dyn_wbc_(rd, cbf_mgr_, model),
                                                     teleop_(rd)
 {
     //--- ROS Node Handle
@@ -41,7 +44,7 @@ void CustomController::computeSlow()
     teleop_.callAvailableQueue();
 
     if (rd_.tc_.mode == 6)
-    {   
+    {
         static bool cm_init_save_trigger = true;
         cm_.update(cm_init_save_trigger);
 
@@ -51,50 +54,149 @@ void CustomController::computeSlow()
         moveInitialPose();
     }
     else if (rd_.tc_.mode == 7)
-    {   
-        static bool cm_init_save_trigger = true;
-        cm_.update(cm_init_save_trigger);
-
-        cbf_mgr_.update();
-
-        tm_.runTestMotion(motion_mode_); 
-
-        kin_wbc_.computeTaskSpaceKinematicWBC();
-
-        pubDataFromSlowToFast();
-
-        torque_pd.setZero();
-        torque_pd = (rd_.Kd_diag) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
-
-        for(int i = 12; i < MODEL_DOF; i++) {
-            torque_pd(i) += 100.0 * (rd_.q_desired(i) - rd_.q_(i));
-        }
-
-        torque_idn.setZero();
-        subDataFromFastToSlow();
-
-        torque_sum.setZero();
-        torque_sum = torque_pd + torque_idn;
-
-        applyTorqueSmoothingOnce(torque_sum);
-
-        torque_sum_log << torque_sum.transpose() << std::endl;
-        torque_idn_log << torque_idn.transpose() << std::endl;
-        torque_pd_log <<  torque_pd.transpose() << std::endl;
-        if(!cbf_mgr_.col_mgr_.cb_obstacles_.empty())
+    {
+        if (tc_mode_prev == 6)
         {
-            kalman_filter_log << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_xpos[0]         << ", "
-                              << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_xpos[1]         << ", "
-                              << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_xpos[2]         << ", "
-                              << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_v[0]            << ", "
-                              << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_v[1]            << ", "
-                              << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_v[2]            << ", "
-                              << cbf_mgr_.col_mgr_.base_to_qr_transform_.translation()(0) << ", "
-                              << cbf_mgr_.col_mgr_.base_to_qr_transform_.translation()(1) << ", "
-                              << cbf_mgr_.col_mgr_.base_to_qr_transform_.translation()(2) << std::endl;
-        }
+            static bool cm_init_save_trigger = true;
+            cm_.update(cm_init_save_trigger);
 
-        rd_.torque_desired = torque_sum;
+            cbf_mgr_.update();
+
+            tm_.runTestMotion(motion_mode_);
+
+            kin_wbc_.computeTaskSpaceKinematicWBC();
+
+            pubDataFromSlowToFast();
+
+            torque_pd.setZero();
+            // torque_pd = (rd_.Kd_diag) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
+
+            // for(int i = 12; i < MODEL_DOF; i++) {
+            //     torque_pd(i) += 100.0 * (rd_.q_desired(i) - rd_.q_(i));
+            // }
+
+            torque_idn.setZero();
+            subDataFromFastToSlow();
+
+            torque_sum.setZero();
+            torque_sum = torque_pd + torque_idn;
+
+            applyTorqueSmoothingOnce(torque_sum);
+
+            torque_sum_log << torque_sum.transpose() << std::endl;
+            torque_idn_log << torque_idn.transpose() << std::endl;
+            torque_pd_log << torque_pd.transpose() << std::endl;
+
+            rd_.torque_desired = torque_sum;
+        }
+        else
+        {
+            static bool is_warning_printed = true;
+            static Eigen::VectorQd q_init;
+            if (is_warning_printed)
+            {
+                ROS_ERROR("Press the Mode 6 to initialize the controller before running Mode 7.");
+                q_init = rd_.q_;
+                is_warning_printed = false;
+            }
+
+            for(int i = 0; i < MODEL_DOF; i++) {
+                rd_.torque_desired(i) = rd_.pos_kp_v[i] * (q_init(i) - rd_.q_(i)) +  rd_.pos_kv_v[i] * (0.0 - rd_.q_dot_(i));
+            }
+        }
+    }
+    else if (rd_.tc_.mode == 8) // FRICTION COMPENSATION MODE
+    {
+    }
+    else if (rd_.tc_.mode == 9) // PD TUNE MODE
+    {
+        if (tc_mode_prev == 6)
+        {
+            rd_.torque_desired.setZero();
+
+            static bool cm_init_save_trigger = true;
+            cm_.update(cm_init_save_trigger);
+
+            static bool is_cc_init = true;
+            static double start_time = 0.0;
+            static double phase = 0.0;
+
+            double current_time = rd_.control_time_;
+
+            static Eigen::VectorQd q_init_;
+            if (is_cc_init == true)
+            {
+                q_init_ = rd_.q_;
+                start_time = current_time;
+
+                const double c = 0.5 * (sinusoid_joint_min_ + sinusoid_joint_max_);
+                const double a = 0.5 * (sinusoid_joint_max_ - sinusoid_joint_min_);
+
+                const double q0 = q_init_(sinusoid_joint_target_);
+
+                double cos_phi = (q0 - c) / a;
+                cos_phi = std::min(1.0, std::max(-1.0, cos_phi));
+
+                phase = std::acos(cos_phi);
+
+                is_cc_init = false;
+            }
+
+            rd_.q_desired = q_init_;
+
+            if (is_step)
+            {
+                //--- Step Joint Trajectory
+                rd_.q_desired(sinusoid_joint_target_) = q_init_(sinusoid_joint_target_) + sinusoid_joint_max_;
+            }
+            else
+            {
+                //--- Sinusoidal Joint Trajectory
+                const double t = current_time - start_time;
+                const double w = 2.0 * M_PI / sinusoid_period_;
+                const double c = 0.5 * (sinusoid_joint_min_ + sinusoid_joint_max_);
+                const double a = 0.5 * (sinusoid_joint_max_ - sinusoid_joint_min_);
+
+                rd_.q_desired(sinusoid_joint_target_) = c + a * std::cos(w * t + phase);
+            }
+
+            rd_.q_ddot_desired_virtual.setZero();
+            rd_.q_ddot_desired_virtual.segment(6, MODEL_DOF) = rd_.Kp_virtual_diag.bottomRightCorner(MODEL_DOF, MODEL_DOF) * (rd_.q_desired - rd_.q_) + rd_.Kd_virtual_diag.bottomRightCorner(MODEL_DOF, MODEL_DOF) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
+            rd_.LF_FT_DES.setZero();
+            rd_.RF_FT_DES.setZero();
+            Eigen::Vector12d contact_wrench_cmd;
+            contact_wrench_cmd.setZero();
+
+            dyn_wbc_.recursiveNewtonEulerAlgorithm(rd_.q_ddot_desired_virtual, contact_wrench_cmd, torque_idn);
+
+            rd_.torque_desired = (rd_.Kp_diag * (rd_.q_desired - rd_.q_)) - (rd_.Kd_diag * rd_.q_dot_);
+            rd_.torque_desired(sinusoid_joint_target_) = torque_idn(sinusoid_joint_target_);
+
+            for (int i = 0; i < MODEL_DOF; i++)
+            {
+                rd_.torque_desired(i) = DyrosMath::minmax_cut(rd_.torque_desired(i), -rd_.torque_limit(i), rd_.torque_limit(i));
+            }
+
+            joint_desired_log << rd_.q_desired(sinusoid_joint_target_) << std::endl;
+            joint_position_log << rd_.q_(sinusoid_joint_target_) << std::endl;
+            joint_velocity_log << rd_.q_dot_(sinusoid_joint_target_) << std::endl;
+            torque_sum_log << rd_.torque_desired(sinusoid_joint_target_) << std::endl;
+        }
+        else
+        {
+            static bool is_warning_printed = true;
+            static Eigen::VectorQd q_init;
+            if (is_warning_printed)
+            {
+                ROS_ERROR("Press the Mode 6 to tune the PD gain before running Mode 9.");
+                q_init = rd_.q_;
+                is_warning_printed = false;
+            }
+
+            for(int i = 0; i < MODEL_DOF; i++) {
+                rd_.torque_desired(i) = rd_.pos_kp_v[i] * (q_init(i) - rd_.q_(i)) +  rd_.pos_kv_v[i] * (0.0 - rd_.q_dot_(i));
+            }        
+        }
     }
     else
     {
@@ -106,22 +208,25 @@ void CustomController::computeFast()
 {
     if (rd_.tc_.mode == 7)
     {
-        auto t1 = std::chrono::steady_clock::now();
+        if (tc_mode_prev == 6)
+        {
+            auto t1 = std::chrono::steady_clock::now();
 
-        subDataFromSlowToFast();
+            subDataFromSlowToFast();
 
-        dyn_wbc_.updateRobotStates(M_fast, G_fast, J_C_fast);
-        dyn_wbc_.updateControlCommands(contact_wrench_cmd_fast, qddot_cmd_fast);
-        torque_idn_fast.setZero();
-        torque_idn_fast = dyn_wbc_.computeDynamicWBC();
+            dyn_wbc_.updateRobotStates(M_fast, G_fast, J_C_fast);
+            dyn_wbc_.updateControlCommands(contact_wrench_cmd_fast, qddot_cmd_fast);
+            torque_idn_fast.setZero();
+            torque_idn_fast = dyn_wbc_.computeDynamicWBC();
 
-        pubDataFromFastToSlow();
+            pubDataFromFastToSlow();
 
-        auto t2 = std::chrono::steady_clock::now();
+            auto t2 = std::chrono::steady_clock::now();
 
-        auto dt = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+            auto dt = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
 
-        computation_time_log << dt << std::endl;
+            computation_time_log << dt << std::endl;
+        }
     }
 }
 
@@ -156,7 +261,9 @@ void CustomController::CustomControllerInit()
         qddot_cmd_container.setZero();
 
         torque_idn_fast.setZero();
-        torque_idn_container.setZero(); 
+        torque_idn_container.setZero();
+
+        tc_mode_prev = 6;
 
         is_cc_init = false;
     }
@@ -166,48 +273,49 @@ void CustomController::moveInitialPose()
 {
     static int initial_tick = 0;
 
-    q_init_des; q_init_des.setZero();
+    q_init_des;
+    q_init_des.setZero();
     q_init_des = q_init_;
 
-    if(motion_mode_ == TaskMotionType::Walking || motion_mode_ == TaskMotionType::TeleOperation)
+    if (motion_mode_ == TaskMotionType::Walking || motion_mode_ == TaskMotionType::TeleOperation)
     {
-        q_init_des(0) = 0.0; 
-        q_init_des(1) = 0.0; 
-        q_init_des(2) = -0.24; 
-        q_init_des(3) = 0.6; 
-        q_init_des(4) = -0.36; 
-        q_init_des(5) = 0.0; 
+        q_init_des(0) = 0.0;
+        q_init_des(1) = 0.0;
+        q_init_des(2) = -0.24;
+        q_init_des(3) = 0.6;
+        q_init_des(4) = -0.36;
+        q_init_des(5) = 0.0;
 
-        q_init_des(6)  = 0.0; 
-        q_init_des(7)  = 0.0; 
-        q_init_des(8)  = -0.24; 
-        q_init_des(9)  = 0.6; 
-        q_init_des(10) = -0.36; 
+        q_init_des(6) = 0.0;
+        q_init_des(7) = 0.0;
+        q_init_des(8) = -0.24;
+        q_init_des(9) = 0.6;
+        q_init_des(10) = -0.36;
         q_init_des(11) = 0.0;
-        
+
         q_init_des(12) = 0.0;
         q_init_des(13) = 0.0;
         q_init_des(14) = 0.0;
 
-        q_init_des(15) = + 15.0 * DEG2RAD; 
-        q_init_des(16) = + 10.0 * DEG2RAD; 
-        q_init_des(17) = + 80.0 * DEG2RAD; 
-        q_init_des(18) = - 70.0 * DEG2RAD; 
-        q_init_des(19) = - 30.0 * DEG2RAD; 
-        q_init_des(21) =   0.0 * DEG2RAD; 
+        q_init_des(15) = +15.0 * DEG2RAD;
+        q_init_des(16) = +10.0 * DEG2RAD;
+        q_init_des(17) = +80.0 * DEG2RAD;
+        q_init_des(18) = -70.0 * DEG2RAD;
+        q_init_des(19) = -30.0 * DEG2RAD;
+        q_init_des(21) = 0.0 * DEG2RAD;
 
-        q_init_des(25) = - 15.0 * DEG2RAD; 
-        q_init_des(26) = - 10.0 * DEG2RAD;            
-        q_init_des(27) = - 80.0 * DEG2RAD;  
-        q_init_des(28) = + 70.0 * DEG2RAD; 
-        q_init_des(29) = + 30.0 * DEG2RAD;       
-        q_init_des(31) = - 0.0 * DEG2RAD; 
+        q_init_des(25) = -15.0 * DEG2RAD;
+        q_init_des(26) = -10.0 * DEG2RAD;
+        q_init_des(27) = -80.0 * DEG2RAD;
+        q_init_des(28) = +70.0 * DEG2RAD;
+        q_init_des(29) = +30.0 * DEG2RAD;
+        q_init_des(31) = -0.0 * DEG2RAD;
     }
     else
     {
-        q_init_des(12) = 0.0;   // yaw
-        q_init_des(13) = 0.0;   // pitch
-        q_init_des(14) = 0.0;   // roll
+        q_init_des(12) = 0.0; // yaw
+        q_init_des(13) = 0.0; // pitch
+        q_init_des(14) = 0.0; // roll
 
         q_init_des(15) = 0.0;
         q_init_des(16) = -0.3;
@@ -218,38 +326,38 @@ void CustomController::moveInitialPose()
         q_init_des(21) = 0.4;
         q_init_des(22) = -0.2;
 
-        q_init_des(23) = 0.0;   // yaw
-        q_init_des(24) = 0.0;   // pitch
+        q_init_des(23) = 0.0; // yaw
+        q_init_des(24) = 0.0; // pitch
 
         q_init_des(25) = 0.0;
         q_init_des(26) = 0.3;
         q_init_des(27) = -1.57;
         q_init_des(28) = 1.2;
-        q_init_des(29) = 1.57;  // elbow
+        q_init_des(29) = 1.57; // elbow
         q_init_des(30) = -1.5;
         q_init_des(31) = -0.4;
         q_init_des(32) = 0.2;
     }
 
     kin_wbc_.setInitialConfiguration(q_init_des);
-    
-    rd_.q_desired = DyrosMath::cubicVector<MODEL_DOF>(initial_tick, 0, 2.0 * hz_, q_init_, q_init_des, Eigen::VectorQd::Zero(), Eigen::VectorQd::Zero()); 
+
+    rd_.q_desired = DyrosMath::cubicVector<MODEL_DOF>(initial_tick, 0, 2.0 * hz_, q_init_, q_init_des, Eigen::VectorQd::Zero(), Eigen::VectorQd::Zero());
     rd_.torque_desired = (rd_.Kp_diag * (rd_.q_desired - rd_.q_)) - (rd_.Kd_diag * rd_.q_dot_);
 
     initial_tick++;
 }
 
 //--- Joy Utils
-void CustomController::xBoxJoyCallback(const sensor_msgs::Joy::ConstPtr& joy)
+void CustomController::xBoxJoyCallback(const sensor_msgs::Joy::ConstPtr &joy)
 {
     double threshold = 1.0;
 
     move_forward = DyrosMath::minmax_cut(joy->axes[1] * threshold, -threshold, threshold);
     move_lateral = DyrosMath::minmax_cut(joy->axes[0] * threshold, -threshold, threshold);
-    rotate_yaw   = DyrosMath::minmax_cut(joy->axes[3] * threshold, -threshold, threshold);
+    rotate_yaw = DyrosMath::minmax_cut(joy->axes[3] * threshold, -threshold, threshold);
 
     static int zz = 0;
-    if(zz % 1000 == 0)
+    if (zz % 1000 == 0)
     {
         std::cout << "move_forward: " << move_forward << std::endl;
         std::cout << "move_lateral: " << move_lateral << std::endl;
@@ -281,7 +389,8 @@ void CustomController::pubDataFromSlowToFast()
         contact_wrench_cmd_container.head(6) = rd_.LF_FT_DES;
         contact_wrench_cmd_container.tail(6) = rd_.RF_FT_DES;
 
-        if(cbf_mgr_.getCbfMode() == CbfType::Dyn){
+        if (cbf_mgr_.getCbfMode() == CbfType::Dyn)
+        {
             cbf_mgr_.pubDataFromSlowToFast();
         }
 
@@ -302,7 +411,8 @@ void CustomController::subDataFromSlowToFast()
         contact_wrench_cmd_fast = contact_wrench_cmd_container;
         qddot_cmd_fast = qddot_cmd_container;
 
-        if(cbf_mgr_.getCbfMode() == CbfType::Dyn){
+        if (cbf_mgr_.getCbfMode() == CbfType::Dyn)
+        {
             cbf_mgr_.subDataFromSlowToFast();
         }
 
@@ -334,7 +444,7 @@ void CustomController::subDataFromFastToSlow()
 void CustomController::applyTorqueSmoothingOnce(Eigen::VectorQd &torque_target)
 {
     static bool is_torque_save_init = true;
-    if(is_torque_save_init == true)
+    if (is_torque_save_init == true)
     {
         rd_.torque_init = rd_.torque_desired;
 
@@ -346,29 +456,31 @@ void CustomController::applyTorqueSmoothingOnce(Eigen::VectorQd &torque_target)
 
     static bool is_torque_desired_init = true;
     static int tick_torque_desired_init = 0;
-    if(is_torque_desired_init == true)
+    if (is_torque_desired_init == true)
     {
-        for (int i = 0; i < MODEL_DOF; i++) {
+        for (int i = 0; i < MODEL_DOF; i++)
+        {
             torque_target(i) = DyrosMath::cubic(tick_torque_desired_init, 0, interpol_tick_end, rd_.torque_init(i), torque_target(i), 0.0, 0.0);
         }
 
         tick_torque_desired_init++;
 
-        if(tick_torque_desired_init >= interpol_tick_end) {
+        if (tick_torque_desired_init >= interpol_tick_end)
+        {
             is_torque_desired_init = false;
             std::cout << "========== INFO: INITIAL TORQUE SMOOTHING COMPLETE ==========" << std::endl;
         }
     }
 }
 
-
 //--- Parameter Loader
 void CustomController::loadParams()
 {
-    Kp.setZero(MODEL_DOF); Kd.setZero(MODEL_DOF);
-    Kp_virtual.setZero(MODEL_DOF_VIRTUAL); Kd_virtual.setZero(MODEL_DOF_VIRTUAL);
-    
-    
+    Kp.setZero(MODEL_DOF);
+    Kd.setZero(MODEL_DOF);
+    Kp_virtual.setZero(MODEL_DOF_VIRTUAL);
+    Kd_virtual.setZero(MODEL_DOF_VIRTUAL);
+
     std::vector<double> kp_vec, kd_vec;
     std::vector<double> kp_dyn_vec, kd_dyn_vec;
     std::vector<double> pos_low_deg, pos_high_deg;
@@ -455,23 +567,39 @@ void CustomController::loadParams()
     // Motion mode
     int motion_mode_idx = 0;
     nh_cc_.getParam("/tocabi_controller/motion_mode", motion_mode_idx);
-    if      (motion_mode_idx == 0){ motion_mode_ = TaskMotionType::None; }
-    else if (motion_mode_idx == 1){ motion_mode_ = TaskMotionType::PelvHand;}
-    else if (motion_mode_idx == 2){ motion_mode_ = TaskMotionType::Taichi; }
-    else if (motion_mode_idx == 3){ motion_mode_ = TaskMotionType::Walking; }
-    else if (motion_mode_idx == 4){ motion_mode_ = TaskMotionType::TeleOperation; }
-    else {
+    if (motion_mode_idx == 0)
+    {
+        motion_mode_ = TaskMotionType::None;
+    }
+    else if (motion_mode_idx == 1)
+    {
+        motion_mode_ = TaskMotionType::PelvHand;
+    }
+    else if (motion_mode_idx == 2)
+    {
+        motion_mode_ = TaskMotionType::Taichi;
+    }
+    else if (motion_mode_idx == 3)
+    {
+        motion_mode_ = TaskMotionType::Walking;
+    }
+    else if (motion_mode_idx == 4)
+    {
+        motion_mode_ = TaskMotionType::TeleOperation;
+    }
+    else
+    {
         ROS_ERROR("Motion mode idx error: got %d", motion_mode_idx);
         assert(motion_mode_idx == 0 || motion_mode_idx == 1 || motion_mode_idx == 2 || motion_mode_idx == 3 || motion_mode_idx == 4);
     }
 
     const char *mode_name =
-        (motion_mode_ == TaskMotionType::None) ? "None" 
-      : (motion_mode_ == TaskMotionType::PelvHand) ? "PelvHand"
-      : (motion_mode_ == TaskMotionType::Taichi)   ? "Taichi"
-      : (motion_mode_ == TaskMotionType::Walking)  ? "Walking"
-      : (motion_mode_ == TaskMotionType::TeleOperation)  ? "TeleOperation"
-      : "Unknown";
+        (motion_mode_ == TaskMotionType::None)            ? "None"
+        : (motion_mode_ == TaskMotionType::PelvHand)      ? "PelvHand"
+        : (motion_mode_ == TaskMotionType::Taichi)        ? "Taichi"
+        : (motion_mode_ == TaskMotionType::Walking)       ? "Walking"
+        : (motion_mode_ == TaskMotionType::TeleOperation) ? "TeleOperation"
+                                                          : "Unknown";
     std::cout << " " << std::endl;
     std::cout << "===== Motion Mode : " << mode_name << " =====" << std::endl;
     std::cout << " " << std::endl;
@@ -487,7 +615,7 @@ void CustomController::loadParams()
 
         std::cout << " " << std::endl;
         std::cout << "rd_.q_pos_l_lim: " << rd_.q_pos_l_lim.transpose() << std::endl;
-        std::cout << "rd_.q_pos_h_lim: " << rd_.q_pos_h_lim.transpose() << std::endl; 
+        std::cout << "rd_.q_pos_h_lim: " << rd_.q_pos_h_lim.transpose() << std::endl;
         std::cout << "rd_.q_vel_l_lim: " << rd_.q_vel_l_lim.transpose() << std::endl;
         std::cout << "rd_.q_vel_h_lim: " << rd_.q_vel_h_lim.transpose() << std::endl;
         std::cout << " " << std::endl;
@@ -546,25 +674,32 @@ void CustomController::loadParams()
 
     std::cout << " " << std::endl;
     std::cout << "========== WBID Parameters ========== " << std::endl;
-    std::cout << "W_qddot : " << W_qddot  << std::endl;
-    std::cout << "W_cwr : " << W_cwr  << std::endl;
-    std::cout << "W_energy : " << W_energy  << std::endl;
-    std::cout << "friction_coeff : " << friction_coeff  << std::endl;
+    std::cout << "W_qddot : " << W_qddot << std::endl;
+    std::cout << "W_cwr : " << W_cwr << std::endl;
+    std::cout << "W_energy : " << W_energy << std::endl;
+    std::cout << "friction_coeff : " << friction_coeff << std::endl;
     std::cout << " " << std::endl;
 
     //--- CBF Parameters
     int cbf_mode_idx = 0;
     nh_cc_.getParam("/tocabi_controller/cbf/cbf_mode", cbf_mode_idx);
-    if (cbf_mode_idx == 1){ cbf_mode_ = CbfType::Kin;}
-    else if (cbf_mode_idx == 2){ cbf_mode_ = CbfType::Dyn; }
-    else {
+    if (cbf_mode_idx == 1)
+    {
+        cbf_mode_ = CbfType::Kin;
+    }
+    else if (cbf_mode_idx == 2)
+    {
+        cbf_mode_ = CbfType::Dyn;
+    }
+    else
+    {
         ROS_ERROR("Cbf mode idx error: got %d", cbf_mode_idx);
         assert(cbf_mode_idx == 1 || cbf_mode_idx == 2);
     }
     const char *cbf_mode_name =
-        (cbf_mode_ == CbfType::Kin)  ? "Kin"
-      : (cbf_mode_ == CbfType::Dyn)  ? "Dyn"
-      : "Unknown";
+        (cbf_mode_ == CbfType::Kin)   ? "Kin"
+        : (cbf_mode_ == CbfType::Dyn) ? "Dyn"
+                                      : "Unknown";
     std::cout << " " << std::endl;
     std::cout << "========== CBF Parameters ==========" << std::endl;
     std::cout << "CBF Mode : " << cbf_mode_name << std::endl;
@@ -589,29 +724,59 @@ void CustomController::loadParams()
     nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_hand", workspace_boundary_cbf_hand);
     cbf_mgr_.setWorkspaceBoundaryCbfParameters(workspace_boundary_cbf_alpha, workspace_boundary_cbf_epsilon);
     std::vector<WorkspaceBoundaryPair> workspace_pairs = {
-        {Left_Hand,  Left_Hand  - 5, workspace_boundary_cbf_hand},
+        {Left_Hand, Left_Hand - 5, workspace_boundary_cbf_hand},
         {Right_Hand, Right_Hand - 5, workspace_boundary_cbf_hand},
     };
     cbf_mgr_.setWorkspaceBoundaryPairs(workspace_pairs);
 
     double self_collision_cbf_alpha, self_collision_cbf_epsilon;
-    nh_cc_.getParam(cbf_ns + "self_collision_cbf_alpha",  self_collision_cbf_alpha);
+    nh_cc_.getParam(cbf_ns + "self_collision_cbf_alpha", self_collision_cbf_alpha);
     nh_cc_.getParam(cbf_ns + "self_collision_cbf_epsilon", self_collision_cbf_epsilon);
     cbf_mgr_.setSelfCollisionCbfParameters(self_collision_cbf_alpha, self_collision_cbf_epsilon);
 
     double obstacle_avoidance_cbf_alpha, obstacle_avoidance_cbf_epsilon;
-    nh_cc_.getParam(cbf_ns + "obstacle_avoidance_cbf_alpha",  obstacle_avoidance_cbf_alpha);
+    nh_cc_.getParam(cbf_ns + "obstacle_avoidance_cbf_alpha", obstacle_avoidance_cbf_alpha);
     nh_cc_.getParam(cbf_ns + "obstacle_avoidance_cbf_epsilon", obstacle_avoidance_cbf_epsilon);
     cbf_mgr_.setObstacleAvoidanceCbfParameters(obstacle_avoidance_cbf_alpha, obstacle_avoidance_cbf_epsilon);
 
     std::cout << " Joint Limit CBF: " << std::endl;
     std::cout << "   alpha   : " << joint_limit_cbf_alpha << ", epsilon : " << joint_limit_cbf_epsilon << std::endl;
-    std::cout << " Workspace Boundary CBF: "  << std::endl;
+    std::cout << " Workspace Boundary CBF: " << std::endl;
     std::cout << "   alpha   : " << workspace_boundary_cbf_alpha << ", epsilon : " << workspace_boundary_cbf_epsilon << ", hand_dist : " << workspace_boundary_cbf_hand << std::endl;
     std::cout << " Self Collision CBF: " << std::endl;
     std::cout << "   alpha   : " << self_collision_cbf_alpha << ", epsilon : " << self_collision_cbf_epsilon << std::endl;
     std::cout << " Obstacle Avoidance CBF: " << std::endl;
     std::cout << "   alpha   : " << obstacle_avoidance_cbf_alpha << ", epsilon : " << obstacle_avoidance_cbf_epsilon << std::endl;
     std::cout << "====================================" << std::endl;
+    std::cout << " " << std::endl;
+
+    //--- Joint Tuning
+    nh_cc_.getParam("/tocabi_controller/sinusoidal_joint_test/joint_target", sinusoid_joint_target_);
+    nh_cc_.getParam("/tocabi_controller/sinusoidal_joint_test/joint_min", sinusoid_joint_min_);
+    nh_cc_.getParam("/tocabi_controller/sinusoidal_joint_test/joint_max", sinusoid_joint_max_);
+    nh_cc_.getParam("/tocabi_controller/sinusoidal_joint_test/period", sinusoid_period_);
+    int is_step_idx = 0;
+    nh_cc_.getParam("/tocabi_controller/sinusoidal_joint_test/is_step", is_step_idx);
+    if (is_step_idx == 0)
+    {
+        is_step = false;
+    }
+    else if (is_step_idx == 1)
+    {
+        is_step = true;
+    }
+    else
+    {
+        std::cout << "Sinusoidal joint test step_or_not error: got " << is_step_idx << std::endl;
+        assert(is_step_idx == 0 || is_step_idx == 1);
+    }
+
+    std::cout << "=====================================" << std::endl;
+    std::cout << "==== Sinusoidal Joint Test Params ====" << std::endl;
+    std::cout << "joint_target : " << sinusoid_joint_target_ << std::endl;
+    std::cout << "joint_min    : " << sinusoid_joint_min_ << std::endl;
+    std::cout << "joint_max    : " << sinusoid_joint_max_ << std::endl;
+    std::cout << "period [s]   : " << sinusoid_period_ << std::endl;
+    std::cout << "=====================================" << std::endl;
     std::cout << " " << std::endl;
 }
