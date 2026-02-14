@@ -43,6 +43,8 @@ private:
     int total_num_constraints = 0;
     bool num_constraints_changed = false;
 
+    Eigen::MatrixXd J_stacked;
+    
     Eigen::VectorVQd qdot_des;
     Eigen::VectorVQd qdot_safety;
 

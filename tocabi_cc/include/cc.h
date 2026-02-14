@@ -124,4 +124,8 @@ private:
     double sinusoid_period_       = 1.0;
     bool is_step = false;
 
+    //--- Friction Compensation
+    void FrictionCompensationTorques();
+    Eigen::VectorQd torque_fric;
+    std::vector<double> tau_coulomb, tau_viscous;
 };

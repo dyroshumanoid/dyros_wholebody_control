@@ -43,7 +43,7 @@ void CustomController::computeSlow()
     cbf_mgr_.callAvailableQueue();
     teleop_.callAvailableQueue();
 
-    if (rd_.tc_.mode == 6)
+    if (rd_.tc_.mode == 6)  // INIT MODE
     {
         static bool cm_init_save_trigger = true;
         cm_.update(cm_init_save_trigger);
@@ -53,7 +53,7 @@ void CustomController::computeSlow()
         CustomControllerInit();
         moveInitialPose();
     }
-    else if (rd_.tc_.mode == 7)
+    else if (rd_.tc_.mode == 7) // TASK MODE
     {
         if (tc_mode_prev == 6)
         {
@@ -105,10 +105,32 @@ void CustomController::computeSlow()
             }
         }
     }
-    else if (rd_.tc_.mode == 8) // FRICTION COMPENSATION MODE
+    else if (rd_.tc_.mode == 8) // FRICTION COMPENSATION TEST
     {
+        if (tc_mode_prev == 6)
+        {
+            rd_.torque_desired.setZero();
+            FrictionCompensationTorques();
+
+            rd_.torque_desired = torque_fric;
+        }
+        else
+        {
+            static bool is_warning_printed = true;
+            static Eigen::VectorQd q_init;
+            if (is_warning_printed)
+            {
+                ROS_ERROR("Press the Mode 6 to tune the friction compensation params before running Mode 8.");
+                q_init = rd_.q_;
+                is_warning_printed = false;
+            }
+
+            for(int i = 0; i < MODEL_DOF; i++) {
+                rd_.torque_desired(i) = rd_.pos_kp_v[i] * (q_init(i) - rd_.q_(i)) +  rd_.pos_kv_v[i] * (0.0 - rd_.q_dot_(i));
+            }
+        }
     }
-    else if (rd_.tc_.mode == 9) // PD TUNE MODE
+    else if (rd_.tc_.mode == 9) // PD TUNE TEST
     {
         if (tc_mode_prev == 6)
         {
@@ -779,4 +801,30 @@ void CustomController::loadParams()
     std::cout << "period [s]   : " << sinusoid_period_ << std::endl;
     std::cout << "=====================================" << std::endl;
     std::cout << " " << std::endl;
+
+    //--- Friction Compensation
+    nh_cc_.getParam("/tocabi_controller/friction_compensation/tau_coulomb", tau_coulomb);
+    nh_cc_.getParam("/tocabi_controller/friction_compensation/tau_viscous", tau_viscous);
+    std::cout << "======================================" << std::endl;
+    std::cout << "==== Friction Compensation Params ====" << std::endl;
+    for(int i = 0; i < MODEL_DOF; i++){
+        std::cout << "tau_coulomb[" << i << "] : " << tau_coulomb[i] << ", tau_viscous[" << i << "] : " << tau_viscous[i] << std::endl;
+    }
+    std::cout << "======================================" << std::endl;
+    std::cout << " " << std::endl;
+}
+
+//--- Friction Compensation
+void CustomController::FrictionCompensationTorques()
+{
+    double alpha_fric = 0.95;
+    Eigen::VectorQd torque_coulomb;
+    Eigen::VectorQd torque_viscous;
+
+    for(int i = 0; i < MODEL_DOF; i++){
+        torque_coulomb(i) = tau_coulomb[i] * tanh(alpha_fric * rd_.q_dot_(i)); 
+        torque_viscous(i) = tau_viscous[i] * tanh(alpha_fric * rd_.q_dot_(i)) * sqrt(abs(rd_.q_dot_(i))); 
+    }
+
+    torque_fric = torque_coulomb + torque_viscous;
 }

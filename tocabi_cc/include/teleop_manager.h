@@ -10,6 +10,8 @@
 #include <tf/transform_listener.h>
 #include "xr_msgs/Custom.h"
 #include <tf2_msgs/TFMessage.h>
+#include <geometry_msgs/PoseArray.h>
+#include <geometry_msgs/Pose.h>
 
 class TeleOperationManager 
 {
@@ -29,6 +31,8 @@ public:
     bool leftSecondaryPressedOnce();
     bool rightPrimaryPressedOnce();
     bool rightSecondaryPressedOnce();
+
+    Eigen::Matrix3d clampRotation(const Eigen::Matrix3d &R_target, double max_angle_rad);
 
     bool transformAllOK() { return tf_all_ok_; }
 
@@ -61,8 +65,6 @@ private:
     Eigen::Isometry3d tracker_relbow_pose_raw_;
     Eigen::Isometry3d tracker_lhand_pose_raw_;
     Eigen::Isometry3d tracker_rhand_pose_raw_;
-    Eigen::Isometry3d tracker_lhip_pose_raw_;
-    Eigen::Isometry3d tracker_rhip_pose_raw_;
     Eigen::Isometry3d tracker_lfoot_pose_raw_;
     Eigen::Isometry3d tracker_rfoot_pose_raw_;
     
@@ -75,17 +77,11 @@ private:
     Eigen::Isometry3d tracker_relbow_pose_mapped_;
     Eigen::Isometry3d tracker_lhand_pose_mapped_;
     Eigen::Isometry3d tracker_rhand_pose_mapped_;
-    Eigen::Isometry3d tracker_lhip_pose_mapped_;
-    Eigen::Isometry3d tracker_rhip_pose_mapped_;
     Eigen::Isometry3d tracker_lfoot_pose_mapped_;
     Eigen::Isometry3d tracker_rfoot_pose_mapped_;
 
     Eigen::Vector3d tracker_pelv_pos_mapped_support_;
-    Eigen::Vector3d tracker_lfoot_pos_mapped_support_;
-    Eigen::Vector3d tracker_rfoot_pos_mapped_support_;
     Eigen::Vector3d tracker_pelv_pos_mapped_support_init_;
-    Eigen::Vector3d tracker_lfoot_pos_mapped_support_init_;
-    Eigen::Vector3d tracker_rfoot_pos_mapped_support_init_;
 
     Eigen::Matrix3d tracker_head_rotm_init_;
     Eigen::Matrix3d tracker_chest_rotm_init_;
@@ -143,10 +139,12 @@ private:
         bool ok_rhand = false;
         bool ok_rshould = false;
         bool ok_relbow = false;
-        bool ok_lhip = false;
-        bool ok_rhip = false;
         bool ok_lfoot = false;
         bool ok_rfoot = false;
+    //--- Retargeting Checker
+    ros::Publisher retarget_pose_pub_;
+    void publishRetargetPoseArray();
+    geometry_msgs::Pose eigenToPose(const Eigen::Isometry3d& T);
 
     //--- From PICO
     bool right_controller_primary_button = false;
