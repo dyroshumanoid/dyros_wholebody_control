@@ -2,15 +2,22 @@
 
 using namespace TOCABI;
 
-ofstream torque_sum_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
-ofstream torque_idn_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
-ofstream torque_pd_log(       "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
-ofstream joint_desired_log(   "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
-ofstream joint_position_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
-ofstream joint_velocity_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
-ofstream joint_velocity_filter_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_filter_log.txt");
-// ofstream computation_time_log("/home/dyros/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
-// ofstream kalman_filter_log(   "/home/dyros/catkin_ws/src/tocabi_cc/data/kalman_filter_log.txt");
+// ofstream torque_sum_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
+// ofstream torque_idn_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
+// ofstream torque_pd_log(       "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
+// ofstream joint_desired_log(   "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
+// ofstream joint_position_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
+// ofstream joint_velocity_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
+// ofstream joint_velocity_filter_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_filter_log.txt");
+
+ofstream torque_sum_log(             "/home/kwan/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
+ofstream torque_idn_log(             "/home/kwan/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
+ofstream torque_pd_log(              "/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
+ofstream joint_desired_log(          "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
+ofstream joint_position_log(         "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
+ofstream joint_velocity_log(         "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
+ofstream joint_velocity_filter_log(  "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_velocity_filter_log.txt");
+ofstream computation_time_log(       "/home/kwan/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
 
 CustomController::CustomController(RobotData &rd) : rd_(rd),
                                                     cm_(rd, model),
@@ -81,11 +88,11 @@ void CustomController::computeSlow()
             pubDataFromSlowToFast();
 
             torque_pd.setZero();
-            torque_pd = (rd_.Kd_diag) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
+            torque_pd = rd_.Kp_diag * (rd_.q_desired - rd_.q_) + rd_.Kd_diag * (Eigen::VectorQd::Zero() - rd_.q_dot_);
 
-            for(int i = 12; i < MODEL_DOF; i++) {
-                torque_pd(i) += 100.0 * (rd_.q_desired(i) - rd_.q_(i));
-            }
+            // for(int i = 12; i < MODEL_DOF; i++) {
+            //     torque_pd(i) += 100.0 * (rd_.q_desired(i) - rd_.q_(i));
+            // }
 
             torque_idn.setZero();
             subDataFromFastToSlow();
@@ -218,26 +225,37 @@ void CustomController::computeSlow()
                 rd_.q_desired(sinusoid_joint_target_) =c + a * std::sin(w * t + phase);
             }
 
+            static Eigen::VectorQd q_error_integral = Eigen::VectorQd::Zero();
+            Eigen::VectorQd q_error; q_error.setZero();
+            q_error = rd_.q_desired - rd_.q_;
+            q_error_integral += q_error * (1.0 / hz_);
+
             rd_.q_ddot_desired_virtual.setZero();
-            rd_.q_ddot_desired_virtual.segment(6, MODEL_DOF) = rd_.Kp_virtual_diag.bottomRightCorner(MODEL_DOF, MODEL_DOF) * (rd_.q_desired - rd_.q_) + rd_.Kd_virtual_diag.bottomRightCorner(MODEL_DOF, MODEL_DOF) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
-            // rd_.q_ddot_desired_virtual.segment(6, MODEL_DOF) = rd_.Kp_virtual_diag.bottomRightCorner(MODEL_DOF, MODEL_DOF) * (rd_.q_desired - rd_.q_) + rd_.Kd_virtual_diag.bottomRightCorner(MODEL_DOF, MODEL_DOF) * (Eigen::VectorQd::Zero() - q_dot_lpf_);
+            rd_.q_ddot_desired_virtual.segment(6, MODEL_DOF) = rd_.Kp_virtual_diag.bottomRightCorner(MODEL_DOF, MODEL_DOF) * q_error 
+                                                             - rd_.Kd_virtual_diag.bottomRightCorner(MODEL_DOF, MODEL_DOF) * rd_.q_dot_;
+            
+            pubDataFromSlowToFast();
+
             rd_.LF_FT_DES.setZero();
             rd_.RF_FT_DES.setZero();
             Eigen::Vector12d contact_wrench_cmd;
             contact_wrench_cmd.setZero();
 
-            dyn_wbc_.recursiveNewtonEulerAlgorithm(rd_.q_ddot_desired_virtual, contact_wrench_cmd, torque_idn);
+            // dyn_wbc_.recursiveNewtonEulerAlgorithm(rd_.q_ddot_desired_virtual, contact_wrench_cmd, torque_idn);
+
+            subDataFromFastToSlow();
 
             rd_.torque_desired = (rd_.Kp_diag * (rd_.q_desired - rd_.q_)) - (rd_.Kd_diag * rd_.q_dot_);
-            rd_.torque_desired(sinusoid_joint_target_) = torque_idn(sinusoid_joint_target_);
+            rd_.torque_desired(sinusoid_joint_target_) = torque_idn(sinusoid_joint_target_) 
+                                                       - rd_.Kd_diag(sinusoid_joint_target_, sinusoid_joint_target_) * rd_.q_dot_(sinusoid_joint_target_);
 
             FrictionCompensationTorques();
             rd_.torque_desired += torque_fric;
 
-            // for (int i = 0; i < MODEL_DOF; i++)
-            // {
-            //     rd_.torque_desired(i) = DyrosMath::minmax_cut(rd_.torque_desired(i), -rd_.torque_limit(i), rd_.torque_limit(i));
-            // }
+            for (int i = 0; i < MODEL_DOF; i++)
+            {
+                rd_.torque_desired(i) = DyrosMath::minmax_cut(rd_.torque_desired(i), -rd_.torque_limit(i), rd_.torque_limit(i));
+            }
 
             joint_desired_log << rd_.q_desired(sinusoid_joint_target_) << std::endl;
             joint_position_log << rd_.q_(sinusoid_joint_target_) << std::endl;
@@ -269,7 +287,7 @@ void CustomController::computeSlow()
 
 void CustomController::computeFast()
 {
-    if (rd_.tc_.mode == 7)
+    if (rd_.tc_.mode == 7 || rd_.tc_.mode == 9)
     {
         if (tc_mode_prev == 6)
         {
@@ -288,7 +306,7 @@ void CustomController::computeFast()
 
             auto dt = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
 
-            // computation_time_log << dt << std::endl;
+            computation_time_log << dt << std::endl;
         }
     }
 }

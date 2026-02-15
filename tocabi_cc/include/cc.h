@@ -3,6 +3,7 @@
 #include <Eigen/Geometry>
 #include <list>
 #include <iomanip> 
+#include <random>
 
 #include <ros/ros.h>
 #include <sensor_msgs/Joy.h>
@@ -61,7 +62,7 @@ public:
     RobotData rd_cc_;
 
     Eigen::VectorXd Kp;  Eigen::VectorXd Kd; 
-    Eigen::VectorXd Kp_virtual; Eigen::VectorXd Kd_virtual; 
+    Eigen::VectorXd Kp_virtual, Ki_virtual, Kd_virtual; 
     Eigen::VectorQd joint_pos_limit_l_;
     Eigen::VectorQd joint_pos_limit_h_;
     Eigen::VectorQd joint_vel_limit_l_;
@@ -109,7 +110,7 @@ public:
 private:
     Eigen::VectorQd ControlVal_;
     double hz_ = 2000;
-    bool is_joy_enable = true;
+    bool is_joy_enable = false;
     int tc_mode_prev = 0;
 
     // Fast loop is ready to run after the first slow-loop update
@@ -131,5 +132,5 @@ private:
 
     //--- filter
     Eigen::VectorQd q_dot_lpf_;
-    const double cutoff_freq = 73.0;
+    const double cutoff_freq = 16.0;
 };
