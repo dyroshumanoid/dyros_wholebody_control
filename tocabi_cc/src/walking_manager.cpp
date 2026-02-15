@@ -435,10 +435,19 @@ void WalkingManager::contactWrenchCalculator()
     }
 
     //--- Force Feedback Control
-    double kp_force = 1.0;
+    // double kp_force = 1.0;
 
-    lfoot_contact_wrench(2) += kp_force * (lfoot_contact_wrench(2) - rd_.LF_FT(2));
-    rfoot_contact_wrench(2) += kp_force * (rfoot_contact_wrench(2) - rd_.RF_FT(2));
+    // static Vector6d LF_FT_LPF = rd_.LF_FT;
+    // static Vector6d RF_FT_LPF = rd_.RF_FT;
+
+    // for (int i = 0; i < 6; i++)
+    // {
+    //     LF_FT_LPF(i) = DyrosMath::lpf(rd_.LF_FT(i), LF_FT_LPF(i), 2000, 60);
+    //     RF_FT_LPF(i) = DyrosMath::lpf(rd_.RF_FT(i), RF_FT_LPF(i), 2000, 60);
+    // }
+
+    // lfoot_contact_wrench(2) += kp_force * (lfoot_contact_wrench(2) - LF_FT_LPF(2));
+    // rfoot_contact_wrench(2) += kp_force * (rfoot_contact_wrench(2) - RF_FT_LPF(2));
 
     lfoot_contact_wrench *= (-1.0);
     rfoot_contact_wrench *= (-1.0);

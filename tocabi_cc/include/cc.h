@@ -128,4 +128,8 @@ private:
     void FrictionCompensationTorques();
     Eigen::VectorQd torque_fric;
     std::vector<double> tau_coulomb, tau_viscous;
+
+    //--- filter
+    Eigen::VectorQd q_dot_lpf_;
+    const double cutoff_freq = 73.0;
 };

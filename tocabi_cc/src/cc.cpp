@@ -2,14 +2,15 @@
 
 using namespace TOCABI;
 
-ofstream torque_sum_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
-ofstream torque_idn_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
-ofstream torque_pd_log("/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
-ofstream joint_desired_log("/home/kwan/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
-ofstream joint_position_log("/home/kwan/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
-ofstream joint_velocity_log("/home/kwan/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
-ofstream computation_time_log("/home/kwan/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
-ofstream kalman_filter_log("/home/kwan/catkin_ws/src/tocabi_cc/data/kalman_filter_log.txt");
+ofstream torque_sum_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
+ofstream torque_idn_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
+ofstream torque_pd_log(       "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
+ofstream joint_desired_log(   "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
+ofstream joint_position_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
+ofstream joint_velocity_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
+ofstream joint_velocity_filter_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_filter_log.txt");
+// ofstream computation_time_log("/home/dyros/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
+// ofstream kalman_filter_log(   "/home/dyros/catkin_ws/src/tocabi_cc/data/kalman_filter_log.txt");
 
 CustomController::CustomController(RobotData &rd) : rd_(rd),
                                                     cm_(rd, model),
@@ -43,6 +44,17 @@ void CustomController::computeSlow()
     cbf_mgr_.callAvailableQueue();
     teleop_.callAvailableQueue();
 
+    static bool filter_init = true;
+    if(filter_init)
+    {
+        q_dot_lpf_.setZero();
+        q_dot_lpf_ = rd_.q_dot_;
+        
+        filter_init = false;
+    }
+
+    q_dot_lpf_ = DyrosMath::lpf<MODEL_DOF>(rd_.q_dot_, q_dot_lpf_, hz_, cutoff_freq);
+
     if (rd_.tc_.mode == 6)  // INIT MODE
     {
         static bool cm_init_save_trigger = true;
@@ -69,17 +81,19 @@ void CustomController::computeSlow()
             pubDataFromSlowToFast();
 
             torque_pd.setZero();
-            // torque_pd = (rd_.Kd_diag) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
+            torque_pd = (rd_.Kd_diag) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
 
-            // for(int i = 12; i < MODEL_DOF; i++) {
-            //     torque_pd(i) += 100.0 * (rd_.q_desired(i) - rd_.q_(i));
-            // }
+            for(int i = 12; i < MODEL_DOF; i++) {
+                torque_pd(i) += 100.0 * (rd_.q_desired(i) - rd_.q_(i));
+            }
 
             torque_idn.setZero();
             subDataFromFastToSlow();
 
+            FrictionCompensationTorques();
+            
             torque_sum.setZero();
-            torque_sum = torque_pd + torque_idn;
+            torque_sum = torque_pd + torque_idn + torque_fric;
 
             applyTorqueSmoothingOnce(torque_sum);
 
@@ -109,10 +123,18 @@ void CustomController::computeSlow()
     {
         if (tc_mode_prev == 6)
         {
+            static bool init_trigger = true;
+            if(init_trigger){
+                std::cout << "================================================" << std::endl;
+                std::cout << "========== Friction Compensation Mode ==========" << std::endl;
+                init_trigger = false;
+            }
             rd_.torque_desired.setZero();
+            rd_.torque_desired = (rd_.Kp_diag * (q_init_des - rd_.q_)) - (rd_.Kd_diag * rd_.q_dot_);
+
             FrictionCompensationTorques();
 
-            rd_.torque_desired = torque_fric;
+            rd_.torque_desired(sinusoid_joint_target_) = torque_fric(sinusoid_joint_target_);
         }
         else
         {
@@ -136,6 +158,13 @@ void CustomController::computeSlow()
         {
             rd_.torque_desired.setZero();
 
+            static bool init_trigger = true;
+            if(init_trigger){
+                std::cout << "==================================" << std::endl;
+                std::cout << "========== PD TUNE Mode ==========" << std::endl;
+                init_trigger = false;
+            }
+
             static bool cm_init_save_trigger = true;
             cm_.update(cm_init_save_trigger);
 
@@ -146,24 +175,26 @@ void CustomController::computeSlow()
             double current_time = rd_.control_time_;
 
             static Eigen::VectorQd q_init_;
-            if (is_cc_init == true)
+            if (is_cc_init)
             {
                 q_init_ = rd_.q_;
                 start_time = current_time;
 
-                const double c = 0.5 * (sinusoid_joint_min_ + sinusoid_joint_max_);
-                const double a = 0.5 * (sinusoid_joint_max_ - sinusoid_joint_min_);
+                const double A = sinusoid_joint_max_;
+                const double B = sinusoid_joint_min_;
 
                 const double q0 = q_init_(sinusoid_joint_target_);
 
-                double cos_phi = (q0 - c) / a;
-                cos_phi = std::min(1.0, std::max(-1.0, cos_phi));
+                const double c = q0 + 0.5 * (A - B);
+                const double a = 0.5 * (A + B);
 
-                phase = std::acos(cos_phi);
+                double sin_phi = (q0 - c) / a;
+                sin_phi = std::min(1.0, std::max(-1.0, sin_phi));
+
+                phase = std::asin(sin_phi);
 
                 is_cc_init = false;
             }
-
             rd_.q_desired = q_init_;
 
             if (is_step)
@@ -176,14 +207,20 @@ void CustomController::computeSlow()
                 //--- Sinusoidal Joint Trajectory
                 const double t = current_time - start_time;
                 const double w = 2.0 * M_PI / sinusoid_period_;
-                const double c = 0.5 * (sinusoid_joint_min_ + sinusoid_joint_max_);
-                const double a = 0.5 * (sinusoid_joint_max_ - sinusoid_joint_min_);
 
-                rd_.q_desired(sinusoid_joint_target_) = c + a * std::cos(w * t + phase);
+                const double A = sinusoid_joint_max_;
+                const double B = sinusoid_joint_min_;
+
+                const double q0 = q_init_(sinusoid_joint_target_);
+                const double c = q0 + 0.5 * (A - B);
+                const double a = 0.5 * (A + B);
+
+                rd_.q_desired(sinusoid_joint_target_) =c + a * std::sin(w * t + phase);
             }
 
             rd_.q_ddot_desired_virtual.setZero();
             rd_.q_ddot_desired_virtual.segment(6, MODEL_DOF) = rd_.Kp_virtual_diag.bottomRightCorner(MODEL_DOF, MODEL_DOF) * (rd_.q_desired - rd_.q_) + rd_.Kd_virtual_diag.bottomRightCorner(MODEL_DOF, MODEL_DOF) * (Eigen::VectorQd::Zero() - rd_.q_dot_);
+            // rd_.q_ddot_desired_virtual.segment(6, MODEL_DOF) = rd_.Kp_virtual_diag.bottomRightCorner(MODEL_DOF, MODEL_DOF) * (rd_.q_desired - rd_.q_) + rd_.Kd_virtual_diag.bottomRightCorner(MODEL_DOF, MODEL_DOF) * (Eigen::VectorQd::Zero() - q_dot_lpf_);
             rd_.LF_FT_DES.setZero();
             rd_.RF_FT_DES.setZero();
             Eigen::Vector12d contact_wrench_cmd;
@@ -194,14 +231,18 @@ void CustomController::computeSlow()
             rd_.torque_desired = (rd_.Kp_diag * (rd_.q_desired - rd_.q_)) - (rd_.Kd_diag * rd_.q_dot_);
             rd_.torque_desired(sinusoid_joint_target_) = torque_idn(sinusoid_joint_target_);
 
-            for (int i = 0; i < MODEL_DOF; i++)
-            {
-                rd_.torque_desired(i) = DyrosMath::minmax_cut(rd_.torque_desired(i), -rd_.torque_limit(i), rd_.torque_limit(i));
-            }
+            FrictionCompensationTorques();
+            rd_.torque_desired += torque_fric;
+
+            // for (int i = 0; i < MODEL_DOF; i++)
+            // {
+            //     rd_.torque_desired(i) = DyrosMath::minmax_cut(rd_.torque_desired(i), -rd_.torque_limit(i), rd_.torque_limit(i));
+            // }
 
             joint_desired_log << rd_.q_desired(sinusoid_joint_target_) << std::endl;
             joint_position_log << rd_.q_(sinusoid_joint_target_) << std::endl;
             joint_velocity_log << rd_.q_dot_(sinusoid_joint_target_) << std::endl;
+            joint_velocity_filter_log << q_dot_lpf_(sinusoid_joint_target_) << std::endl;
             torque_sum_log << rd_.torque_desired(sinusoid_joint_target_) << std::endl;
         }
         else
@@ -247,7 +288,7 @@ void CustomController::computeFast()
 
             auto dt = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
 
-            computation_time_log << dt << std::endl;
+            // computation_time_log << dt << std::endl;
         }
     }
 }
@@ -818,13 +859,14 @@ void CustomController::loadParams()
 void CustomController::FrictionCompensationTorques()
 {
     double alpha_fric = 0.95;
-    Eigen::VectorQd torque_coulomb;
-    Eigen::VectorQd torque_viscous;
+    Eigen::VectorQd torque_coulomb; torque_coulomb.setZero();
+    Eigen::VectorQd torque_viscous; torque_viscous.setZero();
 
     for(int i = 0; i < MODEL_DOF; i++){
         torque_coulomb(i) = tau_coulomb[i] * tanh(alpha_fric * rd_.q_dot_(i)); 
         torque_viscous(i) = tau_viscous[i] * tanh(alpha_fric * rd_.q_dot_(i)) * sqrt(abs(rd_.q_dot_(i))); 
     }
 
+    torque_fric.setZero();
     torque_fric = torque_coulomb + torque_viscous;
 }
