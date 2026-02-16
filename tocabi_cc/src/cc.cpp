@@ -26,16 +26,9 @@ void CustomController::computeSlow()
 {
     queue_cc_.callAvailable(ros::WallDuration());
 
-    static VectorVQd q_dot_virtual_lpf;
-    for (int i = 0; i < MODEL_DOF_VIRTUAL; i++)
-    {
-        q_dot_virtual_lpf(i) = DyrosMath::lpf(rd_.q_dot_virtual_(i), q_dot_virtual_lpf(i), hz_, lpf_cutoff_);
-    }
-
     {
         std::lock_guard<std::mutex> lock(mpc_mutex);
-        q_container_ = rd_.q_virtual_;
-        v_container_ = q_dot_virtual_lpf;
+        mapGlobalToBase();
     }
 
     if (rd_.tc_.mode == 6)
@@ -92,9 +85,14 @@ void CustomController::computeSlow()
             mpc_update = false;
         }
 
-        double mpc_hz_ = wb_mpc_.getMpcFrequency();
-        q_mpc_interpol_ = q_mpc_prev_ + (q_mpc_ - q_mpc_prev_) * (mpc_hz_ / hz_) * mpc_count;
-        torque_mpc_interpol_ = torque_mpc_prev_ + (torque_mpc_ - torque_mpc_prev_) * (mpc_hz_ / hz_) * mpc_count;
+        double dt_mpc = wb_mpc_.getMpcMinimumTimeStep();
+        double dt_ctrl = 1.0 / hz_;
+        double alpha = mpc_count * (dt_ctrl / dt_mpc);
+        alpha = DyrosMath::minmax_cut(alpha, 0.0, 1.0);
+
+        q_mpc_interpol_      = q_mpc_prev_      + (q_mpc_      - q_mpc_prev_)      * alpha;
+        v_mpc_interpol_      = v_mpc_prev_      + (v_mpc_      - v_mpc_prev_)      * alpha;
+        torque_mpc_interpol_ = torque_mpc_prev_ + (torque_mpc_ - torque_mpc_prev_) * alpha;
 
         mpc_qpos_checker   << q_mpc_interpol_.transpose() << std::endl;
         current_qpos_checker   << rd_.q_virtual_.transpose() << std::endl;
@@ -102,21 +100,15 @@ void CustomController::computeSlow()
 
         mpc_count++;
 
-        Eigen::VectorQd torque_sum; torque_sum.setZero();
         for(int i = 0; i < 12; i++) 
         {
-            torque_sum(i) = torque_mpc_interpol_(i) + 0.0 * (q_mpc_interpol_(i) - rd_.q_(i)) + 100.0 * (0.0 - rd_.q_dot_(i));
+            rd_.torque_desired(i) = torque_mpc_interpol_(i) + rd_.Kp_diag(i, i) * (q_mpc_interpol_(i) - rd_.q_(i)) + rd_.Kd_diag(i, i) * (v_mpc_interpol_(i) - rd_.q_dot_(i));
+            // rd_.torque_desired(i) = torque_mpc_interpol_(i) + rd_.Kd_diag(i, i) * (v_mpc_interpol_(i) - rd_.q_dot_(i));
         }
         for(int i = 12; i < MODEL_DOF; i++) 
         {
-            torque_sum(i) = rd_.Kp_diag(i, i) * (rd_.q_desired(i) - rd_.q_(i)) + rd_.Kd_diag(i, i) * (0.0 - rd_.q_dot_(i));
+            rd_.torque_desired(i) = rd_.Kp_diag(i, i) * (rd_.q_desired(i) - rd_.q_(i)) + rd_.Kd_diag(i, i) * (0.0 - rd_.q_dot_(i));
         }
-
-        // Eigen::VectorQd torque_sum = (rd_.Kp_diag * (rd_.q_desired - rd_.q_)) - (rd_.Kd_diag * rd_.q_dot_);
-
-        applyTorqueSmoothingOnce(torque_sum);
-
-        rd_.torque_desired = torque_sum;
     }
     else
     {
@@ -174,6 +166,37 @@ void CustomController::computeFast()
 void CustomController::computePlanner()
 {
 
+}
+
+void CustomController::mapGlobalToBase()
+{
+    //--- Robot States
+    Eigen::Vector3d base_pos = rd_.link_[Pelvis].xpos;
+    base_pos(2) = 0.0; 
+    Eigen::Matrix3d base_rot = DyrosMath::rotateWithZ(DyrosMath::rot2Euler(rd_.link_[Pelvis].rotm)(2)); 
+
+    //--- Local frame 
+    rd_.link_[Pelvis].local_xpos  = base_rot.transpose() * (rd_.link_[Pelvis].xpos - base_pos);
+    rd_.link_[Pelvis].local_rotm  = base_rot.transpose() *  rd_.link_[Pelvis].rotm;                             
+    rd_.link_[Pelvis].local_v     = base_rot.transpose() *  rd_.link_[Pelvis].v;                               
+    rd_.link_[Pelvis].local_w     = base_rot.transpose() *  rd_.link_[Pelvis].w;
+
+    //--- Virtual Joints
+    q_container_.segment(0,3) = rd_.link_[Pelvis].local_xpos;
+    Quaterniond base_quat(rd_.link_[Pelvis].local_rotm);
+    base_quat.normalize();
+    
+    q_container_(3) = base_quat.x();
+    q_container_(4) = base_quat.y();
+    q_container_(5) = base_quat.z();
+    q_container_(6) = base_quat.w();
+
+    v_container_.segment(0,3) = rd_.link_[Pelvis].local_v;
+    v_container_.segment(3,3) = rd_.link_[Pelvis].local_w;
+
+    //--- Actuaed Joints
+    q_container_.tail(MODEL_DOF) = rd_.q_;
+    v_container_.tail(MODEL_DOF) = rd_.q_dot_;
 }
 
 //--- First Torque Initialization

@@ -804,7 +804,7 @@ void *TocabiController::Thread1() // Thread1, running with 2Khz.
                     RequestThread2();
                     my_cc.computeSlow();
 
-                    const int mpc_hz = my_cc.getMpcFrequency();
+                    const int mpc_hz =static_cast<int>(my_cc.getMpcFrequency());
 
                     if (rd_.tc_.mode == 6 || rd_.tc_.mode == 7)
                     {

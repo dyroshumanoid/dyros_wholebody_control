@@ -100,20 +100,17 @@ void WBMPC::updateMPCSolverInput(const Eigen::VectorQVQd &q, const Eigen::Vector
 
     Eigen::VectorXd q_reduced;
     q_reduced.setZero(model_.nq);
-    q_reduced.segment(0, 3) = q.segment(0, 3);         // x, y, z
-    q_reduced.segment(3, 3) = q.segment(3, 3);         // qx, qy, qz
-    q_reduced(6)            = q(MODEL_DOF_VIRTUAL);    // qw
+    q_reduced.head(7) = q.head(7);
 
     Eigen::VectorXd v_reduced;
     v_reduced.setZero(model_.nv);
-    v_reduced.segment(0, 3) = v.segment(0, 3);     // vx, vy, vz
-    v_reduced.segment(3, 3) = v.segment(3, 3);     // wx, wy, wz
+    v_reduced.head(6) = v.head(6);
 
     for (int i = 0; i < (model_.nq - 7); ++i)
     {
         int jid = keep_joint_ids[i];
 
-        q_reduced(7 + i) = q(6 + jid);
+        q_reduced(7 + i) = q(7 + jid);
         v_reduced(6 + i) = v(6 + jid);
     }
 
@@ -150,6 +147,7 @@ void WBMPC::updateMPCSolverInput(const Eigen::VectorQVQd &q, const Eigen::Vector
 
     // Control Target
     base_vel_des.setZero(6);
+    base_vel_des(0) = 0.1; // desired forward velocity
 
     //--- Casadi Vector Conversion
     input_mpc.resize(solver.n_in());
@@ -163,10 +161,13 @@ void WBMPC::updateMPCSolverInput(const Eigen::VectorQVQd &q, const Eigen::Vector
     input_mpc[6]  = casadi::DM(swing_period);               // i6
     input_mpc[7]  = casadi::DM(swing_height);               // i7
     input_mpc[8]  = EigenToCasadiDM(swing_vel_limits);      // i8
-    input_mpc[9]  = EigenToCasadiDM(Q_diag);                // i9
-    input_mpc[10] = EigenToCasadiDM(R_diag);                // i10
-    input_mpc[11] = EigenToCasadiDM(base_vel_des);          // i11
-    input_mpc[12] = EigenToCasadiDM(output_mpc_prev);       // i12
+    input_mpc[9]  = casadi::DM(foot_length);                // i9
+    input_mpc[10] = casadi::DM(foot_width);                 // i10
+    input_mpc[11] = casadi::DM(mu);                         // i11
+    input_mpc[12] = EigenToCasadiDM(Q_diag);                // i12
+    input_mpc[13] = EigenToCasadiDM(R_diag);                // i13
+    input_mpc[14] = EigenToCasadiDM(base_vel_des);          // i14
+    input_mpc[15] = EigenToCasadiDM(output_mpc_prev);       // i15
 }
 
 void WBMPC::retractStackedSolution(const Eigen::VectorXd& sol_x) 
@@ -219,7 +220,6 @@ Eigen::VectorXd WBMPC::stateIntegrate(const Eigen::VectorXd& x, const Eigen::Vec
 {
     // x  = [q; v]
     // dx = [dq; dv]
-
     Eigen::VectorXd x_next(x.size());
 
     Eigen::VectorXd q  = x.head(model_.nq);
@@ -283,6 +283,20 @@ Eigen::VectorQd WBMPC::getWBMPCJointVelocitySolution()
     return v_next;
 }
 
+Eigen::VectorQd WBMPC::getWBMPCJointAccelerationSolution()
+{
+    Eigen::VectorQd a_next; a_next.setZero();
+
+    for(int i = 0; i < (model_.nv - 6); i++)
+    {
+        int jid = keep_joint_ids[i];
+
+        a_next(jid) = a_sol[1](i);
+    }
+
+    return a_next;
+}
+
 Eigen::VectorQd WBMPC::getWBMPCJointTorqueSolution()
 {
     Eigen::VectorQd torque_next; torque_next.setZero();
@@ -291,7 +305,7 @@ Eigen::VectorQd WBMPC::getWBMPCJointTorqueSolution()
     {
         int jid = keep_joint_ids[i];
 
-        torque_next(jid) = torque_sol[0](i);
+        torque_next(jid) = torque_sol[1](i);
     }
 
     return torque_next;

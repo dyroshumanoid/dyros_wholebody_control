@@ -141,10 +141,10 @@
     <axis
       xyz="0 0 1" />
 	<limit
-	  lower="-3.14"
-	  upper="3.14"
+	  lower="-1.57"
+	  upper="1.57"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
     <dynamics
       damping="5" />
 	  
@@ -201,10 +201,10 @@
     <axis
       xyz="1 0 0" />
 	  <limit
-	  lower="-3.14"
-	  upper="3.14"
+	  lower="-1.57"
+	  upper="1.57"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
     <dynamics
       damping="5" />
   </joint>
@@ -268,10 +268,10 @@
     <axis
       xyz="0 1 0" />
 	  <limit
-	  lower="-3.14"
-	  upper="3.14"
+	  lower="-1.57"
+	  upper="1.57"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
     <dynamics
       damping="5" />
   </joint>
@@ -327,10 +327,10 @@
     <axis
       xyz="0 1 0" />
 	  <limit
-	  lower="-3.14"
-	  upper="3.14"
+	  lower="0.0"
+	  upper="1.57"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
     <dynamics
       damping="5" />
   </joint>
@@ -386,10 +386,10 @@
     <axis
       xyz="0 1 0" />
 	  <limit
-	  lower="-3.14"
-	  upper="3.14"
+	  lower="-1.57"
+	  upper="1.57"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
     <dynamics
       damping="5" />
   </joint>
@@ -445,10 +445,10 @@
     <axis
       xyz="1 0 0" />
 	  <limit
-	  lower="-3.14"
-	  upper="3.14"
+	  lower="-1.57"
+	  upper="1.57"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
     <dynamics
       damping="5" />
   </joint>
@@ -512,10 +512,10 @@
     <axis
       xyz="0 0 0" />
 	  <limit
-	  lower="-3.14"
-	  upper="3.14"
+	  lower="-1.57"
+	  upper="1.57"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
     <dynamics
       damping="5" />
   </joint> 
@@ -595,10 +595,10 @@
     <axis
       xyz="0 0 1" />
 	  <limit
-	  lower="-3.14"
-	  upper="3.14"
+	  lower="-1.57"
+	  upper="1.57"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
     <dynamics
       damping="5" />
   </joint>
@@ -655,10 +655,10 @@
     <axis
       xyz="1 0 0" />
 	  <limit
-	  lower="-3.14"
-	  upper="3.14"
+	  lower="-1.57"
+	  upper="1.57"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
     <dynamics
       damping="5" />
   </joint>
@@ -722,10 +722,10 @@
     <axis
       xyz="0 1 0" />
 	  <limit
-	  lower="-3.14"
-	  upper="3.14"
+	  lower="-1.57"
+	  upper="1.57"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
     <dynamics
       damping="5" />
   </joint>
@@ -782,10 +782,10 @@
     <axis
       xyz="0 1 0" />
 	  <limit
-	  lower="-3.14"
-	  upper="3.14"
+	  lower="0.0"
+	  upper="1.57"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
     <dynamics
       damping="5" />
   </joint>
@@ -841,10 +841,10 @@
     <axis
       xyz="0 1 0" />
 	  <limit
-	  lower="-3.14"
-	  upper="3.14"
+	  lower="-1.57"
+	  upper="1.57"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
     <dynamics
       damping="5" />
   </joint>
@@ -900,10 +900,10 @@
     <axis
       xyz="1 0 0" />
 	  <limit
-	  lower="-3.14"
-	  upper="3.14"
+	  lower="-1.57"
+	  upper="1.57"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
     <dynamics
       damping="5" />
   </joint>
@@ -967,10 +967,10 @@
     <axis
       xyz="0 0 0" />
 	  <limit
-	  lower="-3.14"
-	  upper="3.14"
+	  lower="-1.57"
+	  upper="1.57"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
     <dynamics
       damping="5" />
   </joint>
@@ -1067,7 +1067,7 @@
       lower="-2.094"
       upper="2.094"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
    </joint>
@@ -1145,7 +1145,7 @@
       lower="-2.094"
       upper="2.094"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -1284,7 +1284,7 @@
       lower="-2.094"
       upper="2.094"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -1344,7 +1344,7 @@
       lower="-1.54"
       upper="1.54"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -1404,7 +1404,7 @@
       lower="-1.54"
       upper="1.54"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -1464,7 +1464,7 @@
       lower="-2.09"
       upper="1.54"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -1524,7 +1524,7 @@
       lower="-3.14159"
       upper="3.14159"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -1583,7 +1583,7 @@
       lower="-1.9199"
       upper="1.9199"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -1643,7 +1643,7 @@
       lower="-3.14159"
       upper="3.14159"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -1710,7 +1710,7 @@
       lower="-3.14159"
       upper="2.8"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -1777,7 +1777,7 @@
       lower="-3.14159"
       upper="3.14159"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -1836,7 +1836,7 @@
       lower="-3.14159"
       upper="3.14159"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -1894,7 +1894,7 @@
       lower="-2.094"
       upper="2.094"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -1954,7 +1954,7 @@
       lower="-1.54"
       upper="2.09"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -2013,7 +2013,7 @@
       lower="-3.14159"
       upper="3.14159"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -2073,7 +2073,7 @@
       lower="-1.9199"
       upper="1.9199"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -2132,7 +2132,7 @@
       lower="-3.14159"
       upper="3.14159"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -2201,7 +2201,7 @@
       lower="-2.967"
       upper="3.14159"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -2268,7 +2268,7 @@
       lower="-3.14159"
       upper="3.14159"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -2327,7 +2327,7 @@
       lower="-3.14159"
       upper="3.14159"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>
@@ -2385,7 +2385,7 @@
       lower="-2.094"
       upper="2.094"
       effort="500"
-      velocity="100" />
+      velocity="3.14" />
 	<dynamics
       damping="5" />
   </joint>  

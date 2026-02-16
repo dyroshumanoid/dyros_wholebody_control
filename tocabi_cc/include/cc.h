@@ -32,8 +32,8 @@ public:
     Eigen::VectorQd q_init_;
     Eigen::VectorQd q_init_des;
 
+    void mapGlobalToBase();
     void applyTorqueSmoothingOnce(Eigen::VectorQd &torque_target);
-
 private:
     WBMPC wb_mpc_;
 
@@ -55,17 +55,21 @@ private:
 
     Eigen::VectorQd q_mpc_;
     Eigen::VectorQd v_mpc_;
+    Eigen::VectorQd a_mpc_;
     Eigen::VectorQd torque_mpc_;
-
-    Eigen::VectorQd q_mpc_container_;
-    Eigen::VectorQd v_mpc_container_;
-    Eigen::VectorQd torque_mpc_container_;
 
     Eigen::VectorQd q_mpc_prev_;
     Eigen::VectorQd v_mpc_prev_;
+    Eigen::VectorQd a_mpc_prev_;
     Eigen::VectorQd torque_mpc_prev_;
+
+    Eigen::VectorQd q_mpc_container_;
+    Eigen::VectorQd v_mpc_container_;
+    Eigen::VectorQd a_mpc_container_;
+    Eigen::VectorQd torque_mpc_container_;
 
     Eigen::VectorQd q_mpc_interpol_;
     Eigen::VectorQd v_mpc_interpol_;
     Eigen::VectorQd torque_mpc_interpol_;
+    double mpc_update_time_ = 0.0;
 };

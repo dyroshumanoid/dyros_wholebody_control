@@ -36,14 +36,16 @@ public:
     void setWalkingEnable(const bool enable) { walking_enable = enable; }
     Eigen::VectorQd getWBMPCJointPositionSolution();
     Eigen::VectorQd getWBMPCJointVelocitySolution();
+    Eigen::VectorQd getWBMPCJointAccelerationSolution();
     Eigen::VectorQd getWBMPCJointTorqueSolution();
     double getMpcFrequency() const { return mpc_hz_; }
+    double getMpcMinimumTimeStep() const { return dt_min; }
 
 
 private:
     RobotData &rd_;
 
-    const double mpc_hz_ = 50.0;
+    const double mpc_hz_ = 30.0;
 
     Eigen::VectorXd stateIntegrate(const Eigen::VectorXd& x, const Eigen::VectorXd& dx);
 
@@ -51,7 +53,7 @@ private:
     const int mpc_nodes = 10;
     int nf = 12;
     double current_time = 0.0;
-    std::vector<int> nu_opt = {42, 42, 30, 30, 30, 30, 30, 30, 30, 30};
+    std::vector<int> nu_opt = {42, 42, 42, 30, 30, 30, 30, 30, 30, 30};
     std::vector<int> keep_joint_ids = {
         0, 1, 2, 3, 4, 5,
         6, 7, 8, 9, 10, 11
@@ -72,8 +74,8 @@ private:
 
         Eigen::VectorXd x_init;
 
-        double dt_min = 0.02; 
-        double dt_max = 0.20;
+        double dt_min = 0.015; 
+        double dt_max = 0.08;
         std::vector<double> dt_vec; 
 
         Eigen::MatrixXd contact_schedule;
@@ -81,21 +83,21 @@ private:
 
         double n_contacts = 2; 
 
-        double gait_period = 1.0; 
+        double gait_period = 1.2; 
         double swing_period = 0.0; 
-        double swing_height = 0.08; 
+        double swing_height = 0.055; 
 
-        Eigen::Vector2d swing_vel_limits = Eigen::Vector2d(-0.3, 0.3);
+        Eigen::Vector2d swing_vel_limits = Eigen::Vector2d(-0.2, 0.2);
+
+        double foot_length = 0.3;
+        double foot_width = 0.2;
+        double mu = 0.9;
 
         Eigen::VectorXd Q_diag;
 
         Eigen::VectorXd R_diag;
 
         Eigen::VectorXd base_vel_des;
-
-        Eigen::VectorXd arm_vel_des;
-
-        Eigen::VectorXd arm_force_des;
 
     //--- Pinocchio
     pinocchio::Model model_;
