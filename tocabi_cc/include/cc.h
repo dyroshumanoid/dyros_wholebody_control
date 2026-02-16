@@ -61,8 +61,8 @@ public:
     RobotData &rd_;
     RobotData rd_cc_;
 
-    Eigen::VectorXd Kp;  Eigen::VectorXd Kd; 
-    Eigen::VectorXd Kp_virtual, Ki_virtual, Kd_virtual; 
+    Eigen::VectorXd Kp, Kd; 
+    Eigen::VectorXd Kp_virtual, Kd_virtual; 
     Eigen::VectorQd joint_pos_limit_l_;
     Eigen::VectorQd joint_pos_limit_h_;
     Eigen::VectorQd joint_vel_limit_l_;

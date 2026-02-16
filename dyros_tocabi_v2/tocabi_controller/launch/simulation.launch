@@ -29,7 +29,7 @@
         <node name="tocabi_controller" pkg="tocabi_controller" type="tocabi_controller" output="screen" required="true" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' "/>
     </group>
 
-    <rosparam command="load" file="$(find tocabi_cc)/setting/setting_cc_param.yaml" ns="/tocabi_controller" />
+    <rosparam command="load" file="$(find tocabi_cc)/setting/setting_cc_param_sim.yaml" ns="/tocabi_controller" />
     <rosparam command="load" file="$(find tocabi_cc)/setting/setting_kalman_filter_param.yaml" ns="/kalman_filter" />
 
 

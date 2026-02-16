@@ -90,10 +90,6 @@ void CustomController::computeSlow()
             torque_pd.setZero();
             torque_pd = rd_.Kp_diag * (rd_.q_desired - rd_.q_) + rd_.Kd_diag * (Eigen::VectorQd::Zero() - rd_.q_dot_);
 
-            // for(int i = 12; i < MODEL_DOF; i++) {
-            //     torque_pd(i) += 100.0 * (rd_.q_desired(i) - rd_.q_(i));
-            // }
-
             torque_idn.setZero();
             subDataFromFastToSlow();
 
@@ -225,13 +221,8 @@ void CustomController::computeSlow()
                 rd_.q_desired(sinusoid_joint_target_) =c + a * std::sin(w * t + phase);
             }
 
-            static Eigen::VectorQd q_error_integral = Eigen::VectorQd::Zero();
-            Eigen::VectorQd q_error; q_error.setZero();
-            q_error = rd_.q_desired - rd_.q_;
-            q_error_integral += q_error * (1.0 / hz_);
-
             rd_.q_ddot_desired_virtual.setZero();
-            rd_.q_ddot_desired_virtual.segment(6, MODEL_DOF) = rd_.Kp_virtual_diag.bottomRightCorner(MODEL_DOF, MODEL_DOF) * q_error 
+            rd_.q_ddot_desired_virtual.segment(6, MODEL_DOF) = rd_.Kp_virtual_diag.bottomRightCorner(MODEL_DOF, MODEL_DOF) * (rd_.q_desired - rd_.q_) 
                                                              - rd_.Kd_virtual_diag.bottomRightCorner(MODEL_DOF, MODEL_DOF) * rd_.q_dot_;
             
             pubDataFromSlowToFast();
@@ -245,8 +236,10 @@ void CustomController::computeSlow()
 
             subDataFromFastToSlow();
 
-            rd_.torque_desired = (rd_.Kp_diag * (rd_.q_desired - rd_.q_)) - (rd_.Kd_diag * rd_.q_dot_);
+            for (int i = 0; i < MODEL_DOF; i++)
+                rd_.torque_desired[i] = rd_.pos_kp_v[i] * (rd_.q_desired[i] - rd_.q_[i]) + rd_.pos_kv_v[i] * (0.0 - rd_.q_dot_[i]);
             rd_.torque_desired(sinusoid_joint_target_) = torque_idn(sinusoid_joint_target_) 
+                                                       + rd_.Kp_diag(sinusoid_joint_target_, sinusoid_joint_target_) * (rd_.q_desired - rd_.q_)(sinusoid_joint_target_)
                                                        - rd_.Kd_diag(sinusoid_joint_target_, sinusoid_joint_target_) * rd_.q_dot_(sinusoid_joint_target_);
 
             FrictionCompensationTorques();
@@ -423,7 +416,9 @@ void CustomController::moveInitialPose()
     kin_wbc_.setInitialConfiguration(q_init_des);
 
     rd_.q_desired = DyrosMath::cubicVector<MODEL_DOF>(initial_tick, 0, 2.0 * hz_, q_init_, q_init_des, Eigen::VectorQd::Zero(), Eigen::VectorQd::Zero());
-    rd_.torque_desired = (rd_.Kp_diag * (rd_.q_desired - rd_.q_)) - (rd_.Kd_diag * rd_.q_dot_);
+    for (int i = 0; i < MODEL_DOF; i++){
+        rd_.torque_desired[i] = rd_.pos_kp_v[i] * (rd_.q_desired[i] - rd_.q_[i]) + rd_.pos_kv_v[i] * (0.0 - rd_.q_dot_[i]);
+    }
 
     initial_tick++;
 }
@@ -716,8 +711,18 @@ void CustomController::loadParams()
     tm_.setTrajectoryDuration(traj_time_);
     tm_.setPelvisDistance(pelv_dist_);
     tm_.setHandDistance(hand_dist_);
-    tm_.setStepStride(step_length_);
-    tm_.setStepLateral(step_lateral_);
+
+    if(is_joy_enable == false){
+        tm_.setStepStride(step_length_);
+        tm_.setStepLateral(step_lateral_);
+        tm_.setStepYaw(step_yaw_);
+    }
+    else{
+        tm_.setStepStride(0.0);
+        tm_.setStepLateral(0.0);
+        tm_.setStepYaw(0.0);
+    }
+        
     tm_.setFootHeight(foot_height_);
     tm_.setStepDuration(step_duration_);
     tm_.setDspDuration(dsp_duration_);
