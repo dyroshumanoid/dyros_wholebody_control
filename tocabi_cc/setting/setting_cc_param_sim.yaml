@@ -1,5 +1,5 @@
 sinusoidal_joint_test:
-  joint_target: 20        # motor joint index
+  joint_target: 0       # motor joint index
   joint_min:   0.1     # [rad]
   joint_max:   0.1     # [rad]
   period:       1.0      # [sec] (min -> max -> min)
@@ -118,7 +118,7 @@ cbf:
     obstacle_avoidance_cbf_alpha: 30.0
     obstacle_avoidance_cbf_epsilon: 3.0
 
-motion_mode : 3 # 0: idle, 1: simple hand motion, 2: taichi, 3: walking, 4: teleop
+motion_mode : 4 # 0: idle, 1: simple hand motion, 2: taichi, 3: walking, 4: teleop
 
 friction_compensation:
   tau_coulomb: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0,

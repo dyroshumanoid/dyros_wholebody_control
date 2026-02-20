@@ -95,7 +95,7 @@ void KinWBC::computeTaskSpaceKinematicWBC()
         de.head(3) = (-1.0) * DyrosMath::getPhi(rd_.link_[Left_Hand - 4].local_rotm,  rd_.link_[Left_Hand - 4].r_traj);
         de.tail(3) = (-1.0) * DyrosMath::getPhi(rd_.link_[Right_Hand - 4].local_rotm, rd_.link_[Right_Hand - 4].r_traj);
 
-        double w_ik = 0.7; double w_elbow = 0.3;
+        double w_ik = 0.9; double w_elbow = 0.1;
         Eigen::MatrixXd J_weighted; J_weighted.setZero(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL);
 
         J_weighted = w_ik * Eigen::MatrixXd::Identity(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL) + w_elbow * J_pre.transpose() * J_pre;
