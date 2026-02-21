@@ -53,14 +53,14 @@ Eigen::VectorQd DynWBC::computeDynamicWBC()
 
     checkGradHessSize();
 
-    QP_Dyn_Wbc.EnableEqualityCondition(1e-6);
+    QP_Dyn_Wbc.EnableEqualityCondition(1e-8);
     QP_Dyn_Wbc.UpdateMinProblem(Hess, grad);
     QP_Dyn_Wbc.DeleteSubjectToAx();
     QP_Dyn_Wbc.UpdateSubjectToAx(A_const, lbA_const, ubA_const);
 
     bool qp_status = true;
     Eigen::VectorXd X_; X_.setZero(total_num_state);
-    if(QP_Dyn_Wbc.SolveQPoases(1000, X_, true))
+    if(QP_Dyn_Wbc.SolveQPoases(2000, X_, true))
     {
         contact_wrench_qp  = X_.segment(0, contact_dim);
         qddot_qp           = X_.segment(contact_dim, MODEL_DOF_VIRTUAL);

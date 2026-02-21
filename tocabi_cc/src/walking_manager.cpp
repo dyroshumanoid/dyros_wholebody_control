@@ -103,8 +103,7 @@ void WalkingManager::getZmpTrajectory()
     int foot_contact_idx = local_LF_contact ? -1 : +1;
 
     double zmp_offset_x = 0.02;
-    // double zmp_offset_y = 0.01;
-    double zmp_offset_y = 0.025;
+    double zmp_offset_y = 0.01;
 
     if (step_cnt == 0) // DSP
     {
@@ -403,8 +402,13 @@ void WalkingManager::contactWrenchCalculator()
     alpha = (zmp_y_ref + del_zmp(1) - pR_sharp(1)) / (pL_sharp(1) - pR_sharp(1));
     alpha = DyrosMath::minmax_cut(alpha, 0.0, 1.0);
 
-    F_R = -(1 - alpha) * (rd_.link_[COM_id].mass) * GRAVITY;
-    F_L =     - alpha  * (rd_.link_[COM_id].mass) * GRAVITY;
+    double real_robot_mass_offset_ = 6.17805; // 20250305: TOCABI 101.8 kg 
+    // double real_robot_mass_offset_ = 0.0; // 20250305: TOCABI 101.8 kg 
+    F_R = -(1 - alpha) * (rd_.link_[COM_id].mass + real_robot_mass_offset_) * GRAVITY;
+    F_L =     - alpha  * (rd_.link_[COM_id].mass + real_robot_mass_offset_) * GRAVITY;
+
+    // F_R += F_R - rd_.RF_FT(2);
+    // F_L += F_L - rd_.LF_FT(2);
 
     //////////// TORQUE ////////////
     Eigen::Vector2d pL; pL.setZero(); pL = rd_.link_[Left_Foot].support_xpos.segment(0, 2);
@@ -418,36 +422,8 @@ void WalkingManager::contactWrenchCalculator()
     Tau_L_x =     alpha  * Tau_all_x;
     Tau_L_y =     alpha  * Tau_all_y;
 
-    if(support_phase_indicator_ == ContactIndicator::LeftSingleSupport)
-    {
-        lfoot_contact_wrench << 0.0, 0.0, F_L, Tau_L_x, Tau_L_y, 0.0;
-        rfoot_contact_wrench << 0.0, 0.0, F_R, 0.0, 0.0, 0.0;
-    }
-    else if (support_phase_indicator_ == ContactIndicator::RightSingleSupport)
-    {
-        lfoot_contact_wrench << 0.0, 0.0, F_L, 0.0, 0.0, 0.0;
-        rfoot_contact_wrench << 0.0, 0.0, F_R, Tau_R_x, Tau_R_y, 0.0;
-    }
-    else 
-    {
-        lfoot_contact_wrench << 0.0, 0.0, F_L, Tau_L_x, Tau_L_y, 0.0;
-        rfoot_contact_wrench << 0.0, 0.0, F_R, Tau_R_x, Tau_R_y, 0.0;
-    }
-
-    //--- Force Feedback Control
-    // double kp_force = 1.0;
-
-    // static Vector6d LF_FT_LPF = rd_.LF_FT;
-    // static Vector6d RF_FT_LPF = rd_.RF_FT;
-
-    // for (int i = 0; i < 6; i++)
-    // {
-    //     LF_FT_LPF(i) = DyrosMath::lpf(rd_.LF_FT(i), LF_FT_LPF(i), 2000, 60);
-    //     RF_FT_LPF(i) = DyrosMath::lpf(rd_.RF_FT(i), RF_FT_LPF(i), 2000, 60);
-    // }
-
-    // lfoot_contact_wrench(2) += kp_force * (lfoot_contact_wrench(2) - LF_FT_LPF(2));
-    // rfoot_contact_wrench(2) += kp_force * (rfoot_contact_wrench(2) - RF_FT_LPF(2));
+    lfoot_contact_wrench << 0.0, 0.0, F_L, Tau_L_x, Tau_L_y, 0.0;
+    rfoot_contact_wrench << 0.0, 0.0, F_R, Tau_R_x, Tau_R_y, 0.0;
 
     lfoot_contact_wrench *= (-1.0);
     rfoot_contact_wrench *= (-1.0);
@@ -776,7 +752,7 @@ void WalkingManager::updateContactState(const bool &local_LF_contact_, const boo
 void WalkingManager::setWalkingParameter(const double &step_length_, const double &step_lateral_, const double &foot_yaw_angle_, const double &foot_height_)
 {
     step_length = step_length_;
-    step_width = 0.22;
+    step_width = 0.25;
     step_lateral = step_lateral_;
     foot_yaw_angle = foot_yaw_angle_;
     foot_height = foot_height_;

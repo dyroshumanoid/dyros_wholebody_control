@@ -107,6 +107,9 @@ void KinWBC::computeTaskSpaceKinematicWBC()
         qdot_des = safetyFilter();
     }
 
+    rd_.q_dot_desired_virtual = qdot_des;
+    rd_.q_dot_desired = qdot_des.segment(6, MODEL_DOF);
+
     rd_.q_desired_virtual = integrate(rd_.local_q_virtual_, qdot_des);
     rd_.q_desired = rd_.q_desired_virtual.segment(6, MODEL_DOF);
 

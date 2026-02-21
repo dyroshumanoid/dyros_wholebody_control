@@ -39,7 +39,7 @@ Eigen::Vector2d cp_error_int_;
 
 Eigen::Vector2d del_zmp;
 double zmp_kp_ = 3.0;               // proportional gain
-double zmp_ki_ = 2.5;               // integral gain
+double zmp_ki_ = 0.5;               // integral gain
 
 double zmp_x_ref = 0.0;
 double zmp_y_ref = 0.0;

@@ -2,22 +2,23 @@
 
 using namespace TOCABI;
 
-// ofstream torque_sum_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
+ofstream torque_sum_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
 // ofstream torque_idn_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
 // ofstream torque_pd_log(       "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
-// ofstream joint_desired_log(   "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
-// ofstream joint_position_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
-// ofstream joint_velocity_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
+ofstream joint_desired_log(   "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
+ofstream joint_position_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
+ofstream joint_velocity_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
 // ofstream joint_velocity_filter_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_filter_log.txt");
+ofstream computation_time_log(       "/home/dyros/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
 
-ofstream torque_sum_log(             "/home/kwan/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
-ofstream torque_idn_log(             "/home/kwan/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
-ofstream torque_pd_log(              "/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
-ofstream joint_desired_log(          "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
-ofstream joint_position_log(         "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
-ofstream joint_velocity_log(         "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
-ofstream joint_velocity_filter_log(  "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_velocity_filter_log.txt");
-ofstream computation_time_log(       "/home/kwan/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
+// ofstream torque_sum_log(             "/home/kwan/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
+// ofstream torque_idn_log(             "/home/kwan/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
+// ofstream torque_pd_log(              "/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
+// ofstream joint_desired_log(          "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
+// ofstream joint_position_log(         "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
+// ofstream joint_velocity_log(         "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
+// ofstream joint_velocity_filter_log(  "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_velocity_filter_log.txt");
+// ofstream computation_time_log(       "/home/kwan/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
 
 CustomController::CustomController(RobotData &rd) : rd_(rd),
                                                     cm_(rd, model),
@@ -88,7 +89,11 @@ void CustomController::computeSlow()
             pubDataFromSlowToFast();
 
             torque_pd.setZero();
-            torque_pd = rd_.Kp_diag * (rd_.q_desired - rd_.q_) + rd_.Kd_diag * (Eigen::VectorQd::Zero() - rd_.q_dot_);
+            // torque_pd = rd_.Kp_diag * (rd_.q_desired - rd_.q_) + rd_.Kd_diag * (Eigen::VectorQd::Zero() - rd_.q_dot_);
+            torque_pd = rd_.Kd_diag * (rd_.q_dot_desired - rd_.q_dot_);
+            // for(int i = 12; i < MODEL_DOF; i++) {
+            //     torque_pd(i) += 400.0 * (rd_.q_desired(i) - rd_.q_(i));
+            // }
 
             torque_idn.setZero();
             subDataFromFastToSlow();
@@ -96,13 +101,15 @@ void CustomController::computeSlow()
             FrictionCompensationTorques();
             
             torque_sum.setZero();
-            torque_sum = torque_pd + torque_idn + torque_fric;
+            torque_sum = torque_pd + torque_idn + torque_fric; //
 
             applyTorqueSmoothingOnce(torque_sum);
 
             torque_sum_log << torque_sum.transpose() << std::endl;
-            torque_idn_log << torque_idn.transpose() << std::endl;
-            torque_pd_log << torque_pd.transpose() << std::endl;
+            joint_desired_log << rd_.q_desired.transpose() << std::endl;
+            joint_position_log << rd_.q_.transpose() << std::endl;
+            // torque_idn_log << torque_idn.transpose() << std::endl;
+            // torque_pd_log << torque_pd.transpose() << std::endl;
 
             rd_.torque_desired = torque_sum;
         }
@@ -253,7 +260,7 @@ void CustomController::computeSlow()
             joint_desired_log << rd_.q_desired(sinusoid_joint_target_) << std::endl;
             joint_position_log << rd_.q_(sinusoid_joint_target_) << std::endl;
             joint_velocity_log << rd_.q_dot_(sinusoid_joint_target_) << std::endl;
-            joint_velocity_filter_log << q_dot_lpf_(sinusoid_joint_target_) << std::endl;
+            // joint_velocity_filter_log << q_dot_lpf_(sinusoid_joint_target_) << std::endl;
             torque_sum_log << rd_.torque_desired(sinusoid_joint_target_) << std::endl;
         }
         else
