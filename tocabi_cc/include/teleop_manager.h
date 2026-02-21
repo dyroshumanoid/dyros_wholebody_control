@@ -19,13 +19,14 @@ public:
     TeleOperationManager(RobotData &rd);
     void callAvailableQueue();
 
-    void updateTrackerFromTF();
+    void updateTrackerFromPoseArray();
     void calibrationFunction(const bool &calibration_done);
     void sendReadyPoseToRobot(const bool &ready_pose_mode);
     void motionRetargeting(const bool &avatar_mode);
     ContactIndicator getSupportPhaseIndicator() {
         return (human_contact_indicator_);
     }
+    void setWalkingParameter(const double &step_length_, const double &foot_height_, const double &step_duration_);
 
     bool leftPrimaryPressedOnce();
     bool leftSecondaryPressedOnce();
@@ -34,19 +35,21 @@ public:
 
     Eigen::Matrix3d clampRotation(const Eigen::Matrix3d &R_target, double max_angle_rad);
 
-    bool transformAllOK() { return tf_all_ok_; }
+    bool transformAllOK() { return tracker_pose_received_; }
 
 private:
     RobotData &rd_;
     ros::NodeHandle nh_;
     ros::CallbackQueue queue_;
 
-    tf::TransformListener tf_listener_;
     ros::Subscriber xr_pose_sub_;
+        void xrPoseCallback(const xr_msgs::Custom::ConstPtr& msg);    
 
-    void xrPoseCallback(const xr_msgs::Custom::ConstPtr& msg);    
-    bool lookupTF(const std::string &parent, const std::string &child, Eigen::Isometry3d &T_out);
-    Eigen::Isometry3d tfToEigen(const tf::StampedTransform& tf_msg);
+    ros::Subscriber tracker_pose_sub_;
+        geometry_msgs::PoseArray tracker_pose_;
+        bool tracker_pose_received_ = false;
+        void trackerPoseCallback(const geometry_msgs::PoseArray::ConstPtr &msg);
+
 
 private:
     double pelvis_height_ratio = 0.0;
@@ -82,6 +85,10 @@ private:
 
     Eigen::Vector3d tracker_pelv_pos_mapped_support_;
     Eigen::Vector3d tracker_pelv_pos_mapped_support_init_;
+    Eigen::Vector3d tracker_lfoot_pos_mapped_support_;
+    Eigen::Vector3d tracker_lfoot_pos_mapped_support_init_;
+    Eigen::Vector3d tracker_rfoot_pos_mapped_support_;
+    Eigen::Vector3d tracker_rfoot_pos_mapped_support_init_;
 
     Eigen::Matrix3d tracker_head_rotm_init_;
     Eigen::Matrix3d tracker_chest_rotm_init_;
@@ -92,6 +99,9 @@ private:
     Eigen::Matrix3d tracker_rhand_rotm_init_;
     Eigen::Matrix3d tracker_lfoot_rotm_init_;
     Eigen::Matrix3d tracker_rfoot_rotm_init_;
+
+    Eigen::Vector3d tracker_lfoot_pos_init_;
+    Eigen::Vector3d tracker_rfoot_pos_init_;
 
     //--- Robot
     Eigen::Vector3d robot_com_pos_init_;
@@ -144,7 +154,8 @@ private:
     //--- Retargeting Checker
     ros::Publisher retarget_pose_pub_;
     void publishRetargetPoseArray();
-    geometry_msgs::Pose eigenToPose(const Eigen::Isometry3d& T);
+    geometry_msgs::Pose eigenToPose(const Eigen::Isometry3d &T);
+    Eigen::Isometry3d poseToEigen(const geometry_msgs::Pose &p);
 
     //--- From PICO
     bool right_controller_primary_button = false;
@@ -156,7 +167,19 @@ private:
     double left_controller_trigger = 0.0;
 
     //--- Human Contact Indicator
+
+Eigen::Vector3d generateSwingFootTrajectory(
+    const int swing_foot_link_idx,
+    const Eigen::Isometry3d &tracker_swing_pose,
+    const Eigen::Vector3d &tracker_swing_init,
+    const Eigen::Vector3d &robot_swing_init,
+    double &control_time_init,
+    bool &first_lift_flag);
     ContactIndicator human_contact_indicator_ = ContactIndicator::DoubleSupport;
+    ContactIndicator human_contact_indicator_prev_ = ContactIndicator::DoubleSupport;
+    double step_length = 0.0;
+    double foot_height = 0.0;
+    double step_duration = 0.0;    
 
     //--- Lowerbody Disable
     bool lowerbody_disable_ = false;

@@ -597,14 +597,14 @@ void mycontroller(const mjModel *m, mjData *d)
             }
 
             // Color change of collgion objects (red: in collision, blue: no collision)
-            for (int i = 0; i < col_obj_geom_ids.size(); i++){
-                if(col_obj_in_collision[i]){
-                    memcpy(m->geom_rgba + 4 * col_obj_geom_ids[i], RED, 4 * sizeof(float));
-                }
-                else{
-                    memcpy(m->geom_rgba + 4 * col_obj_geom_ids[i], BLUE, 4 * sizeof(float));
-                }
-            }
+            // for (int i = 0; i < col_obj_geom_ids.size(); i++){
+            //     if(col_obj_in_collision[i]){
+            //         memcpy(m->geom_rgba + 4 * col_obj_geom_ids[i], RED, 4 * sizeof(float));
+            //     }
+            //     else{
+            //         memcpy(m->geom_rgba + 4 * col_obj_geom_ids[i], BLUE, 4 * sizeof(float));
+            //     }
+            // }
 
             if (use_shm)
             {

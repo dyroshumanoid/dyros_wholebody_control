@@ -166,7 +166,8 @@ void TaskManager::bipedalWalkingController()
 
 void TaskManager::teleOperationController()
 {    
-    static TeleOperationManager teleop_(rd_); 
+    static TeleOperationManager teleop_(rd_);
+    teleop_.setWalkingParameter(step_length, foot_height, step_duration);
     static bool calibration_done = false;
     static bool ready_pose_mode = false;
     static bool avatar_mode = false;
@@ -229,7 +230,7 @@ void TaskManager::teleOperationController()
     }
 
     //--- Teleoperation Control
-    teleop_.updateTrackerFromTF();
+    teleop_.updateTrackerFromPoseArray();
     support_phase_indicator_ = teleop_.getSupportPhaseIndicator();
     mapBaseToSupport();
     teleop_.calibrationFunction(calibration_done);
