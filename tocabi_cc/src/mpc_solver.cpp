@@ -147,7 +147,7 @@ void WBMPC::updateMPCSolverInput(const Eigen::VectorQVQd &q, const Eigen::Vector
 
     // Control Target
     base_vel_des.setZero(6);
-    base_vel_des(0) = 0.1; // desired forward velocity
+    // base_vel_des(0) = 0.05; // desired forward velocity
 
     //--- Casadi Vector Conversion
     input_mpc.resize(solver.n_in());

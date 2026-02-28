@@ -50,10 +50,10 @@ private:
     Eigen::VectorXd stateIntegrate(const Eigen::VectorXd& x, const Eigen::VectorXd& dx);
 
     //--- MPC Info
-    const int mpc_nodes = 10;
+    const int mpc_nodes = 5;
     int nf = 12;
     double current_time = 0.0;
-    std::vector<int> nu_opt = {42, 42, 42, 30, 30, 30, 30, 30, 30, 30};
+    std::vector<int> nu_opt = {42, 42, 30, 30, 30};
     std::vector<int> keep_joint_ids = {
         0, 1, 2, 3, 4, 5,
         6, 7, 8, 9, 10, 11
