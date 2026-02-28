@@ -45,7 +45,7 @@ public:
 private:
     RobotData &rd_;
 
-    const double mpc_hz_ = 30.0;
+    const double mpc_hz_ = 50.0;
 
     Eigen::VectorXd stateIntegrate(const Eigen::VectorXd& x, const Eigen::VectorXd& dx);
 
@@ -74,8 +74,8 @@ private:
 
         Eigen::VectorXd x_init;
 
-        double dt_min = 0.015; 
-        double dt_max = 0.08;
+        double dt_min = 0.02; 
+        double dt_max = 0.1;
         std::vector<double> dt_vec; 
 
         Eigen::MatrixXd contact_schedule;
@@ -83,7 +83,7 @@ private:
 
         double n_contacts = 2; 
 
-        double gait_period = 1.2; 
+        double gait_period = 1.0; 
         double swing_period = 0.0; 
         double swing_height = 0.055; 
 
