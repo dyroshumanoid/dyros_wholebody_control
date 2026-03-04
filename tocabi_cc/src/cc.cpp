@@ -102,8 +102,8 @@ void CustomController::computeSlow()
 
         for(int i = 0; i < 12; i++) 
         {
-            rd_.torque_desired(i) = torque_mpc_interpol_(i) + rd_.Kp_diag(i, i) * (q_mpc_interpol_(i) - rd_.q_(i)) + rd_.Kd_diag(i, i) * (v_mpc_interpol_(i) - rd_.q_dot_(i));
-            // rd_.torque_desired(i) = torque_mpc_interpol_(i) + rd_.Kd_diag(i, i) * (v_mpc_interpol_(i) - rd_.q_dot_(i));
+            // rd_.torque_desired(i) = torque_mpc_interpol_(i) + rd_.Kp_diag(i, i) * (q_mpc_interpol_(i) - rd_.q_(i)) + rd_.Kd_diag(i, i) * (v_mpc_interpol_(i) - rd_.q_dot_(i));
+            rd_.torque_desired(i) = torque_mpc_interpol_(i) + rd_.Kd_diag(i, i) * (v_mpc_interpol_(i) - rd_.q_dot_(i));
         }
         for(int i = 12; i < MODEL_DOF; i++) 
         {

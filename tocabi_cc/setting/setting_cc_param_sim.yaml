@@ -40,8 +40,8 @@ mpc_parameters:
                    0.001, 0.001, 0.001, 0.001, 0.001, 0.001]
 
      R_force_diag: [ # --- contact forces (nf = 12) ---
-                     0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
-                     0.005, 0.005, 0.005, 0.005, 0.005, 0.005]
+                     0.003, 0.003, 0.003, 0.003, 0.003, 0.003,
+                     0.003, 0.003, 0.003, 0.003, 0.003, 0.003]
                      # Contact force regularization is important for stable walking.
                      # Even it can be helpful to sim-to-sim transfer.
 
