@@ -102,14 +102,31 @@ void CustomController::computeSlow()
 
         mpc_count++;
 
-        for(int i = 0; i < 12; i++) 
+        static bool mpc_stop = false;
+        double cv_norm_threshold = 1000.0; // This threshold may need to be tuned based on empirical observations
+        if(wb_mpc_.getMpcCVNorm() > cv_norm_threshold && !mpc_stop)
         {
-            // rd_.torque_desired(i) = torque_mpc_interpol_(i) + rd_.Kp_diag(i, i) * (q_mpc_interpol_(i) - rd_.q_(i)) + rd_.Kd_diag(i, i) * (v_mpc_interpol_(i) - rd_.q_dot_(i));
-            rd_.torque_desired(i) = torque_mpc_interpol_(i) + rd_.Kd_diag(i, i) * (v_mpc_interpol_(i) - rd_.q_dot_(i));
+            mpc_stop = true;
+            std::cout << "MPC CV norm exceeded threshold. Stopping MPC torque application." << std::endl;
+            rd_.q_desired = rd_.q_;
+            rd_.torque_desired.setZero();
         }
-        for(int i = 12; i < MODEL_DOF; i++) 
-        {
-            rd_.torque_desired(i) = rd_.Kp_diag(i, i) * (rd_.q_desired(i) - rd_.q_(i)) + rd_.Kd_diag(i, i) * (0.0 - rd_.q_dot_(i));
+
+        if(!mpc_stop){
+            for(int i = 0; i < 12; i++) 
+            {
+                rd_.torque_desired(i) = torque_mpc_interpol_(i) + rd_.Kd_diag(i, i) * (v_mpc_interpol_(i) - rd_.q_dot_(i));
+            }
+            for(int i = 12; i < MODEL_DOF; i++) 
+            {
+                rd_.torque_desired(i) = rd_.Kp_diag(i, i) * (rd_.q_desired(i) - rd_.q_(i)) + rd_.Kd_diag(i, i) * (0.0 - rd_.q_dot_(i));
+            }
+        }
+        else{
+            for(int i = 0; i < MODEL_DOF; i++) 
+            {
+                rd_.torque_desired(i) = rd_.Kp_diag(i, i) * (rd_.q_desired(i) - rd_.q_(i)) + rd_.Kd_diag(i, i) * (0.0 - rd_.q_dot_(i));
+            }
         }
 
         // --- publish force ---

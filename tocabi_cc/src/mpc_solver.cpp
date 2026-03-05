@@ -88,6 +88,7 @@ void WBMPC::solve()
 
     std::vector<casadi::DM> out = solver(input_mpc);
     casadi::DM sol = out[0];
+    cv_norm = out[1].scalar();
     output_mpc = CasadiDMToEigenVector(sol);
 
     retractStackedSolution(output_mpc);

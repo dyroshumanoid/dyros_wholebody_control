@@ -43,6 +43,7 @@ public:
     double getMpcFrequency() const { return mpc_hz_; }
     double getMpcMinimumTimeStep() const { return dt_min; }
     bool getDisturbanceOn() const { return disturb_on; }
+    double getMpcCVNorm() const { return cv_norm; }
 
 private:
     RobotData &rd_;
@@ -107,6 +108,7 @@ private:
 
     //--- Casadi
     casadi::Function solver;
+    double cv_norm = 0.0;
 
     std::string current_path = std::filesystem::current_path().parent_path().string();
     std::string prefix_lib = current_path + "/catkin_ws/src/tocabi_cc/lib/";
