@@ -15,6 +15,8 @@ CustomController::CustomController(RobotData &rd) : rd_(rd), wb_mpc_(rd)
     //--- ROS Node Handle
     nh_cc_.setCallbackQueue(&queue_cc_);
     ControlVal_.setZero();
+
+    mujoco_ext_force_apply_pub = nh_cc_.advertise<mujoco_ros_msgs::applyforce>("/mujoco_ros_interface/applied_ext_force", 10);
 }
 
 Eigen::VectorQd CustomController::getControl()
@@ -109,6 +111,25 @@ void CustomController::computeSlow()
         {
             rd_.torque_desired(i) = rd_.Kp_diag(i, i) * (rd_.q_desired(i) - rd_.q_(i)) + rd_.Kd_diag(i, i) * (0.0 - rd_.q_dot_(i));
         }
+
+        // --- publish force ---
+        mujoco_applied_ext_force_.wrench.force.x = 0.0; //x-axis linear force
+        mujoco_applied_ext_force_.wrench.force.y = 0.0; //y-axis linear force  
+        mujoco_applied_ext_force_.wrench.force.z = 0.0; //z-axis linear force
+        mujoco_applied_ext_force_.wrench.torque.x = 0.0; //x-axis angular moment
+        mujoco_applied_ext_force_.wrench.torque.y = 0.0; //y-axis angular moment
+        mujoco_applied_ext_force_.wrench.torque.z = 0.0; //z-axis angular moment
+  
+        mujoco_applied_ext_force_.link_idx = 1; //link idx; 1:pelvis
+
+        if (wb_mpc_.getDisturbanceOn())
+        {
+            const double th = disturbance_theta * DEG2RAD;
+            mujoco_applied_ext_force_.wrench.force.x =  disturbance_force * std::sin(th);
+            mujoco_applied_ext_force_.wrench.force.y = -disturbance_force * std::cos(th);
+        }
+
+        mujoco_ext_force_apply_pub.publish(mujoco_applied_ext_force_);
     }
     else
     {
@@ -127,8 +148,9 @@ void CustomController::computeThread3()
     }
 
     static int current_tick = 0;
+    static int current_step_num = 0;
 
-    wb_mpc_.updateMPCSolverInput(q_, v_, current_tick);
+    wb_mpc_.updateMPCSolverInput(q_, v_, current_tick, current_step_num);
 
     if (rd_.tc_.mode == 7)
     {
@@ -284,4 +306,11 @@ void CustomController::loadParams()
               Eigen::Map<Eigen::VectorXd>(R_force_vec.data(), R_force_vec.size()),
               Eigen::Map<Eigen::VectorXd>(R_torque_vec.data(), R_torque_vec.size());
     wb_mpc_.setWeights(Q_diag, R_diag);
+
+    //--- Disturbance Spec ---
+    nh_cc_.getParam("/tocabi_controller/disturbance_spec/force", disturbance_force);
+    nh_cc_.getParam("/tocabi_controller/disturbance_spec/theta", disturbance_theta);
+    nh_cc_.getParam("/tocabi_controller/disturbance_spec/duration", disturbance_duration);
+    wb_mpc_.setDisturbanceSpec(disturbance_force, disturbance_theta, disturbance_duration);
+    std::cout << "force: " << disturbance_force << ", theta: " << disturbance_theta << ", duration: " << disturbance_duration << std::endl;
 }

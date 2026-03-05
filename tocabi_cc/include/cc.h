@@ -3,8 +3,7 @@
 
 #include <ros/ros.h>
 #include <sensor_msgs/Joy.h>
-
-
+#include <mujoco_ros_msgs/applyforce.h>
 
 class CustomController
 {
@@ -72,4 +71,10 @@ private:
     Eigen::VectorQd v_mpc_interpol_;
     Eigen::VectorQd torque_mpc_interpol_;
     double mpc_update_time_ = 0.0;
+
+    ros::Publisher mujoco_ext_force_apply_pub;
+    mujoco_ros_msgs::applyforce mujoco_applied_ext_force_;
+    double disturbance_force = 0.0;
+    double disturbance_theta = 0.0;
+    double disturbance_duration = 0.0;
 };

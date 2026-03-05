@@ -28,10 +28,12 @@ public:
     WBMPC(RobotData &rd);
 
     void updateMPCSolverInput(const Eigen::VectorQVQd &q, const Eigen::VectorVQd &v, const int& current_tick);
+    void updateMPCSolverInput(const Eigen::VectorQVQd &q, const Eigen::VectorVQd &v, const int& current_tick, int &current_step_num);
     void solve();
     void retractStackedSolution(const Eigen::VectorXd& sol_x);
 
     void setWeights(const Eigen::VectorXd &Q, const Eigen::VectorXd &R);
+    void setDisturbanceSpec(const double &force, const double &theta, const double &duration);
     void setReferenceNominalPose(const Eigen::VectorQd q_nom_);
     void setWalkingEnable(const bool enable) { walking_enable = enable; }
     Eigen::VectorQd getWBMPCJointPositionSolution();
@@ -40,13 +42,13 @@ public:
     Eigen::VectorQd getWBMPCJointTorqueSolution();
     double getMpcFrequency() const { return mpc_hz_; }
     double getMpcMinimumTimeStep() const { return dt_min; }
-
+    bool getDisturbanceOn() const { return disturb_on; }
 
 private:
     RobotData &rd_;
 
-    const double mpc_hz_ = 50.0;
-
+    const double mpc_hz_ = 100.0;
+    bool disturb_on = false;
     Eigen::VectorXd stateIntegrate(const Eigen::VectorXd& x, const Eigen::VectorXd& dx);
 
     //--- MPC Info
@@ -74,7 +76,7 @@ private:
 
         Eigen::VectorXd x_init;
 
-        double dt_min = 0.02; 
+        double dt_min = 0.01; 
         double dt_max = 0.1;
         std::vector<double> dt_vec; 
 
@@ -85,7 +87,7 @@ private:
 
         double gait_period = 1.0; 
         double swing_period = 0.0; 
-        double swing_height = 0.055; 
+        double swing_height = 0.055;
 
         Eigen::Vector2d swing_vel_limits = Eigen::Vector2d(-0.2, 0.2);
 
@@ -114,4 +116,7 @@ private:
     //--- etc
     Eigen::VectorQd q_nom;
     bool walking_enable = false;
+    double disturbance_force = 0.0;
+    double disturbance_theta = 0.0;
+    double disturbance_duration = 0.0;
 };

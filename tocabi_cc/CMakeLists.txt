@@ -7,6 +7,7 @@ find_package(catkin REQUIRED
 roscpp
 tocabi_lib
 tocabi_msgs  
+mujoco_ros_msgs
 eigen_conversions
 )
 
@@ -17,7 +18,7 @@ find_package(casadi REQUIRED)
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS tocabi_lib tocabi_msgs
+  CATKIN_DEPENDS tocabi_lib tocabi_msgs mujoco_ros_msgs
   # DEPENDS system_lib
 )
 

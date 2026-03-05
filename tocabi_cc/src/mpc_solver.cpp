@@ -93,7 +93,7 @@ void WBMPC::solve()
     retractStackedSolution(output_mpc);
 }
 
-void WBMPC::updateMPCSolverInput(const Eigen::VectorQVQd &q, const Eigen::VectorVQd &v, const int& current_tick)
+void WBMPC::updateMPCSolverInput(const Eigen::VectorQVQd &q, const Eigen::VectorVQd &v, const int& current_tick, int &current_step_num)
 {
     //--- Robot State Initialization
     x_init.setZero(model_.nq + model_.nv); 
@@ -119,6 +119,17 @@ void WBMPC::updateMPCSolverInput(const Eigen::VectorQVQd &q, const Eigen::Vector
 
     //--- Contact Schedule
     current_time = current_tick * (1.0 / mpc_hz_);
+    const int ticks_per_swing = std::max(1, static_cast<int>(std::round(swing_period * mpc_hz_)));
+    current_step_num = current_tick / ticks_per_swing;
+
+    // --- disturbance spec ---
+    const int disturb_start_step = 3;           
+    const int disturb_duration_ticks = std::max(1, static_cast<int>(std::round(disturbance_duration * mpc_hz_)));
+
+    const int disturb_start_tick = disturb_start_step * ticks_per_swing;
+    const int disturb_end_tick   = disturb_start_tick + disturb_duration_ticks;
+
+    disturb_on = (current_tick >= disturb_start_tick) && (current_tick <  disturb_end_tick);
 
     contact_schedule.setOnes(2, mpc_nodes);
     swing_schedule.setZero(2, mpc_nodes);
@@ -147,7 +158,7 @@ void WBMPC::updateMPCSolverInput(const Eigen::VectorQVQd &q, const Eigen::Vector
 
     // Control Target
     base_vel_des.setZero(6);
-    // base_vel_des(0) = 0.05; // desired forward velocity
+    base_vel_des(0) = 0.05; // desired forward velocity
 
     //--- Casadi Vector Conversion
     input_mpc.resize(solver.n_in());
@@ -248,6 +259,13 @@ void WBMPC::setWeights(const Eigen::VectorXd &Q, const Eigen::VectorXd &R)
 {
     Q_diag = Q;
     R_diag = R;
+}
+
+void WBMPC::setDisturbanceSpec(const double &force, const double &theta, const double &duration)
+{
+    disturbance_force = force;
+    disturbance_theta = theta;
+    disturbance_duration = duration;
 }
 
 void WBMPC::setReferenceNominalPose(const Eigen::VectorQd q_nom_)

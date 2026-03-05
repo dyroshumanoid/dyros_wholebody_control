@@ -6,7 +6,6 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   sensor_msgs
   std_msgs
-  actionlib
 )
 
 
@@ -22,30 +21,15 @@ add_message_files(
   SimStatus.msg
 )
 
-add_action_files(
-  FILES
-  ImgReq.action
-)
-
-add_service_files(
-  FILES
-  ImageRequest.srv
-)
-
 
 generate_messages(
-  DEPENDENCIES 
-  std_msgs 
-  geometry_msgs
-  sensor_msgs
-  actionlib
+  DEPENDENCIES std_msgs geometry_msgs
 )
 
 catkin_package(
   CATKIN_DEPENDS message_runtime std_msgs
   geometry_msgs
   sensor_msgs
-  actionlib
 )
 
 include_directories(
