@@ -18,7 +18,8 @@
         <param name="mujoco_ros/model_file" type="string" value="$(find tocabi_description)/mujoco_model/dyros_tocabi_with_redhands.xml" />
     </group>
     <group unless="$(arg hand)">
-        <param name="mujoco_ros/model_file" type="string" value="$(find tocabi_description)/mujoco_model/dyros_tocabi.xml" />
+        <!-- <param name="mujoco_ros/model_file" type="string" value="$(find tocabi_description)/mujoco_model/dyros_tocabi.xml" /> -->
+        <param name="mujoco_ros/model_file" type="string" value="$(find tocabi_description)/mujoco_model/dyros_tocabi_mass_offset.xml" />
     </group>
 
     <rosparam command="load" file="$(find tocabi_description)/setting/setting_simulation_positionPDgain.yaml" ns="/tocabi_controller" />
@@ -51,13 +52,13 @@
         </node>
     </group>
 
-    <group if="$(arg gui)">
+    <!-- <group if="$(arg gui)">
         <node name="rviz"
             pkg="rviz"
             type="rviz"
             args="-d $(find tocabi_cc)/rviz/tf_checker.rviz"
             output="screen"/>
-    </group>
+    </group> -->
 
 
 </launch>

@@ -54,7 +54,6 @@
         <light directional="true" diffuse=".3 .3 .3" pos="10 -10 5" dir="-10 10 -5"/>
         <body name="base_link">
             <joint name="virtual_joint" type="free" limited='false' frictionloss="0" damping="0" stiffness="0" armature="0"/>
-            <!-- <joint name="virtual_joint" type="free" limited='false' frictionloss="1e10" damping="0" stiffness="0" armature="0"/> -->
             <inertial pos="0.07809 0 0.03985" mass="12.19525" fullinertia="0.101833182 0.072400662 0.144478157 -0.000070812 -0.003831096 0.000079272" />
             <geom class="viz" pos="0.11 0 0.02" rgba="0.20313 0.20313 0.20313 1" quat="0.5 0.5 0.5 0.5" mesh="Pelvis_link" />
             <geom size="0.045 0.044" pos="0.11 0 0.039" type="cylinder" class="cls" />
@@ -453,7 +452,6 @@
 								-0.3 -0.3 -1.5 1.27 1 0 1 0"
                                 /-->
 
-        <!-- <key name="front" time="0" qpos ="0 0 1.92983 1 0 0 0  -->
         <key name="front" time="0" qpos ="0 0 0.92983 1 0 0 0 
 								0.0 0.0 -0.24 0.6 -0.36 0.0 
 								0.0 0.0 -0.24 0.6 -0.36 0.0

@@ -15,6 +15,11 @@ void CbfManager::setCbfMode(const CbfType& cbf_mode_)
     cbf_mode = cbf_mode_;
 }
 
+void CbfManager::setIssfMode(const bool &issf_mode_)
+{
+    issf_mode = issf_mode_;
+}
+
 void CbfManager::update()
 {
     col_mgr_.pubBasetoHeadTransform();
@@ -29,6 +34,8 @@ void CbfManager::update()
     computeWorkspaceBoundaryCbfConstraint();
     computeSelfCollisionCbfConstraint();
     computeObstacleAvoidanceCbfConstraint();
+
+    col_mgr_.pubSelfCollisionStatus();
 }
 
 void CbfManager::pubDataFromSlowToFast()
@@ -72,17 +79,19 @@ void CbfManager::computeJointLimitCbfConstraint()
     {
         joint_limit_constraints.lbA = (-1.0) * (alpha_joint_limit + alpha_joint_limit) * rd_.q_dot_ 
                                     + (alpha_joint_limit * alpha_joint_limit) * (q_pos_lb - rd_.q_) ;
-                                    + (1.0 / epsilon_joint_limit) * Eigen::VectorQd::Ones();
         
         joint_limit_constraints.ubA = (-1.0) * (alpha_joint_limit + alpha_joint_limit) * rd_.q_dot_ 
                                     + (alpha_joint_limit * alpha_joint_limit) * (q_pos_ub - rd_.q_) ;
-                                    - (1.0 / epsilon_joint_limit) * Eigen::VectorQd::Ones();
     }
     else if (cbf_mode == CbfType::Kin)
     {
-        joint_limit_constraints.lbA = alpha_joint_limit * (q_pos_lb - rd_.q_) + (1.0 / epsilon_joint_limit) * Eigen::VectorQd::Ones();
-        
-        joint_limit_constraints.ubA = alpha_joint_limit * (q_pos_ub - rd_.q_) - (1.0 / epsilon_joint_limit) * Eigen::VectorQd::Ones();
+        joint_limit_constraints.lbA = alpha_joint_limit * (q_pos_lb - rd_.q_);      
+        joint_limit_constraints.ubA = alpha_joint_limit * (q_pos_ub - rd_.q_);
+
+        if(issf_mode){
+            joint_limit_constraints.lbA +=  (1.0 / epsilon_joint_limit) * Eigen::VectorQd::Ones();
+            joint_limit_constraints.ubA -=  (1.0 / epsilon_joint_limit) * Eigen::VectorQd::Ones();
+        }
     }
 
 }
@@ -154,12 +163,15 @@ void CbfManager::computeWorkspaceBoundaryCbfConstraint()
         {
             h = - Jdotqdot
                 - (alpha_workspace + alpha_workspace) * Jqdot
-                + (alpha_workspace * alpha_workspace) * (pr.max_dist - dist_AB)
-                - (1.0 / epsilon_workspace) * (J_AB * J_AB.transpose())(0,0);
+                + (alpha_workspace * alpha_workspace) * (pr.max_dist - dist_AB);
         }
         else if(cbf_mode == CbfType::Kin)
         {
-            h = (+1.0) * alpha_workspace * (pr.max_dist - dist_AB); // - (1.0 / epsilon_workspace) * (-J_AB).squaredNorm();
+            h = (+1.0) * alpha_workspace * (pr.max_dist - dist_AB);
+
+            if (issf_mode) {
+                h -= (1.0 / epsilon_workspace) * (-J_AB).squaredNorm();
+            }
         }
 
         workspace_boundary_constraints.lbA(i) = (-1.0) * h;
@@ -220,16 +232,18 @@ void CbfManager::computeSelfCollisionCbfConstraint()
     {
         self_collision_avoidance_constraints.lbA = - col_mgr_.self_collision_avoid_terms_.Jdotqdot
                                                    - (alpha_self_collision + alpha_self_collision) * (self_collision_avoidance_constraints.A * rd_.local_q_dot_virtual_) 
-                                                   - (alpha_self_collision * alpha_self_collision) * (col_mgr_.self_collision_avoid_terms_.min_distances) 
-                                                   + (1.0 / epsilon_self_collision) * self_collision_avoidance_constraints.A.rowwise().squaredNorm();
+                                                   - (alpha_self_collision * alpha_self_collision) * (col_mgr_.self_collision_avoid_terms_.min_distances);
     }
     else if(cbf_mode == CbfType::Kin)
     {
-        self_collision_avoidance_constraints.lbA =   (-1.0) * (alpha_self_collision) * (col_mgr_.self_collision_avoid_terms_.min_distances); 
-                                                 //  + (1.0 / epsilon_self_collision) * self_collision_avoidance_constraints.A.rowwise().squaredNorm();
+        self_collision_avoidance_constraints.lbA =  (-1.0) * (alpha_self_collision) * (col_mgr_.self_collision_avoid_terms_.min_distances);
+
+        if (issf_mode) {
+            self_collision_avoidance_constraints.lbA += (1.0 / epsilon_self_collision) * self_collision_avoidance_constraints.A.rowwise().squaredNorm();
+        }
     }
 
-    self_collision_avoidance_constraints.ubA.setConstant(1e5);
+    self_collision_avoidance_constraints.ubA.setConstant(1e5);  
 }
 
 void CbfManager::getSelfCollisionCbfConstraint(Eigen::Ref<Eigen::MatrixXd> A, Eigen::VectorXd &lbA, Eigen::VectorXd &ubA) const
@@ -294,14 +308,15 @@ void CbfManager::computeObstacleAvoidanceCbfConstraint()
     if(cbf_mode == CbfType::Dyn){
         obstacle_avoidance_constraints.lbA = - col_mgr_.obstacle_avoid_terms_.Jdotqdot
                                              - (alpha_obstacle_avoidance + alpha_obstacle_avoidance) * (obstacle_avoidance_constraints.A * rd_.local_q_dot_virtual_ - col_mgr_.obstacle_avoid_terms_.obs_vel_projections)
-                                             - (alpha_obstacle_avoidance * alpha_obstacle_avoidance) * (col_mgr_.obstacle_avoid_terms_.min_distances)
-                                             + (1.0 / epsilon_obstacle_avoidance) * obstacle_avoidance_constraints.A.rowwise().squaredNorm();
-    }
+                                             - (alpha_obstacle_avoidance * alpha_obstacle_avoidance) * (col_mgr_.obstacle_avoid_terms_.min_distances);    }
     else if(cbf_mode == CbfType::Kin)
     {
         obstacle_avoidance_constraints.lbA =   (-1.0) * (alpha_obstacle_avoidance) * (col_mgr_.obstacle_avoid_terms_.min_distances)
                                              + col_mgr_.obstacle_avoid_terms_.obs_vel_projections;
-                                            //  + (1.0 / epsilon_obstacle_avoidance) * obstacle_avoidance_constraints.A.rowwise().squaredNorm();
+
+        if (issf_mode) {
+            obstacle_avoidance_constraints.lbA += (1.0 / epsilon_obstacle_avoidance) * obstacle_avoidance_constraints.A.rowwise().squaredNorm();
+        }
     }
 
     obstacle_avoidance_constraints.ubA.setConstant(1e5);

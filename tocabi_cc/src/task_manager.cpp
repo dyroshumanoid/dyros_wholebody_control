@@ -1,4 +1,6 @@
 #include "task_manager.h"
+#include <algorithm>
+#include <cmath>
 
 using namespace TOCABI;
 
@@ -63,19 +65,35 @@ void TaskManager::movePelvHandPose()
     rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos;
 
     // --- Hand Trajectory (Base Frame)
-    rd_.link_[Left_Hand].x_desired(1)  = rd_.link_[Left_Hand].local_xpos_init(1) +  hand_dist;
-    rd_.link_[Right_Hand].x_desired(1) = rd_.link_[Right_Hand].local_xpos_init(1) - hand_dist;
-    rd_.link_[Left_Hand].x_desired(2)  = rd_.link_[Left_Hand].local_xpos_init(2) +  hand_dist;
-    rd_.link_[Right_Hand].x_desired(2) = rd_.link_[Right_Hand].local_xpos_init(2) - hand_dist;
+    // rd_.link_[Left_Hand].x_desired(1)  = rd_.link_[Left_Hand].local_xpos_init(1) +  hand_dist;
+    // rd_.link_[Right_Hand].x_desired(1) = rd_.link_[Right_Hand].local_xpos_init(1) - hand_dist;
+    // rd_.link_[Left_Hand].x_desired(2)  = rd_.link_[Left_Hand].local_xpos_init(2) +  hand_dist;
+    // rd_.link_[Right_Hand].x_desired(2) = rd_.link_[Right_Hand].local_xpos_init(2) - hand_dist;
+    //
+    // rd_.link_[Left_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Left_Hand].local_xpos_init, rd_.link_[Left_Hand].x_desired);
+    // rd_.link_[Right_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Right_Hand].local_xpos_init, rd_.link_[Right_Hand].x_desired);
 
-    rd_.link_[Left_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Left_Hand].local_xpos_init, rd_.link_[Left_Hand].x_desired);
-    rd_.link_[Right_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Right_Hand].local_xpos_init, rd_.link_[Right_Hand].x_desired);
+    const double total_ticks = std::max(1.0, traj_time * hz_);
+    const double phase = std::fmod(static_cast<double>(sim_tick), total_ticks) / total_ticks;
+    const double theta = 2.0 * std::acos(-1.0) * phase;
+
+    rd_.link_[Left_Hand].x_traj = rd_.link_[Left_Hand].local_xpos_init;
+    rd_.link_[Right_Hand].x_traj = rd_.link_[Right_Hand].local_xpos_init;
+
+    rd_.link_[Left_Hand].x_traj(0) += hand_dist * (std::cos(theta) - 1.0);
+    rd_.link_[Left_Hand].x_traj(2) += hand_dist * std::sin(theta);
+
+    rd_.link_[Right_Hand].x_traj(0) += hand_dist * (std::cos(theta) - 1.0);
+    rd_.link_[Right_Hand].x_traj(2) -= hand_dist * std::sin(theta);
 
     rd_.link_[Left_Hand].r_traj  = rd_.link_[Left_Hand].local_rotm_init;
     rd_.link_[Right_Hand].r_traj = rd_.link_[Right_Hand].local_rotm_init;
 
     //--- Increment Tick
-    sim_tick++;
+    const int circling_number = 3;
+    if(sim_tick <= circling_number * traj_time * hz_)    {
+        sim_tick++;
+    }
 }
 
 void TaskManager::moveTaichiMotion()

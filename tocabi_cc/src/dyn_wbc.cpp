@@ -241,7 +241,6 @@ void DynWBC::calcInequalityConstraint()
 
         constraints_.push_back({A_workspace, lbA_workspace, ubA_workspace});
 
-
         //--- (5) Self-collision avoidance constraints
         const int num_self_collision_cbf = cbf_mgr_.getNumSelfCollisionPairs();
         Eigen::MatrixXd A_self_collision; A_self_collision.setZero(num_self_collision_cbf, contact_dim + MODEL_DOF_VIRTUAL + MODEL_DOF);

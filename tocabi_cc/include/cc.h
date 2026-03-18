@@ -76,6 +76,7 @@ public:
 
     //--- Test Function
     TaskMotionType motion_mode_ = TaskMotionType::None;
+    bool issf_mode_ = false; 
     CbfType cbf_mode_ = CbfType::None;
 
     Eigen::VectorQd torque_pd;
@@ -112,6 +113,7 @@ private:
     double hz_ = 2000;
     bool is_joy_enable = false;
     int tc_mode_prev = 0;
+    bool is_slow_loop_once = false;
 
     // Fast loop is ready to run after the first slow-loop update
     bool control_mode_changed = false;

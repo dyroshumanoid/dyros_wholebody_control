@@ -6,6 +6,7 @@
 #include "uitools.h"
 #include "stdio.h"
 #include "string.h"
+#include <string>
 #include <thread>
 #include <mutex>
 #include <chrono>
@@ -322,28 +323,30 @@ bool aruco_pos_cmd_applied = false;
 // colors for collision object visualization
 const float BLUE[4] = {0.0, 0.0, 1.0, 0.3}; // safe (no collision)
 const float RED[4] = {1.0, 0.0, 0.0, 0.3};  // in collision
-// geom ids of collision objects
-const std::vector<int> col_obj_geom_ids = {
-    7,      // Left Pelvis
-    8,      // Right Pelvis
-    20,     // Left Upper Leg
-    24,     // Left Lower Leg
-    32,     // Left Inner Foot
-    33,     // Left Outer Foot
-    45,     // Right Upper Leg
-    49,     // Right Lower Leg
-    57,     // Right Inner Foot
-    58,     // Right Outer Foot
-    90,     // Left Upper Arm
-    98,     // Left Forearm
-    103,    // Left Hand
-    107,    // Head
-    117,    // Right Upper Arm
-    125,    // Right Forearm
-    130     // Right Hand
+// geom names of collision objects in XML
+const std::vector<std::string> col_obj_geom_names = {
+    "Left_Pelvis",
+    "Right_Pelvis",
+    "Left_Upper_Leg",
+    "Left_Lower_Leg",
+    "Left_Inner_Foot",
+    "Left_Outer_Foot",
+    "Right_Upper_Leg",
+    "Right_Lower_Leg",
+    "Right_Inner_Foot",
+    "Right_Outer_Foot",
+    "Left_Upper_Arm",
+    "Left_ForeArm",
+    "Left_Hand",
+    "Head",
+    "Right_Upper_Arm",
+    "Right_ForeArm",
+    "Right_Hand"
 };
+// resolved geom ids of collision objects (same order as col_obj_geom_names)
+std::vector<int> col_obj_geom_ids;
 // collision status of collision objects
-std::vector<bool> col_obj_in_collision = std::vector<bool>(col_obj_geom_ids.size(), false);
+std::vector<bool> col_obj_in_collision = std::vector<bool>(col_obj_geom_names.size(), false);
 
 //mujoco_ros_msgs::JointState joint_state_msg_;
 //mujoco_ros_msgs::JointSet joint_set_msg_;
@@ -425,5 +428,7 @@ void force_apply_callback(const std_msgs::Float32MultiArray &msg);
 void QRPoseCallback(const geometry_msgs::PoseStamped & msg);            // get the desired pos.&ori. of a QR code(ArUCo) attached obstacle
 void QRVelCallback(const geometry_msgs::Twist & msg);                   // get the desired vel.&ang.vel. of a QR code(ArUCo) attached obstacle
 void collisionCallback(const std_msgs::UInt8MultiArray & msg);          // get collision status of collision objects from Collision Manager
+int getGeomIdByName(const std::string& geom_name);
+void initCollisionGeomIdsFromXmlNames();
 
 #endif

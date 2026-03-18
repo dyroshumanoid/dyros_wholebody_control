@@ -828,6 +828,19 @@ void *TocabiController::Thread1() // Thread1, running with 2Khz.
             {
                 WBC::SetContact(rd_, 1, 1);
                 rd_.torque_desired = WBC::ContactForceRedistributionTorque(rd_, WBC::GravityCompensationTorque(rd_));
+#ifdef COMPILE_SIMULATION
+                static bool mode_init = true;
+                static Eigen::VectorQd q_init;
+                if (mode_init)
+                {
+                    q_init = rd_.q_;
+                    mode_init = false;
+                }
+                
+                for(int i = 0; i < MODEL_DOF; i++){
+                    rd_.torque_desired[i] = rd_.pos_kp_v[i] * (q_init[i] - rd_.q_[i]) + rd_.pos_kv_v[i] * (0.0 - rd_.q_dot_[i]);
+                }
+#endif
             }
 
             // Send Data To thread2

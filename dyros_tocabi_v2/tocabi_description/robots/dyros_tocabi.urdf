@@ -24,7 +24,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/Pelvis_link.STL" />
+          filename="../meshes/Pelvis_link.STL" />
       </geometry>
       <material
         name="">
@@ -87,7 +87,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/HipRoll_R_link.STL" />
+          filename="../meshes/HipRoll_R_link.STL" />
       </geometry>
       <material
         name="">
@@ -171,7 +171,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/HipCenter_R_Link.STL" />
+          filename="../meshes/HipCenter_R_Link.STL" />
       </geometry>
       <material
         name="">
@@ -230,7 +230,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/Thigh_R_Link.STL" />
+          filename="../meshes/Thigh_R_Link.STL" />
       </geometry>
       <material
         name="">
@@ -297,7 +297,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/Knee_R_Link.STL" />
+          filename="../meshes/Knee_R_Link.STL" />
       </geometry>
       <material
         name="">
@@ -356,7 +356,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/AnkleCenter_R_Link.STL" />
+          filename="../meshes/AnkleCenter_R_Link.STL" />
       </geometry>
       <material
         name="">
@@ -415,7 +415,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/AnkleRoll_R_Link.STL" />
+          filename="../meshes/AnkleRoll_R_Link.STL" />
       </geometry>
       <material
         name="">
@@ -474,7 +474,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/Foot_Link.STL" />
+          filename="../meshes/Foot_Link.STL" />
       </geometry>
       <material
         name="">
@@ -541,7 +541,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/HipRoll_L_Link.STL" />
+          filename="../meshes/HipRoll_L_Link.STL" />
       </geometry>
       <material
         name="">
@@ -625,7 +625,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/HipCenter_L_Link.STL" />
+          filename="../meshes/HipCenter_L_Link.STL" />
       </geometry>
       <material
         name="">
@@ -684,7 +684,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/Thigh_L_Link.STL" />
+          filename="../meshes/Thigh_L_Link.STL" />
       </geometry>
       <material
         name="">
@@ -752,7 +752,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/Knee_L_Link.STL" />
+          filename="../meshes/Knee_L_Link.STL" />
       </geometry>
       <material
         name="">
@@ -811,7 +811,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/AnkleCenter_L_Link.STL" />
+          filename="../meshes/AnkleCenter_L_Link.STL" />
       </geometry>
       <material
         name="">
@@ -870,7 +870,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/AnkleRoll_L_Link.STL" />
+          filename="../meshes/AnkleRoll_L_Link.STL" />
       </geometry>
       <material
         name="">
@@ -929,7 +929,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/Foot_Link.STL" />
+          filename="../meshes/Foot_Link.STL" />
       </geometry>
       <material
         name="">
@@ -996,7 +996,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/waist1.STL" />
+          filename="../meshes/waist1.STL" />
       </geometry>
       <material
         name="">
@@ -1093,7 +1093,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/waist2.STL" />
+          filename="../meshes/waist2.STL" />
       </geometry>
       <material
         name="">
@@ -1171,7 +1171,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/upperbody.STL" />
+          filename="../meshes/upperbody.STL" />
       </geometry>
       <material
         name="">
@@ -1311,7 +1311,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/neck.STL" />
+          filename="../meshes/neck.STL" />
       </geometry>
       <material
         name="">
@@ -1369,10 +1369,7 @@
       <origin
         xyz="0 0 0"
         rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://tocabi_description/meshes/head.STL" />
-      </geometry>
+
       <material
         name="">
         <color
@@ -1431,7 +1428,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/L_shoulder1.STL" />
+          filename="../meshes/L_shoulder1.STL" />
       </geometry>
       <material
         name="">
@@ -1491,7 +1488,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/L_shoulder2.STL" />
+          filename="../meshes/L_shoulder2.STL" />
       </geometry>
       <material
         name="">
@@ -1550,7 +1547,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/L_shoulder3.STL" />
+          filename="../meshes/L_shoulder3.STL" />
       </geometry>
       <material
         name="">
@@ -1610,7 +1607,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/L_arm.STL" />
+          filename="../meshes/L_arm.STL" />
       </geometry>
       <material
         name="">
@@ -1669,7 +1666,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/L_elbow.STL" />
+          filename="../meshes/L_elbow.STL" />
       </geometry>
       <material
         name="">
@@ -1736,7 +1733,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/L_forearm.STL" />
+          filename="../meshes/L_forearm.STL" />
       </geometry>
       <material
         name="">
@@ -1803,7 +1800,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/L_wrist1.STL" />
+          filename="../meshes/L_wrist1.STL" />
       </geometry>
       <material
         name="">
@@ -1921,7 +1918,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/R_shoulder1.STL" />
+          filename="../meshes/R_shoulder1.STL" />
       </geometry>
       <material
         name="">
@@ -1980,7 +1977,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/R_shoulder2.STL" />
+          filename="../meshes/R_shoulder2.STL" />
       </geometry>
       <material
         name="">
@@ -2039,7 +2036,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/R_shoulder3.STL" />
+          filename="../meshes/R_shoulder3.STL" />
       </geometry>
       <material
         name="">
@@ -2099,7 +2096,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/R_arm.STL" />
+          filename="../meshes/R_arm.STL" />
       </geometry>
       <material
         name="">
@@ -2158,7 +2155,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/R_elbow.STL" />
+          filename="../meshes/R_elbow.STL" />
       </geometry>
       <material
         name="">
@@ -2227,7 +2224,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/R_forearm.STL" />
+          filename="../meshes/R_forearm.STL" />
       </geometry>
       <material
         name="">
@@ -2294,7 +2291,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://tocabi_description/meshes/R_wrist1.STL" />
+          filename="../meshes/R_wrist1.STL" />
       </geometry>
       <material
         name="">

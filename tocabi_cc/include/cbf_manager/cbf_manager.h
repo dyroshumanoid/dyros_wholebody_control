@@ -15,6 +15,7 @@ public:
 
     void callAvailableQueue();
     void setCbfMode(const CbfType& cbf_mode_);
+    void setIssfMode(const bool& issf_mode_);
     CbfType getCbfMode() const { return cbf_mode; }
 
     void update();
@@ -88,6 +89,7 @@ private:
 
 private:
     CbfType cbf_mode = CbfType::None;
+    bool issf_mode = false;
 
     // --- Joint-limit CBF params & bounds
     double alpha_joint_limit{0.0};

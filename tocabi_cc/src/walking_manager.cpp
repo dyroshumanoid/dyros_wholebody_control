@@ -82,10 +82,10 @@ void WalkingManager::calcFootstepQueue()
             // Eigen::Vector2d step_command_new = step_command_back + Eigen::Vector2d(step_length, is_final_preview_same_foot * foot_contact_idx * step_width);
 
             if(is_final_preview_same_foot * foot_contact_idx < 0){
-                step_lateral = DyrosMath::minmax_cut(step_lateral, -0.1, 0.03);
+                // step_lateral = DyrosMath::minmax_cut(step_lateral, -0.1, 0.03);
             }
             else{
-                step_lateral = DyrosMath::minmax_cut(step_lateral, -0.03, 0.1);
+                // step_lateral = DyrosMath::minmax_cut(step_lateral, -0.03, 0.1);
             }
             Eigen::Vector2d step_command_new = step_command_back + Eigen::Vector2d(step_length, is_final_preview_same_foot * foot_contact_idx * step_width - is_final_preview_same_foot *  step_lateral);
 
@@ -752,7 +752,7 @@ void WalkingManager::updateContactState(const bool &local_LF_contact_, const boo
 void WalkingManager::setWalkingParameter(const double &step_length_, const double &step_lateral_, const double &foot_yaw_angle_, const double &foot_height_)
 {
     step_length = step_length_;
-    step_width = 0.25;
+    step_width = 0.23;
     step_lateral = step_lateral_;
     foot_yaw_angle = foot_yaw_angle_;
     foot_height = foot_height_;

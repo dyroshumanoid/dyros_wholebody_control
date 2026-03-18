@@ -2,14 +2,13 @@
 
 using namespace TOCABI;
 
-ofstream torque_sum_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
+// ofstream torque_sum_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
 // ofstream torque_idn_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
 // ofstream torque_pd_log(       "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
-ofstream joint_desired_log(   "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
-ofstream joint_position_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
-ofstream joint_velocity_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
-// ofstream joint_velocity_filter_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_filter_log.txt");
-ofstream computation_time_log(       "/home/dyros/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
+// ofstream joint_desired_log(   "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
+// ofstream joint_position_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
+// ofstream joint_velocity_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
+// ofstream computation_time_log(       "/home/dyros/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
 
 // ofstream torque_sum_log(             "/home/kwan/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
 // ofstream torque_idn_log(             "/home/kwan/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
@@ -17,7 +16,6 @@ ofstream computation_time_log(       "/home/dyros/catkin_ws/src/tocabi_cc/data/c
 // ofstream joint_desired_log(          "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
 // ofstream joint_position_log(         "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
 // ofstream joint_velocity_log(         "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
-// ofstream joint_velocity_filter_log(  "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_velocity_filter_log.txt");
 // ofstream computation_time_log(       "/home/kwan/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
 
 CustomController::CustomController(RobotData &rd) : rd_(rd),
@@ -89,11 +87,7 @@ void CustomController::computeSlow()
             pubDataFromSlowToFast();
 
             torque_pd.setZero();
-            // torque_pd = rd_.Kp_diag * (rd_.q_desired - rd_.q_) + rd_.Kd_diag * (Eigen::VectorQd::Zero() - rd_.q_dot_);
             torque_pd = rd_.Kd_diag * (rd_.q_dot_desired - rd_.q_dot_);
-            // for(int i = 12; i < MODEL_DOF; i++) {
-            //     torque_pd(i) += 400.0 * (rd_.q_desired(i) - rd_.q_(i));
-            // }
 
             torque_idn.setZero();
             subDataFromFastToSlow();
@@ -101,17 +95,19 @@ void CustomController::computeSlow()
             FrictionCompensationTorques();
             
             torque_sum.setZero();
-            torque_sum = torque_pd + torque_idn + torque_fric; //
+            torque_sum = torque_pd + torque_idn;
 
-            applyTorqueSmoothingOnce(torque_sum);
+            // applyTorqueSmoothingOnce(torque_sum);
 
-            torque_sum_log << torque_sum.transpose() << std::endl;
-            joint_desired_log << rd_.q_desired.transpose() << std::endl;
-            joint_position_log << rd_.q_.transpose() << std::endl;
+            // torque_sum_log << torque_sum.transpose() << std::endl;
+            // joint_desired_log << rd_.q_desired.transpose() << std::endl;
+            // joint_position_log << rd_.q_.transpose() << std::endl;
             // torque_idn_log << torque_idn.transpose() << std::endl;
             // torque_pd_log << torque_pd.transpose() << std::endl;
 
             rd_.torque_desired = torque_sum;
+
+            is_slow_loop_once = true;
         }
         else
         {
@@ -257,11 +253,11 @@ void CustomController::computeSlow()
                 rd_.torque_desired(i) = DyrosMath::minmax_cut(rd_.torque_desired(i), -rd_.torque_limit(i), rd_.torque_limit(i));
             }
 
-            joint_desired_log << rd_.q_desired(sinusoid_joint_target_) << std::endl;
-            joint_position_log << rd_.q_(sinusoid_joint_target_) << std::endl;
-            joint_velocity_log << rd_.q_dot_(sinusoid_joint_target_) << std::endl;
+            // joint_desired_log << rd_.q_desired(sinusoid_joint_target_) << std::endl;
+            // joint_position_log << rd_.q_(sinusoid_joint_target_) << std::endl;
+            // joint_velocity_log << rd_.q_dot_(sinusoid_joint_target_) << std::endl;
             // joint_velocity_filter_log << q_dot_lpf_(sinusoid_joint_target_) << std::endl;
-            torque_sum_log << rd_.torque_desired(sinusoid_joint_target_) << std::endl;
+            // torque_sum_log << rd_.torque_desired(sinusoid_joint_target_) << std::endl;
         }
         else
         {
@@ -291,22 +287,25 @@ void CustomController::computeFast()
     {
         if (tc_mode_prev == 6)
         {
-            auto t1 = std::chrono::steady_clock::now();
+            if(is_slow_loop_once)
+            {
+                auto t1 = std::chrono::steady_clock::now();
 
-            subDataFromSlowToFast();
+                subDataFromSlowToFast();
 
-            dyn_wbc_.updateRobotStates(M_fast, G_fast, J_C_fast);
-            dyn_wbc_.updateControlCommands(contact_wrench_cmd_fast, qddot_cmd_fast);
-            torque_idn_fast.setZero();
-            torque_idn_fast = dyn_wbc_.computeDynamicWBC();
+                dyn_wbc_.updateRobotStates(M_fast, G_fast, J_C_fast);
+                dyn_wbc_.updateControlCommands(contact_wrench_cmd_fast, qddot_cmd_fast);
+                torque_idn_fast.setZero();
+                torque_idn_fast = dyn_wbc_.computeDynamicWBC();
 
-            pubDataFromFastToSlow();
+                pubDataFromFastToSlow();
 
-            auto t2 = std::chrono::steady_clock::now();
+                auto t2 = std::chrono::steady_clock::now();
 
-            auto dt = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+                auto dt = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
 
-            computation_time_log << dt << std::endl;
+                // computation_time_log << dt << std::endl;
+            }
         }
     }
 }
@@ -398,26 +397,26 @@ void CustomController::moveInitialPose()
         q_init_des(13) = 0.0; // pitch
         q_init_des(14) = 0.0; // roll
 
-        q_init_des(15) = 0.0;
-        q_init_des(16) = -0.3;
-        q_init_des(17) = 1.57;
-        q_init_des(18) = -1.2;
-        q_init_des(19) = -1.57; // elbow
-        q_init_des(20) = 1.5;
-        q_init_des(21) = 0.4;
-        q_init_des(22) = -0.2;
+        q_init_des(15) = 0.53;
+        q_init_des(16) =-0.60;
+        q_init_des(17) = 1.70;
+        q_init_des(18) = 0.00;
+        q_init_des(19) =-1.20; // elbow
+        q_init_des(20) = 0.6;
+        q_init_des(21) =-0.65;
+        q_init_des(22) = 0.0;
 
         q_init_des(23) = 0.0; // yaw
         q_init_des(24) = 0.0; // pitch
 
-        q_init_des(25) = 0.0;
-        q_init_des(26) = 0.3;
-        q_init_des(27) = -1.57;
-        q_init_des(28) = 1.2;
-        q_init_des(29) = 1.57; // elbow
-        q_init_des(30) = -1.5;
-        q_init_des(31) = -0.4;
-        q_init_des(32) = 0.2;
+        q_init_des(25) =-0.53;
+        q_init_des(26) = 0.60;
+        q_init_des(27) =-1.70;
+        q_init_des(28) = 0.0;
+        q_init_des(29) = 1.20; // elbow
+        q_init_des(30) =-0.6;
+        q_init_des(31) = 0.65;
+        q_init_des(32) = 0.0;
     }
 
     kin_wbc_.setInitialConfiguration(q_init_des);
@@ -774,9 +773,30 @@ void CustomController::loadParams()
     std::cout << " " << std::endl;
 
     //--- CBF Parameters
+    int issf_mode_idx = 0;
+    nh_cc_.getParam("/tocabi_controller/cbf/issf_mode", issf_mode_idx);
+    if (issf_mode_idx == 0)
+    {
+        issf_mode_ = false;
+    }
+    else if (issf_mode_idx == 1)
+    {
+        issf_mode_ = true;
+    }
+    else    
+    {
+        ROS_ERROR("ISSF mode idx error: got %d", issf_mode_idx);
+        assert(issf_mode_idx == 0 || issf_mode_idx == 1);
+    }
+    cbf_mgr_.setIssfMode(issf_mode_);
+
     int cbf_mode_idx = 0;
     nh_cc_.getParam("/tocabi_controller/cbf/cbf_mode", cbf_mode_idx);
-    if (cbf_mode_idx == 1)
+    if (cbf_mode_idx == 0)
+    {
+        cbf_mode_ = CbfType::None;
+    }
+    else if (cbf_mode_idx == 1)
     {
         cbf_mode_ = CbfType::Kin;
     }
@@ -787,15 +807,21 @@ void CustomController::loadParams()
     else
     {
         ROS_ERROR("Cbf mode idx error: got %d", cbf_mode_idx);
-        assert(cbf_mode_idx == 1 || cbf_mode_idx == 2);
+        assert(cbf_mode_idx == 0 || cbf_mode_idx == 1 || cbf_mode_idx == 2);
     }
     const char *cbf_mode_name =
         (cbf_mode_ == CbfType::Kin)   ? "Kin"
         : (cbf_mode_ == CbfType::Dyn) ? "Dyn"
-                                      : "Unknown";
+                                      : "None";
     std::cout << " " << std::endl;
     std::cout << "========== CBF Parameters ==========" << std::endl;
     std::cout << "CBF Mode : " << cbf_mode_name << std::endl;
+    if(issf_mode_){
+        std::cout << "ISSF Mode : ON" << std::endl;
+    }
+    else{
+        std::cout << "ISSF Mode : OFF" << std::endl;
+    }
 
     cbf_mgr_.setCbfMode(cbf_mode_);
 

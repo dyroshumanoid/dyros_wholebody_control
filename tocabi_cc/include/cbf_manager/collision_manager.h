@@ -244,18 +244,23 @@ private:
         {Left_Pelvis_Col_ID, Left_Upper_Arm_Col_ID},
         {Left_Pelvis_Col_ID, Left_ForeArm_Col_ID},
         {Left_Pelvis_Col_ID, Left_Hand_Col_ID},
+
         {Right_Pelvis_Col_ID, Right_Upper_Arm_Col_ID},
         {Right_Pelvis_Col_ID, Right_ForeArm_Col_ID},
         {Right_Pelvis_Col_ID, Right_Hand_Col_ID},
+
         {Left_Upper_Leg_Col_ID, Right_Upper_Leg_Col_ID},
         {Left_Upper_Leg_Col_ID, Right_Lower_Leg_Col_ID},
         {Left_Upper_Leg_Col_ID, Left_ForeArm_Col_ID},
+
         {Left_Upper_Leg_Col_ID, Left_Hand_Col_ID},
         {Left_Lower_Leg_Col_ID, Right_Upper_Leg_Col_ID},
         {Left_Lower_Leg_Col_ID, Right_Lower_Leg_Col_ID},
+
         {Left_Lower_Leg_Col_ID, Right_Inner_Foot_Col_ID},
         {Left_Inner_Foot_Col_ID, Right_Lower_Leg_Col_ID},
         {Left_Inner_Foot_Col_ID, Right_Inner_Foot_Col_ID},
+        
         {Right_Upper_Leg_Col_ID, Right_ForeArm_Col_ID},
         {Right_Upper_Leg_Col_ID, Right_Hand_Col_ID},
         // {Left_Upper_Arm_Col_ID, Right_Hand_Col_ID},
@@ -267,7 +272,7 @@ private:
         {Head_Col_ID, Left_ForeArm_Col_ID},
         {Head_Col_ID, Left_Hand_Col_ID}
     };
-
+    
     // collision status flags for each collision object (0: safe, 0>=: in collision)
     std::vector<unsigned int> collision_flags_ = std::vector<unsigned int>(Col_Obj_Count, 0);
 

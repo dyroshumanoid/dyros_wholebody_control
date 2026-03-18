@@ -2,6 +2,33 @@
 #include <algorithm>
 // custum function
 
+int getGeomIdByName(const std::string& geom_name)
+{
+    if (m == nullptr)
+    {
+        return -1;
+    }
+    return mj_name2id(m, mjOBJ_GEOM, geom_name.c_str());
+}
+
+void initCollisionGeomIdsFromXmlNames()
+{
+    col_obj_geom_ids.clear();
+    col_obj_geom_ids.reserve(col_obj_geom_names.size());
+    col_obj_in_collision.assign(col_obj_geom_names.size(), false);
+
+    for (const auto& geom_name : col_obj_geom_names)
+    {
+        const int geom_id = getGeomIdByName(geom_name);
+        col_obj_geom_ids.push_back(geom_id);
+
+        if (geom_id < 0)
+        {
+            ROS_WARN("Collision geom name '%s' not found in loaded MuJoCo model.", geom_name.c_str());
+        }
+    }
+}
+
 void c_reset()
 {
     ros_sim_started = false;
@@ -24,10 +51,10 @@ void c_reset()
     sim_time_now_ros = ros::Duration(d->time);
 
     mujoco_ros_connector_init();
-    // //     int body_id = -1;
-    // // body_id = mj_name2id(m, mjOBJ_BODY, "obj");
-    // // std::cout<<"Obj Callback"<<std::endl;
-    // // int geomIndex = m->body_geomadr[body_id];
+    //     int body_id = -1;
+    // body_id = mj_name2id(m, mjOBJ_BODY, "obj");
+    // std::cout<<"Obj Callback"<<std::endl;
+    // int geomIndex = m->body_geomadr[body_id];
 
     // d->geom_xpos[3*geomIndex] = obj_x_;
     // d->geom_xpos[3*geomIndex + 1] = obj_y_;
@@ -211,7 +238,8 @@ void QRVelCallback(const geometry_msgs::Twist & msg)
 
 void collisionCallback(const std_msgs::UInt8MultiArray & msg)
 {
-    for (size_t i = 0; i < msg.data.size(); i++)
+    const size_t n = std::min(msg.data.size(), col_obj_in_collision.size());
+    for (size_t i = 0; i < n; i++)
         col_obj_in_collision[i] = static_cast<bool>(msg.data[i]);
 }
 
@@ -532,6 +560,8 @@ void mujoco_ros_connector_init()
         ROS_ERROR("NO RESPONSE FROM CONTROLLER ");
     }
 
+    initCollisionGeomIdsFromXmlNames();
+
     state_publisher_init();
 
     std::cout << " PUBLISHER INIT COMPLETE " << std::endl;
@@ -597,14 +627,18 @@ void mycontroller(const mjModel *m, mjData *d)
             }
 
             // Color change of collgion objects (red: in collision, blue: no collision)
-            // for (int i = 0; i < col_obj_geom_ids.size(); i++){
-            //     if(col_obj_in_collision[i]){
-            //         memcpy(m->geom_rgba + 4 * col_obj_geom_ids[i], RED, 4 * sizeof(float));
-            //     }
-            //     else{
-            //         memcpy(m->geom_rgba + 4 * col_obj_geom_ids[i], BLUE, 4 * sizeof(float));
-            //     }
-            // }
+            for (size_t i = 0; i < col_obj_geom_ids.size(); i++){
+                if (col_obj_geom_ids[i] < 0)
+                {
+                    continue;
+                }
+                if(col_obj_in_collision[i]){
+                    memcpy(m->geom_rgba + 4 * col_obj_geom_ids[i], RED, 4 * sizeof(float));
+                }
+                else{
+                    memcpy(m->geom_rgba + 4 * col_obj_geom_ids[i], BLUE, 4 * sizeof(float));
+                }
+            }
 
             if (use_shm)
             {
