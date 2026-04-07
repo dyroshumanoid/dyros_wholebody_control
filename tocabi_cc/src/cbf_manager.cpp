@@ -34,8 +34,11 @@ void CbfManager::update()
     computeWorkspaceBoundaryCbfConstraint();
     computeSelfCollisionCbfConstraint();
     computeObstacleAvoidanceCbfConstraint();
+#ifdef COMPILE_SIMULATION
 
     col_mgr_.pubSelfCollisionStatus();
+#endif
+
 }
 
 void CbfManager::pubDataFromSlowToFast()
