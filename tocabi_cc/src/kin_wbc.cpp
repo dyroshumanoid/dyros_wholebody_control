@@ -1,8 +1,5 @@
 #include "kin_wbc.h"
 
-std::ofstream lhand_traj_log("/home/kwan/catkin_ws/src/tocabi_cc/data/lhand_traj_log.txt");
-std::ofstream min_distance_log("/home/kwan/catkin_ws/src/tocabi_cc/data/min_distance_log.txt");
-
 using namespace TOCABI;
 
 KinWBC::KinWBC(RobotData& rd, CbfManager& cbf_mgr) : rd_(rd), cbf_mgr_(cbf_mgr) { }
@@ -117,10 +114,6 @@ void KinWBC::computeTaskSpaceKinematicWBC()
     rd_.q_desired = rd_.q_desired_virtual.segment(6, MODEL_DOF);
 
     rd_.q_ddot_desired_virtual = computeDesiredJointAcceleration(rd_.local_q_virtual_, rd_.local_q_dot_virtual_, rd_.q_desired_virtual, rd_.Kp_virtual_diag, rd_.Kd_virtual_diag);
-
-    
-    lhand_traj_log << rd_.link_[Left_Hand].local_xpos.transpose() << " " << rd_.link_[Left_Hand].x_traj.transpose() << std::endl;
-    min_distance_log << cbf_mgr_.col_mgr_.self_collision_avoid_terms_.min_distances.transpose() << std::endl;
 }
 
 Eigen::VectorQVQd KinWBC::integrate(const Eigen::VectorQVQd &q_current, const Eigen::VectorVQd &q_delta)

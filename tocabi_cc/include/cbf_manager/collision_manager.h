@@ -241,36 +241,69 @@ private:
     // pairs of collision object IDs for self-collision checks
     std::vector<std::pair<CollisionObjectIdx, CollisionObjectIdx>> col_id_pairs_ =
     {
-        {Left_Pelvis_Col_ID, Left_Upper_Arm_Col_ID},
-        {Left_Pelvis_Col_ID, Left_ForeArm_Col_ID},
-        {Left_Pelvis_Col_ID, Left_Hand_Col_ID},
+        //--- Sim
+        // {Left_Pelvis_Col_ID, Left_Upper_Arm_Col_ID},
+        // {Left_Pelvis_Col_ID, Left_ForeArm_Col_ID},
+        // {Left_Pelvis_Col_ID, Left_Hand_Col_ID},
 
-        {Right_Pelvis_Col_ID, Right_Upper_Arm_Col_ID},
-        {Right_Pelvis_Col_ID, Right_ForeArm_Col_ID},
-        {Right_Pelvis_Col_ID, Right_Hand_Col_ID},
+        // {Right_Pelvis_Col_ID, Right_Upper_Arm_Col_ID},
+        // {Right_Pelvis_Col_ID, Right_ForeArm_Col_ID},
+        // {Right_Pelvis_Col_ID, Right_Hand_Col_ID},
 
-        {Left_Upper_Leg_Col_ID, Right_Upper_Leg_Col_ID},
-        {Left_Upper_Leg_Col_ID, Right_Lower_Leg_Col_ID},
-        {Left_Upper_Leg_Col_ID, Left_ForeArm_Col_ID},
+        // {Left_Upper_Leg_Col_ID, Right_Upper_Leg_Col_ID},
+        // {Left_Upper_Leg_Col_ID, Right_Lower_Leg_Col_ID},
+        // {Left_Upper_Leg_Col_ID, Left_ForeArm_Col_ID},
 
-        {Left_Upper_Leg_Col_ID, Left_Hand_Col_ID},
-        {Left_Lower_Leg_Col_ID, Right_Upper_Leg_Col_ID},
-        {Left_Lower_Leg_Col_ID, Right_Lower_Leg_Col_ID},
+        // {Left_Upper_Leg_Col_ID, Left_Hand_Col_ID},
+        // {Left_Lower_Leg_Col_ID, Right_Upper_Leg_Col_ID},
+        // {Left_Lower_Leg_Col_ID, Right_Lower_Leg_Col_ID},
 
-        {Left_Lower_Leg_Col_ID, Right_Inner_Foot_Col_ID},
-        {Left_Inner_Foot_Col_ID, Right_Lower_Leg_Col_ID},
-        {Left_Inner_Foot_Col_ID, Right_Inner_Foot_Col_ID},
+        // {Left_Lower_Leg_Col_ID, Right_Inner_Foot_Col_ID},
+        // {Left_Inner_Foot_Col_ID, Right_Lower_Leg_Col_ID},
+        // {Left_Inner_Foot_Col_ID, Right_Inner_Foot_Col_ID},
         
-        {Right_Upper_Leg_Col_ID, Right_ForeArm_Col_ID},
-        {Right_Upper_Leg_Col_ID, Right_Hand_Col_ID},
+        // {Right_Upper_Leg_Col_ID, Right_ForeArm_Col_ID},
+        // {Right_Upper_Leg_Col_ID, Right_Hand_Col_ID},
+        // // {Left_Upper_Arm_Col_ID, Right_Hand_Col_ID},
+        // // {Left_Hand_Col_ID, Right_Upper_Arm_Col_ID},
+        // {Left_ForeArm_Col_ID, Right_ForeArm_Col_ID},
+        // {Left_ForeArm_Col_ID, Right_Hand_Col_ID},
+        // {Left_Hand_Col_ID, Right_ForeArm_Col_ID},
+        // {Left_Hand_Col_ID, Right_Hand_Col_ID},
+        // {Head_Col_ID, Left_ForeArm_Col_ID},
+        // {Head_Col_ID, Left_Hand_Col_ID}
+
+        //--- Real
+        // {Left_Pelvis_Col_ID, Left_Upper_Arm_Col_ID},
+        // {Left_Pelvis_Col_ID, Left_ForeArm_Col_ID},
+        // {Left_Pelvis_Col_ID, Left_Hand_Col_ID},
+
+        // {Right_Pelvis_Col_ID, Right_Upper_Arm_Col_ID},
+        // {Right_Pelvis_Col_ID, Right_ForeArm_Col_ID},
+        // {Right_Pelvis_Col_ID, Right_Hand_Col_ID},
+
+        // {Left_Upper_Leg_Col_ID, Right_Upper_Leg_Col_ID},
+        // {Left_Upper_Leg_Col_ID, Right_Lower_Leg_Col_ID},
+        // {Left_Upper_Leg_Col_ID, Left_ForeArm_Col_ID},
+
+        // {Left_Upper_Leg_Col_ID, Left_Hand_Col_ID},
+        // {Left_Lower_Leg_Col_ID, Right_Upper_Leg_Col_ID},
+        // {Left_Lower_Leg_Col_ID, Right_Lower_Leg_Col_ID},
+
+        // {Left_Lower_Leg_Col_ID, Right_Inner_Foot_Col_ID},
+        // {Left_Inner_Foot_Col_ID, Right_Lower_Leg_Col_ID},
+        // {Left_Inner_Foot_Col_ID, Right_Inner_Foot_Col_ID},
+        
+        // {Right_Upper_Leg_Col_ID, Right_ForeArm_Col_ID},
+        // {Right_Upper_Leg_Col_ID, Right_Hand_Col_ID},
         // {Left_Upper_Arm_Col_ID, Right_Hand_Col_ID},
         // {Left_Hand_Col_ID, Right_Upper_Arm_Col_ID},
         {Left_ForeArm_Col_ID, Right_ForeArm_Col_ID},
         {Left_ForeArm_Col_ID, Right_Hand_Col_ID},
         {Left_Hand_Col_ID, Right_ForeArm_Col_ID},
         {Left_Hand_Col_ID, Right_Hand_Col_ID},
-        {Head_Col_ID, Left_ForeArm_Col_ID},
-        {Head_Col_ID, Left_Hand_Col_ID}
+        // {Head_Col_ID, Left_ForeArm_Col_ID},
+        // {Head_Col_ID, Left_Hand_Col_ID}
     };
     
     // collision status flags for each collision object (0: safe, 0>=: in collision)

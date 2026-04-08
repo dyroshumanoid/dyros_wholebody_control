@@ -2,21 +2,9 @@
 
 using namespace TOCABI;
 
-// ofstream torque_sum_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
-// ofstream torque_idn_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
-// ofstream torque_pd_log(       "/home/dyros/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
-// ofstream joint_desired_log(   "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
-// ofstream joint_position_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
-// ofstream joint_velocity_log(  "/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
-// ofstream computation_time_log(       "/home/dyros/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
+ofstream hand_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/hand_log.txt");
+ofstream obs_log (      "/home/dyros/catkin_ws/src/tocabi_cc/data/obs_log.txt");
 
-// ofstream torque_sum_log(             "/home/kwan/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
-// ofstream torque_idn_log(             "/home/kwan/catkin_ws/src/tocabi_cc/data/torque_idn_log.txt");
-// ofstream torque_pd_log(              "/home/kwan/catkin_ws/src/tocabi_cc/data/torque_pd_log.txt");
-// ofstream joint_desired_log(          "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
-// ofstream joint_position_log(         "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
-// ofstream joint_velocity_log(         "/home/kwan/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
-// ofstream computation_time_log(       "/home/kwan/catkin_ws/src/tocabi_cc/data/computation_time_log.txt");
 
 CustomController::CustomController(RobotData &rd) : rd_(rd),
                                                     cm_(rd, model),
@@ -99,7 +87,9 @@ void CustomController::computeSlow()
             auto mode7_6 = std::chrono::steady_clock::now();
 
             torque_pd.setZero();
+            // torque_pd = rd_.Kp_diag * (rd_.q_desired - rd_.q_) + rd_.Kd_diag * (rd_.q_dot_desired - rd_.q_dot_);
             torque_pd = rd_.Kd_diag * (rd_.q_dot_desired - rd_.q_dot_);
+            torque_pd.tail(MODEL_DOF - 15) += (rd_.Kp_diag * (rd_.q_desired - rd_.q_)).tail(MODEL_DOF - 15);
 
             auto mode7_7 = std::chrono::steady_clock::now();
 
@@ -125,17 +115,17 @@ void CustomController::computeSlow()
             auto dt_8_9 = std::chrono::duration_cast<std::chrono::microseconds>(mode7_9 - mode7_8).count();
             auto dt_total = std::chrono::duration_cast<std::chrono::microseconds>(mode7_9 - mode7_1).count();
 
-            std::cout << "[Mode 7 timing] "
-                    << "cm.update: " << dt_1_2 << " us, "
-                    << "cbf_mgr.update: " << dt_2_3 << " us, "
-                    << "runTestMotion: " << dt_3_4 << " us, "
-                    << "computeTaskSpaceKinematicWBC: " << dt_4_5 << " us, "
-                    << "pubDataFromSlowToFast: " << dt_5_6 << " us, "
-                    << "torque_pd: " << dt_6_7 << " us, "
-                    << "subDataFromFastToSlow: " << dt_7_8 << " us, "
-                    << "torque_sum: " << dt_8_9 << " us, "
-                    << "total: " << dt_total << " us"
-                    << std::endl;
+            // std::cout << "[Mode 7 timing] "
+            //         << "cm.update: " << dt_1_2 << " us, "
+            //         << "cbf_mgr.update: " << dt_2_3 << " us, "
+            //         << "runTestMotion: " << dt_3_4 << " us, "
+            //         << "computeTaskSpaceKinematicWBC: " << dt_4_5 << " us, "
+            //         << "pubDataFromSlowToFast: " << dt_5_6 << " us, "
+            //         << "torque_pd: " << dt_6_7 << " us, "
+            //         << "subDataFromFastToSlow: " << dt_7_8 << " us, "
+            //         << "torque_sum: " << dt_8_9 << " us, "
+            //         << "total: " << dt_total << " us"
+            //         << std::endl;
 
             // applyTorqueSmoothingOnce(torque_sum);
 
@@ -345,9 +335,19 @@ void CustomController::computeFast()
                 auto dt = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
 
                 // computation_time_log << dt << std::endl;
+
+                hand_log << rd_.control_time_ << " " << rd_.link_[Left_Hand].local_xpos.transpose() 
+                                                << " " << rd_.link_[Right_Hand].local_xpos.transpose() << endl;
+
+                if(!cbf_mgr_.col_mgr_.cb_obstacles_.empty())
+                {
+                    obs_log << rd_.control_time_ << " " << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_xpos.transpose() << endl;
+                }
             }
         }
     }
+
+
 }
 
 void CustomController::computePlanner()
