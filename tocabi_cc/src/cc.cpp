@@ -75,27 +75,67 @@ void CustomController::computeSlow()
     {
         if (tc_mode_prev == 6)
         {
+            auto mode7_1 = std::chrono::steady_clock::now();
+
             static bool cm_init_save_trigger = true;
             cm_.update(cm_init_save_trigger);
+            
+            auto mode7_2 = std::chrono::steady_clock::now();
 
             cbf_mgr_.update();
 
+            auto mode7_3 = std::chrono::steady_clock::now();
+
             tm_.runTestMotion(motion_mode_);
+
+            auto mode7_4 = std::chrono::steady_clock::now();
 
             kin_wbc_.computeTaskSpaceKinematicWBC();
 
+            auto mode7_5 = std::chrono::steady_clock::now();
+
             pubDataFromSlowToFast();
+
+            auto mode7_6 = std::chrono::steady_clock::now();
 
             torque_pd.setZero();
             torque_pd = rd_.Kd_diag * (rd_.q_dot_desired - rd_.q_dot_);
 
+            auto mode7_7 = std::chrono::steady_clock::now();
+
             torque_idn.setZero();
             subDataFromFastToSlow();
 
-            FrictionCompensationTorques();
+            auto mode7_8 = std::chrono::steady_clock::now();
+
+            // FrictionCompensationTorques();
             
             torque_sum.setZero();
             torque_sum = torque_pd + torque_idn;
+
+            auto mode7_9 = std::chrono::steady_clock::now();
+
+            auto dt_1_2 = std::chrono::duration_cast<std::chrono::microseconds>(mode7_2 - mode7_1).count();
+            auto dt_2_3 = std::chrono::duration_cast<std::chrono::microseconds>(mode7_3 - mode7_2).count();
+            auto dt_3_4 = std::chrono::duration_cast<std::chrono::microseconds>(mode7_4 - mode7_3).count();
+            auto dt_4_5 = std::chrono::duration_cast<std::chrono::microseconds>(mode7_5 - mode7_4).count();
+            auto dt_5_6 = std::chrono::duration_cast<std::chrono::microseconds>(mode7_6 - mode7_5).count();
+            auto dt_6_7 = std::chrono::duration_cast<std::chrono::microseconds>(mode7_7 - mode7_6).count();
+            auto dt_7_8 = std::chrono::duration_cast<std::chrono::microseconds>(mode7_8 - mode7_7).count();
+            auto dt_8_9 = std::chrono::duration_cast<std::chrono::microseconds>(mode7_9 - mode7_8).count();
+            auto dt_total = std::chrono::duration_cast<std::chrono::microseconds>(mode7_9 - mode7_1).count();
+
+            std::cout << "[Mode 7 timing] "
+                    << "cm.update: " << dt_1_2 << " us, "
+                    << "cbf_mgr.update: " << dt_2_3 << " us, "
+                    << "runTestMotion: " << dt_3_4 << " us, "
+                    << "computeTaskSpaceKinematicWBC: " << dt_4_5 << " us, "
+                    << "pubDataFromSlowToFast: " << dt_5_6 << " us, "
+                    << "torque_pd: " << dt_6_7 << " us, "
+                    << "subDataFromFastToSlow: " << dt_7_8 << " us, "
+                    << "torque_sum: " << dt_8_9 << " us, "
+                    << "total: " << dt_total << " us"
+                    << std::endl;
 
             // applyTorqueSmoothingOnce(torque_sum);
 

@@ -242,7 +242,7 @@ void TeleOperationManager::sendReadyPoseToRobot(const bool &ready_pose_mode)
     {
         static double control_time_init = 0;
         static bool go_ready_pose_first = true;
-        static double trajectory_duration = 3.0; // seconds
+        static double trajectory_duration = 6.0; // seconds
 
         double target_x = 0.3;
         double target_z = 0.3;
@@ -261,17 +261,17 @@ void TeleOperationManager::sendReadyPoseToRobot(const bool &ready_pose_mode)
             rd_.link_[Left_Hand].rot_desired = rd_.link_[Left_Hand].rot_init * DyrosMath::rotateWithX(M_PI / 2.0);
             rd_.link_[Right_Hand].rot_desired = rd_.link_[Right_Hand].rot_init * DyrosMath::rotateWithX(-M_PI / 2.0);
 
-            rd_.link_[Left_Hand].x_desired(0) += target_x;
+            rd_.link_[Left_Hand].x_desired(0)  += target_x;
             rd_.link_[Right_Hand].x_desired(0) += target_x;
-            rd_.link_[Left_Hand].x_desired(2) += target_z;
+            rd_.link_[Left_Hand].x_desired(2)  += target_z;
             rd_.link_[Right_Hand].x_desired(2) += target_z;
 
             go_ready_pose_first = false;
         }
 
-        rd_.link_[Left_Hand].SetTrajectoryQuintic(rd_.control_time_, control_time_init, control_time_init + trajectory_duration, rd_.link_[Left_Hand].x_init, rd_.link_[Left_Hand].x_desired);
-        rd_.link_[Right_Hand].SetTrajectoryQuintic(rd_.control_time_, control_time_init, control_time_init + trajectory_duration, rd_.link_[Right_Hand].x_init, rd_.link_[Right_Hand].x_desired);
-        rd_.link_[Left_Hand].SetTrajectoryRotation(rd_.control_time_, control_time_init, control_time_init + trajectory_duration);
+        rd_.link_[Left_Hand].SetTrajectoryQuintic(rd_.control_time_,   control_time_init, control_time_init + trajectory_duration, rd_.link_[Left_Hand].x_init,  rd_.link_[Left_Hand].x_desired);
+        rd_.link_[Right_Hand].SetTrajectoryQuintic(rd_.control_time_,  control_time_init, control_time_init + trajectory_duration, rd_.link_[Right_Hand].x_init, rd_.link_[Right_Hand].x_desired);
+        rd_.link_[Left_Hand].SetTrajectoryRotation(rd_.control_time_,  control_time_init, control_time_init + trajectory_duration);
         rd_.link_[Right_Hand].SetTrajectoryRotation(rd_.control_time_, control_time_init, control_time_init + trajectory_duration);
 
         if (rd_.control_time_ >= control_time_init + trajectory_duration)

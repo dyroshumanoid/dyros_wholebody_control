@@ -223,7 +223,7 @@ Eigen::VectorVQd KinWBC::safetyFilter()
 
     bool qp_status = true;
     Eigen::VectorXd X_; X_.setZero(total_num_state);
-    if(QP_safety_filter.SolveQPoases(500, X_, true))
+    if(QP_safety_filter.SolveQPoases(200, X_, true))
     {
         qdot_safety = X_.segment(0, MODEL_DOF_VIRTUAL);
         qp_status = true;
