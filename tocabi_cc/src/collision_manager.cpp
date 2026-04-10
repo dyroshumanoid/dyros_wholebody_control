@@ -3,9 +3,6 @@
 
 using namespace TOCABI;
 
-ofstream min_distance_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/min_distance_log.txt");
-
-
 CollisionManager::CollisionManager(RobotData &rd, RigidBodyDynamics::Model &model) : rd_(rd), model_(model)
 {
     nh_cm_.setCallbackQueue(&queue_cm_);
@@ -118,13 +115,13 @@ void CollisionManager::computeObstacleAvoidConstraintTerms(const CbfType cbf_mod
     std::vector<double> Jdotqdot_projections;
     std::vector<double> obstacle_speeds;
 
-    min_distance_log << rd_.control_time_ << " ";
-
     if(!cb_obstacles_.empty()){
         for (unsigned int i = 0; i < cb_obstacles_.size(); i++)
         {
-            for(unsigned int id = 0; id < Col_Obj_Count; id++)
-            {
+            // for(unsigned int id = 0; id < Col_Obj_Count; id++)
+            // {
+                int id = 16;
+
                 double min_distance;
 
                 Vector3d nearest_point_obj, nearest_point_obs;
@@ -148,8 +145,7 @@ void CollisionManager::computeObstacleAvoidConstraintTerms(const CbfType cbf_mod
 
                 if((cb_obstacles_[i].sphere && min_distance <= 2 * cb_obstacles_[i].sphere->radius) || 
                    (cb_obstacles_[i].capsule && min_distance <= 2 * cb_obstacles_[i].capsule->radius)){
-                    
-                    min_distance_log << id << " " << min_distance << " "; 
+                    rd_.dist_obs = min_distance;
 
                     double obs_vel_projection;
                     double Jdotqdot_projection;
@@ -163,10 +159,8 @@ void CollisionManager::computeObstacleAvoidConstraintTerms(const CbfType cbf_mod
                     Jdotqdot_projections.push_back(Jdotqdot_projection);
                     obstacle_speeds.push_back(obs_vel_projection);
                 }
-            }
+            // }
         }
-
-        min_distance_log << endl;
     }
 
     obstacle_avoid_terms_.num_pairs = J_col_rows.size();

@@ -4,6 +4,7 @@
 #include "tocabi_lib/robot_data.h"
 #include "utils.h"     
 #include "cbf_manager/collision_manager.h"     
+#include <fstream>
 
 namespace TOCABI {
 

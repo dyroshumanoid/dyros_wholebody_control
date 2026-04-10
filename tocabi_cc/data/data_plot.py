@@ -1,43 +1,100 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
 
-# =========================
+# =========================================================
+# File paths
+# =========================================================
+lhand_file = "lhand_traj_log.txt"
+rhand_file = "rhand_traj_log.txt"
+dist_file  = "min_distance_log.txt"
+
+save_dir = Path("plots")
+save_dir.mkdir(exist_ok=True)
+
+# =========================================================
 # Load data
-# =========================
-data = np.loadtxt("lhand_traj_log.txt")
+# =========================================================
+lhand = np.loadtxt(lhand_file)
+rhand = np.loadtxt(rhand_file)
+dist  = np.loadtxt(dist_file)
 
-# Check shape
-if data.ndim == 1:
-    data = data.reshape(1, -1)
+# Ensure 2D shape even if there is only one row
+if lhand.ndim == 1:
+    lhand = lhand.reshape(1, -1)
+if rhand.ndim == 1:
+    rhand = rhand.reshape(1, -1)
+if dist.ndim == 1:
+    dist = dist.reshape(1, -1)
 
-assert data.shape[1] == 6, f"Expected 6 columns, but got {data.shape[1]}"
+# =========================================================
+# Parse columns
+# =========================================================
+# Hand log format:
+# time | actual_x actual_y actual_z | desired_x desired_y desired_z
+t_l = lhand[:, 0]
+l_actual = lhand[:, 1:4]
+l_desired = lhand[:, 4:7]
 
-# Split columns
-pos_actual = data[:, 0:3]   # local_xpos: x, y, z
-pos_traj   = data[:, 3:6]   # x_traj:    x, y, z
+t_r = rhand[:, 0]
+r_actual = rhand[:, 1:4]
+r_desired = rhand[:, 4:7]
 
-# Time axis
-t = np.arange(data.shape[0])
+# Distance log format:
+# time | dist_left dist_right
+t_d = dist[:, 0]
+dist_left = dist[:, 1]
+dist_right = dist[:, 2]
 
-# Labels
-axis_labels = ['x', 'y', 'z']
+# =========================================================
+# Plot function for hand trajectory
+# =========================================================
+def plot_hand_trajectory(time, actual, desired, hand_name, save_path):
+    labels = ["x", "y", "z"]
 
-# =========================
-# Plot
-# =========================
-fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
+    fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
 
-for i in range(3):
-    axes[i].plot(t, pos_actual[:, i], label=f'actual {axis_labels[i]}', linewidth=2)
-    axes[i].plot(t, pos_traj[:, i], label=f'traj {axis_labels[i]}', linewidth=2, linestyle='--')
-    axes[i].set_ylabel(f'{axis_labels[i]} [m]')
-    axes[i].grid(True)
-    axes[i].legend()
+    for i in range(3):
+        axes[i].plot(time, actual[:, i], label="actual")
+        axes[i].plot(time, desired[:, i], "--", label="desired")
+        axes[i].set_ylabel(labels[i])
+        axes[i].grid(True)
+        axes[i].legend()
 
-axes[-1].set_xlabel('sample index')
-fig.suptitle('Left Hand Position: Actual vs Trajectory')
+    axes[-1].set_xlabel("time [s]")
+    fig.suptitle(f"{hand_name} hand trajectory", fontsize=14)
+    fig.tight_layout()
+    fig.savefig(save_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
 
-plt.tight_layout()
-plt.savefig("lhand_traj_comparison.png", dpi=300, bbox_inches='tight')
+# =========================================================
+# Plot hand trajectories
+# =========================================================
+plot_hand_trajectory(
+    t_l, l_actual, l_desired,
+    hand_name="Left",
+    save_path=save_dir / "left_hand_trajectory.png"
+)
 
-print("SAVE FIGURE SUCCESS")
+plot_hand_trajectory(
+    t_r, r_actual, r_desired,
+    hand_name="Right",
+    save_path=save_dir / "right_hand_trajectory.png"
+)
+
+# =========================================================
+# Plot minimum distances
+# =========================================================
+fig, ax = plt.subplots(figsize=(10, 4))
+ax.plot(t_d, dist_left, label="left min distance")
+ax.plot(t_d, dist_right, label="right min distance")
+ax.set_xlabel("time [s]")
+ax.set_ylabel("distance [m]")
+ax.set_title("Minimum distance")
+ax.grid(True)
+ax.legend()
+fig.tight_layout()
+fig.savefig(save_dir / "min_distance.png", dpi=200, bbox_inches="tight")
+plt.close(fig)
+
+print("Plots saved in:", save_dir.resolve())

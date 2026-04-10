@@ -2,9 +2,13 @@
 
 using namespace TOCABI;
 
-ofstream hand_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/hand_log.txt");
-ofstream obs_log (      "/home/dyros/catkin_ws/src/tocabi_cc/data/obs_log.txt");
+ofstream hand_log(              "/home/dyros/catkin_ws/src/tocabi_cc/data/hand_log.txt");
+ofstream obs_log (              "/home/dyros/catkin_ws/src/tocabi_cc/data/obs_log.txt");
+ofstream min_distance_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/min_distance_log.txt");
 
+// ofstream lhand_traj_log("/home/dyros/catkin_ws/src/tocabi_cc/data/lhand_traj_log.txt");
+// ofstream rhand_traj_log("/home/dyros/catkin_ws/src/tocabi_cc/data/rhand_traj_log.txt");
+// ofstream min_distance_log("/home/dyros/catkin_ws/src/tocabi_cc/data/min_distance_log.txt");
 
 CustomController::CustomController(RobotData &rd) : rd_(rd),
                                                     cm_(rd, model),
@@ -56,8 +60,14 @@ void CustomController::computeSlow()
 
         cbf_mgr_.update();
 
+        // if(!cbf_mgr_.col_mgr_.cb_obstacles_.empty())
+        // {
+        //     obs_log << rd_.control_time_ << " " << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_xpos.transpose() << endl;
+        // }
+
         CustomControllerInit();
         moveInitialPose();
+        
     }
     else if (rd_.tc_.mode == 7) // TASK MODE
     {
@@ -336,18 +346,21 @@ void CustomController::computeFast()
 
                 // computation_time_log << dt << std::endl;
 
-                hand_log << rd_.control_time_ << " " << rd_.link_[Left_Hand].local_xpos.transpose() 
-                                                << " " << rd_.link_[Right_Hand].local_xpos.transpose() << endl;
+                // lhand_traj_log << rd_.control_time_  << " " << rd_.link_[Left_Hand].local_xpos.transpose()  << " " << rd_.link_[Left_Hand].x_traj.transpose() << std::endl;
+                // rhand_traj_log << rd_.control_time_  << " " << rd_.link_[Right_Hand].local_xpos.transpose() << " " << rd_.link_[Right_Hand].x_traj.transpose() << std::endl;
+                // min_distance_log << rd_.control_time_ << " " << rd_.dist_AB_left << " " << rd_.dist_AB_right << std::endl;
+
+                hand_log << rd_.control_time_ << " " << rd_.link_[Left_Hand].local_xpos.transpose() << " " << rd_.link_[Right_Hand].local_xpos.transpose() << endl;
 
                 if(!cbf_mgr_.col_mgr_.cb_obstacles_.empty())
                 {
-                    obs_log << rd_.control_time_ << " " << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_xpos.transpose() << endl;
+                    obs_log << rd_.control_time_ << " " << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_xpos.transpose() << " " << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_v.transpose() << endl;
                 }
+
+                min_distance_log << rd_.control_time_ << " " << rd_.dist_obs << std::endl;
             }
         }
     }
-
-
 }
 
 void CustomController::computePlanner()
@@ -883,8 +896,8 @@ void CustomController::loadParams()
     nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_hand", workspace_boundary_cbf_hand);
     cbf_mgr_.setWorkspaceBoundaryCbfParameters(workspace_boundary_cbf_alpha, workspace_boundary_cbf_epsilon);
     std::vector<WorkspaceBoundaryPair> workspace_pairs = {
-        {Left_Hand, Left_Hand - 5, workspace_boundary_cbf_hand},
-        {Right_Hand, Right_Hand - 5, workspace_boundary_cbf_hand},
+        {Left_Hand,  Left_Hand   - 7, workspace_boundary_cbf_hand},
+        {Right_Hand, Right_Hand  - 7, workspace_boundary_cbf_hand},
     };
     cbf_mgr_.setWorkspaceBoundaryPairs(workspace_pairs);
 

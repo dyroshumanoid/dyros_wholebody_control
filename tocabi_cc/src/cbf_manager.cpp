@@ -179,6 +179,13 @@ void CbfManager::computeWorkspaceBoundaryCbfConstraint()
 
         workspace_boundary_constraints.lbA(i) = (-1.0) * h;
         workspace_boundary_constraints.ubA(i) = 1e5;
+
+        if(i == 0){
+            rd_.dist_AB_left  = dist_AB;
+        }
+        else if(i == 1){
+            rd_.dist_AB_right = dist_AB;
+        }
     }
 }
 
@@ -314,8 +321,8 @@ void CbfManager::computeObstacleAvoidanceCbfConstraint()
                                              - (alpha_obstacle_avoidance * alpha_obstacle_avoidance) * (col_mgr_.obstacle_avoid_terms_.min_distances);    }
     else if(cbf_mode == CbfType::Kin)
     {
-        obstacle_avoidance_constraints.lbA =   (-1.0) * (alpha_obstacle_avoidance) * (col_mgr_.obstacle_avoid_terms_.min_distances)
-                                             + col_mgr_.obstacle_avoid_terms_.obs_vel_projections;
+        obstacle_avoidance_constraints.lbA =   (-1.0) * (alpha_obstacle_avoidance) * (col_mgr_.obstacle_avoid_terms_.min_distances);
+                                            //  + col_mgr_.obstacle_avoid_terms_.obs_vel_projections;
 
         if (issf_mode) {
             obstacle_avoidance_constraints.lbA += (1.0 / epsilon_obstacle_avoidance) * obstacle_avoidance_constraints.A.rowwise().squaredNorm();
