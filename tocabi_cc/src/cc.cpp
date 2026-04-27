@@ -2,10 +2,10 @@
 
 using namespace TOCABI;
 
-ofstream joint_desired_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
-ofstream joint_position_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
-ofstream joint_velocity_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
-ofstream torque_sum_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
+ofstream joint_desired_log("/home/dyros/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
+ofstream joint_position_log("/home/dyros/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
+ofstream joint_velocity_log("/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
+ofstream torque_sum_log("/home/dyros/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
 
 CustomController::CustomController(RobotData &rd) : rd_(rd),
                                                     cm_(rd, model),
