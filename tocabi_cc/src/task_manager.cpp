@@ -5,8 +5,8 @@
 using namespace TOCABI;
 
 
-ofstream hand_log(              "/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/hand_log.txt");
-ofstream hand_traj_log(         "/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/hand_traj_log.txt");
+ofstream hand_log(              "/home/dyros/catkin_ws/src/tocabi_cc/data/hand_log.txt");
+ofstream hand_traj_log(         "/home/dyros/catkin_ws/src/tocabi_cc/data/hand_traj_log.txt");
 
 TaskManager::TaskManager(RobotData& rd) : rd_(rd)
 {

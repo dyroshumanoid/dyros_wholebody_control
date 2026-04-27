@@ -134,15 +134,14 @@ void CustomController::computeSlow()
             //         << "total: " << dt_total << " us"
             //         << std::endl;
 
-            // applyTorqueSmoothingOnce(torque_sum);
+            applyTorqueSmoothingOnce(torque_sum);
+            rd_.torque_desired = torque_sum;
 
             // torque_sum_log << torque_sum.transpose() << std::endl;
             // joint_desired_log << rd_.q_desired.transpose() << std::endl;
             // joint_position_log << rd_.q_.transpose() << std::endl;
             // torque_idn_log << torque_idn.transpose() << std::endl;
             // torque_pd_log << torque_pd.transpose() << std::endl;
-
-            rd_.torque_desired = torque_sum;
 
             is_slow_loop_once = true;
         }
@@ -352,6 +351,8 @@ void CustomController::computeFast()
                 // }
 
                 // min_distance_log << rd_.control_time_ << " " << rd_.dist_obs << std::endl;
+
+                is_fast_loop_once = true;
             }
         }
     }
