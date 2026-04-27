@@ -2,13 +2,10 @@
 
 using namespace TOCABI;
 
-ofstream hand_log(              "/home/dyros/catkin_ws/src/tocabi_cc/data/hand_log.txt");
-ofstream obs_log (              "/home/dyros/catkin_ws/src/tocabi_cc/data/obs_log.txt");
-ofstream min_distance_log(      "/home/dyros/catkin_ws/src/tocabi_cc/data/min_distance_log.txt");
-
-// ofstream lhand_traj_log("/home/dyros/catkin_ws/src/tocabi_cc/data/lhand_traj_log.txt");
-// ofstream rhand_traj_log("/home/dyros/catkin_ws/src/tocabi_cc/data/rhand_traj_log.txt");
-// ofstream min_distance_log("/home/dyros/catkin_ws/src/tocabi_cc/data/min_distance_log.txt");
+ofstream joint_desired_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
+ofstream joint_position_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
+ofstream joint_velocity_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
+ofstream torque_sum_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
 
 CustomController::CustomController(RobotData &rd) : rd_(rd),
                                                     cm_(rd, model),
@@ -285,19 +282,18 @@ void CustomController::computeSlow()
                                                        + rd_.Kp_diag(sinusoid_joint_target_, sinusoid_joint_target_) * (rd_.q_desired - rd_.q_)(sinusoid_joint_target_)
                                                        - rd_.Kd_diag(sinusoid_joint_target_, sinusoid_joint_target_) * rd_.q_dot_(sinusoid_joint_target_);
 
-            FrictionCompensationTorques();
-            rd_.torque_desired += torque_fric;
+            // FrictionCompensationTorques();
+            // rd_.torque_desired += torque_fric;
 
             for (int i = 0; i < MODEL_DOF; i++)
             {
                 rd_.torque_desired(i) = DyrosMath::minmax_cut(rd_.torque_desired(i), -rd_.torque_limit(i), rd_.torque_limit(i));
             }
 
-            // joint_desired_log << rd_.q_desired(sinusoid_joint_target_) << std::endl;
-            // joint_position_log << rd_.q_(sinusoid_joint_target_) << std::endl;
-            // joint_velocity_log << rd_.q_dot_(sinusoid_joint_target_) << std::endl;
-            // joint_velocity_filter_log << q_dot_lpf_(sinusoid_joint_target_) << std::endl;
-            // torque_sum_log << rd_.torque_desired(sinusoid_joint_target_) << std::endl;
+            joint_desired_log << rd_.q_desired(sinusoid_joint_target_) << std::endl;
+            joint_position_log << rd_.q_(sinusoid_joint_target_) << std::endl;
+            joint_velocity_log << rd_.q_dot_(sinusoid_joint_target_) << std::endl;
+            torque_sum_log << rd_.torque_desired(sinusoid_joint_target_) << std::endl;
         }
         else
         {
@@ -350,14 +346,12 @@ void CustomController::computeFast()
                 // rhand_traj_log << rd_.control_time_  << " " << rd_.link_[Right_Hand].local_xpos.transpose() << " " << rd_.link_[Right_Hand].x_traj.transpose() << std::endl;
                 // min_distance_log << rd_.control_time_ << " " << rd_.dist_AB_left << " " << rd_.dist_AB_right << std::endl;
 
-                hand_log << rd_.control_time_ << " " << rd_.link_[Left_Hand].local_xpos.transpose() << " " << rd_.link_[Right_Hand].local_xpos.transpose() << endl;
+                // if(!cbf_mgr_.col_mgr_.cb_obstacles_.empty())
+                // {
+                //     obs_log << rd_.control_time_ << " " << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_xpos.transpose() << " " << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_v.transpose() << endl;
+                // }
 
-                if(!cbf_mgr_.col_mgr_.cb_obstacles_.empty())
-                {
-                    obs_log << rd_.control_time_ << " " << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_xpos.transpose() << " " << cbf_mgr_.col_mgr_.cb_obstacles_[0].local_v.transpose() << endl;
-                }
-
-                min_distance_log << rd_.control_time_ << " " << rd_.dist_obs << std::endl;
+                // min_distance_log << rd_.control_time_ << " " << rd_.dist_obs << std::endl;
             }
         }
     }
@@ -446,30 +440,57 @@ void CustomController::moveInitialPose()
     }
     else
     {
+        //--- self collision exp
+        // q_init_des(12) = 0.0; // yaw
+        // q_init_des(13) = 0.0; // pitch
+        // q_init_des(14) = 0.0; // roll
+
+        // q_init_des(15) = 0.53;
+        // q_init_des(16) =-0.60;
+        // q_init_des(17) = 1.70;
+        // q_init_des(18) = 0.00;
+        // q_init_des(19) =-1.20; // elbow
+        // q_init_des(20) = 0.6;
+        // q_init_des(21) =-0.65;
+        // q_init_des(22) = 0.0;
+
+        // q_init_des(23) = 0.0; // yaw
+        // q_init_des(24) = 0.0; // pitch
+
+        // q_init_des(25) =-0.53;
+        // q_init_des(26) = 0.60;
+        // q_init_des(27) =-1.70;
+        // q_init_des(28) = 0.0;
+        // q_init_des(29) = 1.20; // elbow
+        // q_init_des(30) =-0.6;
+        // q_init_des(31) = 0.65;
+        // q_init_des(32) = 0.0;
+
+        //--- reachability exp
         q_init_des(12) = 0.0; // yaw
         q_init_des(13) = 0.0; // pitch
         q_init_des(14) = 0.0; // roll
 
-        q_init_des(15) = 0.53;
-        q_init_des(16) =-0.60;
-        q_init_des(17) = 1.70;
-        q_init_des(18) = 0.00;
-        q_init_des(19) =-1.20; // elbow
-        q_init_des(20) = 0.6;
-        q_init_des(21) =-0.65;
-        q_init_des(22) = 0.0;
+        q_init_des(15) = 0.0;
+        q_init_des(16) = -0.3;
+        q_init_des(17) = 1.57;
+        q_init_des(18) = -1.2;
+        q_init_des(19) = -1.57; // elbow
+        q_init_des(20) = 1.5;
+        q_init_des(21) = 0.4;
+        q_init_des(22) = -0.2;
 
         q_init_des(23) = 0.0; // yaw
         q_init_des(24) = 0.0; // pitch
 
-        q_init_des(25) =-0.53;
-        q_init_des(26) = 0.60;
-        q_init_des(27) =-1.70;
-        q_init_des(28) = 0.0;
-        q_init_des(29) = 1.20; // elbow
-        q_init_des(30) =-0.6;
-        q_init_des(31) = 0.65;
-        q_init_des(32) = 0.0;
+        q_init_des(25) = 0.0;
+        q_init_des(26) = 0.3;
+        q_init_des(27) = -1.57;
+        q_init_des(28) = 1.2;
+        q_init_des(29) = 1.57; // elbow
+        q_init_des(30) = -1.5;
+        q_init_des(31) = -0.4;
+        q_init_des(32) = 0.2;
     }
 
     kin_wbc_.setInitialConfiguration(q_init_des);

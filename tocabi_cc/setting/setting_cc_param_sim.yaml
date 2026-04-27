@@ -1,17 +1,17 @@
 sinusoidal_joint_test:
-  joint_target: 0       # motor joint index
-  joint_min:   0.1     # [rad]
-  joint_max:   0.1     # [rad]
+  joint_target: 22       # motor joint index
+  joint_min:   0.2     # [rad]
+  joint_max:   0.2     # [rad]
   period:       1.0      # [sec] (min -> max -> min)
-  is_step: 1    # 0: sinusoidal, 1: step
+  is_step: 0    # 0: sinusoidal, 1: step
 
 joint_gains:
      Kp: [1800.0, 2100.0, 2100.0, 2100.0, 4000.0, 4000.0,
           1800.0, 2100.0, 2100.0, 2100.0, 4000.0, 4000.0,
           3600.0, 3600.0, 3600.0,
-          400, 200, 400, 400, 250, 250, 50, 50,
+          1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200,
           100, 100,
-          400, 800, 400, 400, 250, 250, 50, 50]
+          1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200]
      Kd: [70.0, 90.0, 90.0, 90.0, 90.0, 65.0, 
           70.0, 90.0, 90.0, 90.0, 90.0, 65.0,
           100.0, 100.0, 100.0, 
@@ -96,11 +96,11 @@ cbf:
     joint_limit_cbf_epsilon: 50.0
 
     workspace_boundary_cbf_alpha: 3.0
-    workspace_boundary_cbf_epsilon: 50.0
+    workspace_boundary_cbf_epsilon: 10.0
 
     self_collision_cbf_alpha: 3.0
-    # self_collision_cbf_epsilon: 10.0  # hand
-    self_collision_cbf_epsilon: 30.0  # walk
+    self_collision_cbf_epsilon: 10.0  # hand
+    # self_collision_cbf_epsilon: 30.0  # walk
 
     obstacle_avoidance_cbf_alpha: 3.0
     obstacle_avoidance_cbf_epsilon: 50.0
@@ -117,7 +117,7 @@ cbf:
     obstacle_avoidance_cbf_alpha: 30.0
     obstacle_avoidance_cbf_epsilon: 0.0
 
-motion_mode : 3 # 0: idle, 1: simple hand motion, 2: taichi, 3: walking, 4: teleop
+motion_mode : 1 # 0: idle, 1: simple hand motion, 2: taichi, 3: walking, 4: teleop
 
 friction_compensation:
   tau_coulomb: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0,

@@ -215,8 +215,9 @@ Eigen::VectorVQd KinWBC::safetyFilter()
     QP_safety_filter.UpdateSubjectToAx(A_const, lbA_const, ubA_const);
 
     bool qp_status = true;
+    const int MAX_QP_ITER = 100;
     Eigen::VectorXd X_; X_.setZero(total_num_state);
-    if(QP_safety_filter.SolveQPoases(200, X_, true))
+    if(QP_safety_filter.SolveQPoases(MAX_QP_ITER, X_, true))
     {
         qdot_safety = X_.segment(0, MODEL_DOF_VIRTUAL);
         qp_status = true;

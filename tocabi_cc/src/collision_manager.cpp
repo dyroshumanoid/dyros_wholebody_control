@@ -145,7 +145,7 @@ void CollisionManager::computeObstacleAvoidConstraintTerms(const CbfType cbf_mod
 
                 if((cb_obstacles_[i].sphere && min_distance <= 2 * cb_obstacles_[i].sphere->radius) || 
                    (cb_obstacles_[i].capsule && min_distance <= 2 * cb_obstacles_[i].capsule->radius)){
-                    rd_.dist_obs = min_distance;
+                    // rd_.dist_obs = min_distance;
 
                     double obs_vel_projection;
                     double Jdotqdot_projection;

@@ -180,13 +180,18 @@ void CbfManager::computeWorkspaceBoundaryCbfConstraint()
         workspace_boundary_constraints.lbA(i) = (-1.0) * h;
         workspace_boundary_constraints.ubA(i) = 1e5;
 
-        if(i == 0){
-            rd_.dist_AB_left  = dist_AB;
-        }
-        else if(i == 1){
-            rd_.dist_AB_right = dist_AB;
-        }
+        // if(i == 0){
+        //     rd_.dist_AB_left  = dist_AB;
+        // }
+        // else if(i == 1){
+        //     rd_.dist_AB_right = dist_AB;
+        // }
     }
+    // std::cout << "Left Hand Position: " << rd_.link_[Left_Hand].local_xpos.transpose() << std::endl;
+    // std::cout << "Left Hand Target: " << rd_.link_[Left_Hand].x_traj.transpose() << std::endl;
+    // std::cout << "Right Hand Position: " << rd_.link_[Right_Hand].local_xpos.transpose() << std::endl;
+    // std::cout << "Right Hand Target: " << rd_.link_[Right_Hand].x_traj.transpose() << std::endl;
+
 }
 
 void CbfManager::getWorkspaceBoundaryCbfConstraint(Eigen::Ref<Eigen::MatrixXd> A, Eigen::VectorXd &lbA, Eigen::VectorXd &ubA) const

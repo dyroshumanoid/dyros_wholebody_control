@@ -1,0 +1,8 @@
+# Joint Tracking Metrics
+
+samples: 16153
+RMSE [rad]: 0.03989459
+MAE [rad]: 0.03569271
+MaxAbs [rad]: 0.10796880
+Mean error [rad]: 0.00048349
+Final error [rad]: 0.05418349

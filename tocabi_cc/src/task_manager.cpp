@@ -4,6 +4,10 @@
 
 using namespace TOCABI;
 
+
+ofstream hand_log(              "/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/hand_log.txt");
+ofstream hand_traj_log(         "/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/hand_traj_log.txt");
+
 TaskManager::TaskManager(RobotData& rd) : rd_(rd)
 {
     for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
@@ -65,11 +69,9 @@ void TaskManager::movePelvHandPose()
     rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos;
 
     // --- Hand Trajectory (Base Frame)
-    // rd_.link_[Left_Hand].x_desired(1)  = rd_.link_[Left_Hand].local_xpos_init(1) +  hand_dist;
-    // rd_.link_[Right_Hand].x_desired(1) = rd_.link_[Right_Hand].local_xpos_init(1) - hand_dist;
-    // rd_.link_[Left_Hand].x_desired(2)  = rd_.link_[Left_Hand].local_xpos_init(2) +  hand_dist;
-    // rd_.link_[Right_Hand].x_desired(2) = rd_.link_[Right_Hand].local_xpos_init(2) - hand_dist;
-    //
+    // rd_.link_[Left_Hand].x_desired(0)  = rd_.link_[Left_Hand].local_xpos_init(0)  + hand_dist;
+    // rd_.link_[Right_Hand].x_desired(0) = rd_.link_[Right_Hand].local_xpos_init(0) + hand_dist;
+    
     // rd_.link_[Left_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Left_Hand].local_xpos_init, rd_.link_[Left_Hand].x_desired);
     // rd_.link_[Right_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Right_Hand].local_xpos_init, rd_.link_[Right_Hand].x_desired);
 
@@ -94,6 +96,9 @@ void TaskManager::movePelvHandPose()
     if(sim_tick <= circling_number * traj_time * hz_)    {
         sim_tick++;
     }
+
+    hand_log << rd_.link_[Left_Hand].local_xpos.transpose() << " " << rd_.link_[Right_Hand].local_xpos.transpose() << endl;
+    hand_traj_log << rd_.link_[Left_Hand].x_traj.transpose() << " " << rd_.link_[Right_Hand].x_traj.transpose() << endl;
 }
 
 void TaskManager::moveTaichiMotion()
