@@ -49,6 +49,10 @@ void TaskManager::movePelvHandPose()
 {
     //--- Initialization
     static int sim_tick = 0;
+    static bool is_transitioning = true;
+    static int transition_tick = 0;
+    const double transition_time = 1.0;
+    const int transition_tick_end = std::max(1, static_cast<int>(transition_time * hz_));
     for (int idx = 0; idx < LINK_NUMBER + 1; idx++)
     {
         rd_.link_[idx].x_desired = rd_.link_[idx].local_xpos_init;
@@ -90,6 +94,31 @@ void TaskManager::movePelvHandPose()
 
     rd_.link_[Left_Hand].r_traj  = rd_.link_[Left_Hand].local_rotm_init;
     rd_.link_[Right_Hand].r_traj = rd_.link_[Right_Hand].local_rotm_init;
+
+    if (is_transitioning)
+    {
+        const double s = std::min(1.0, std::max(0.0, static_cast<double>(transition_tick) / transition_tick_end));
+        for (int i = 0; i < LINK_NUMBER + 1; ++i)
+        {
+            Eigen::Isometry3d T_from = Eigen::Isometry3d::Identity();
+            Eigen::Isometry3d T_to = Eigen::Isometry3d::Identity();
+
+            T_from.translation() = rd_.link_[i].local_xpos_init;
+            T_from.linear() = rd_.link_[i].local_rotm_init;
+            T_to.translation() = rd_.link_[i].x_traj;
+            T_to.linear() = rd_.link_[i].r_traj;
+
+            Eigen::Isometry3d T = blendIsometry(T_from, T_to, s);
+            rd_.link_[i].x_traj = T.translation();
+            rd_.link_[i].r_traj = T.linear();
+        }
+
+        transition_tick++;
+        if (transition_tick >= transition_tick_end)
+        {
+            is_transitioning = false;
+        }
+    }
 
     //--- Increment Tick
     const int circling_number = 3;

@@ -1,4 +1,5 @@
 #include "kin_wbc.h"
+// #include <unsupported/Eigen/MatrixFunctions>
 
 using namespace TOCABI;
 
@@ -54,6 +55,7 @@ void KinWBC::computeTaskSpaceKinematicWBC()
             {
                 J.block(3 * i, 0, 3, MODEL_DOF_VIRTUAL) = rd_.link_[idx].local_Jac_w;
                 Eigen::Vector3d ori_err = -DyrosMath::getPhi(rd_.link_[idx].local_rotm, rd_.link_[idx].r_traj);
+                // Eigen::Vector3d ori_err = vee((rd_.link_[idx].local_rotm.transpose() * rd_.link_[idx].r_traj).log()); // Log map for orientation error
 
                 de.segment<3>(3 * i) = ori_err;
             }
@@ -113,6 +115,50 @@ void KinWBC::computeTaskSpaceKinematicWBC()
     rd_.q_desired_virtual = integrate(rd_.local_q_virtual_, qdot_des);
     rd_.q_desired = rd_.q_desired_virtual.segment(6, MODEL_DOF);
 
+    //--- Initial Joint Trajectory Smoothing
+    static bool is_q_desired_init = true;
+    static int tick_q_desired_init = 0;
+    static Eigen::VectorQd q_start;
+    static Eigen::VectorQd q_target;
+
+    if (is_q_desired_init)
+    {
+        q_start = rd_.q_;
+        tick_q_desired_init = 0;
+
+        is_q_desired_init = false;
+        std::cout << "========== INFO: INITIAL JOINT TRAJECTORY SMOOTHING START ==========" << std::endl;
+        std::cout << "========== CONTROL TIME: " << rd_.control_time_ << " ==========" << std::endl;
+
+    }
+
+    q_target = rd_.q_desired;
+
+    const double interpol_time = 1.0;
+    const int interpol_tick_end = static_cast<int>(interpol_time * 2000.0);
+
+    if (tick_q_desired_init < interpol_tick_end)
+    {
+        rd_.q_desired = DyrosMath::cubicVector<MODEL_DOF>(
+            tick_q_desired_init,
+            0,
+            interpol_tick_end,
+            q_start,
+            q_target,
+            Eigen::VectorQd::Zero(),
+            Eigen::VectorQd::Zero());
+
+        rd_.q_desired_virtual.segment(6, MODEL_DOF) = rd_.q_desired;
+        tick_q_desired_init++;
+
+        if (tick_q_desired_init >= interpol_tick_end)
+        {
+            std::cout << "========== INFO: INITIAL JOINT TRAJECTORY SMOOTHING COMPLETE ==========" << std::endl;
+            std::cout << "========== CONTROL TIME: " << rd_.control_time_ << " ==========" << std::endl;
+        }
+    }
+
+    //--- Desired Joint Acceleration Command via Impedance Control
     rd_.q_ddot_desired_virtual = computeDesiredJointAcceleration(rd_.local_q_virtual_, rd_.local_q_dot_virtual_, rd_.q_desired_virtual, rd_.Kp_virtual_diag, rd_.Kd_virtual_diag);
 }
 
