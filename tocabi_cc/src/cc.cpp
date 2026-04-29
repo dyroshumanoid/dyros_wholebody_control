@@ -2,16 +2,16 @@
 
 using namespace TOCABI;
 
-// ofstream joint_desired_log("/home/dyros/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
-// ofstream joint_position_log("/home/dyros/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
-// ofstream joint_velocity_log("/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
-// ofstream torque_sum_log("/home/dyros/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
+ofstream joint_desired_log("/home/dyros/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
+ofstream joint_position_log("/home/dyros/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
+ofstream joint_velocity_log("/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
+ofstream torque_sum_log("/home/dyros/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
 
-ofstream joint_desired_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
-ofstream joint_position_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
-ofstream joint_velocity_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
-ofstream torque_sum_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
-ofstream task_command_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/task_command_log.txt");
+// ofstream joint_desired_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
+// ofstream joint_position_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
+// ofstream joint_velocity_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
+// ofstream torque_sum_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
+// ofstream task_command_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/task_command_log.txt");
 
 CustomController::CustomController(RobotData &rd) : rd_(rd),
                                                     cm_(rd, model),
@@ -101,8 +101,9 @@ void CustomController::computeSlow()
 
             torque_pd.setZero();
             // torque_pd = rd_.Kp_diag * (rd_.q_desired - rd_.q_) + rd_.Kd_diag * (rd_.q_dot_desired - rd_.q_dot_);
-            torque_pd = rd_.Kd_diag * (rd_.q_dot_desired - rd_.q_dot_);
-            torque_pd.tail(MODEL_DOF - 15) += (rd_.Kp_diag * (rd_.q_desired - rd_.q_)).tail(MODEL_DOF - 15);
+            torque_pd = rd_.Kp_diag * (rd_.q_desired - rd_.q_) + rd_.Kd_diag * (Eigen::VectorQd::Zero() - rd_.q_dot_);
+            // torque_pd = rd_.Kd_diag * (rd_.q_dot_desired - rd_.q_dot_);
+            // torque_pd.tail(MODEL_DOF - 15) += (rd_.Kp_diag * (rd_.q_desired - rd_.q_)).tail(MODEL_DOF - 15);
 
             auto mode7_7 = std::chrono::steady_clock::now();
 
@@ -152,13 +153,13 @@ void CustomController::computeSlow()
                 }
             }
 
-            torque_sum_log << torque_sum.transpose() << std::endl;
-            joint_desired_log << rd_.q_desired.transpose() << std::endl;
-            joint_position_log << rd_.q_.transpose() << std::endl;
-            task_command_log << rd_.link_[Left_Hand].x_traj.transpose() << " "
-                             << rd_.link_[Right_Hand].x_traj.transpose() << " "
-                             << DyrosMath::rot2Euler(rd_.link_[Left_Hand].r_traj).transpose() << " "
-                             << DyrosMath::rot2Euler(rd_.link_[Right_Hand].r_traj).transpose() << std::endl;
+            // torque_sum_log << torque_sum.transpose() << std::endl;
+            // joint_desired_log << rd_.q_desired.transpose() << std::endl;
+            // joint_position_log << rd_.q_.transpose() << std::endl;
+            // task_command_log << rd_.link_[Left_Hand].x_traj.transpose() << " "
+            //                  << rd_.link_[Right_Hand].x_traj.transpose() << " "
+            //                  << DyrosMath::rot2Euler(rd_.link_[Left_Hand].r_traj).transpose() << " "
+            //                  << DyrosMath::rot2Euler(rd_.link_[Right_Hand].r_traj).transpose() << std::endl;
             // torque_idn_log << torque_idn.transpose() << std::endl;
             // torque_pd_log << torque_pd.transpose() << std::endl;
 

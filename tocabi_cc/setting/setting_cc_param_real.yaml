@@ -1,9 +1,9 @@
 sinusoidal_joint_test:
-  joint_target: 14        # motor joint index
-  joint_min:   0.1     # [rad]
-  joint_max:   0.1     # [rad]
+  joint_target: 2        # motor joint index
+  joint_min:   0.15     # [rad]
+  joint_max:   0.15    # [rad]
   period:       1.0      # [sec] (min -> max -> min)
-  is_step: 0    # 0: sinusoidal, 1: step
+  is_step: 1    # 0: sinusoidal, 1: step
 
 joint_gains:
      Kp: [2100.0, 2100.0, 2100.0, 2100.0, 2100.0, 2100.0,
@@ -12,8 +12,8 @@ joint_gains:
           400, 1200, 400, 400, 600, 250, 50, 50,
           100, 100,
           400, 1200, 400, 400, 600, 250, 50, 50]
-     Kd: [90.0, 150.0, 90.0, 90.0, 120.0, 150.0, 
-          90.0, 150.0, 90.0, 90.0, 120.0, 150.0,
+     Kd: [90.0, 150.0, 150.0, 90.0, 120.0, 150.0, 
+          90.0, 150.0, 150.0, 90.0, 120.0, 150.0,
           100.0, 100.0, 100.0, 
           0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
           2, 2,
@@ -61,8 +61,8 @@ joint_limits:
              0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15]
 
 task_param:
-  traj_time: 3.0
-  pelv_dist: 0.1
+  traj_time: 2.0
+  pelv_dist: 0.0
   hand_dist: 0.1
   # step_length: 0.1
   # step_lateral: 0.08

@@ -327,7 +327,7 @@ void KinWBC::calcInequalityConstraint()
     
     cbf_mgr_.getJointLimitCbfConstraint(A_qpos.block(0, 6, MODEL_DOF, MODEL_DOF), lbA_qpos, ubA_qpos);
 
-    // constraints_.push_back({A_qpos, lbA_qpos, ubA_qpos});    // temp
+    constraints_.push_back({A_qpos, lbA_qpos, ubA_qpos});
 
     //--- (2) Workspace Boundary constraints
     const int num_workspace_cbf = cbf_mgr_.getNumWorkspaceBoundaryPairs();

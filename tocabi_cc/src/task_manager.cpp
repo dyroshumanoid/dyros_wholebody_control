@@ -121,7 +121,7 @@ void TaskManager::movePelvHandPose()
     }
 
     //--- Increment Tick
-    const int circling_number = 3;
+    const int circling_number = 5;
     if(sim_tick <= circling_number * traj_time * hz_)    {
         sim_tick++;
     }
