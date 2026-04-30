@@ -5,8 +5,15 @@
 using namespace TOCABI;
 
 
-ofstream hand_log(              "/home/dyros/catkin_ws/src/tocabi_cc/data/hand_log.txt");
-ofstream hand_traj_log(         "/home/dyros/catkin_ws/src/tocabi_cc/data/hand_traj_log.txt");
+// ofstream hand_log(              "/home/dyros/catkin_ws/src/tocabi_cc/data/hand_log.txt");
+// ofstream hand_traj_log(         "/home/dyros/catkin_ws/src/tocabi_cc/data/hand_traj_log.txt");
+
+ofstream hand_log(              "/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/hand_log.txt");
+ofstream hand_traj_log(         "/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/hand_traj_log.txt");
+
+ofstream com_log(              "/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/com_log.txt");
+ofstream com_traj_log(         "/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/com_traj_log.txt");
+
 
 TaskManager::TaskManager(RobotData& rd) : rd_(rd)
 {
@@ -69,8 +76,11 @@ void TaskManager::movePelvHandPose()
 
     rd_.link_[Pelvis].r_traj = DyrosMath::rotationCubic(sim_tick, 0, traj_time * hz_, rd_.link_[Pelvis].local_rotm_init, Eigen::Matrix3d::Identity());
 
+    com_log << rd_.link_[COM_id].support_xpos.transpose() << endl;
+    com_traj_log << rd_.link_[COM_id].x_traj.transpose() << endl;
+
     //--- COM_id Trajectory (Base Frame)
-    rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos;
+    rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos_init;
 
     // --- Hand Trajectory (Base Frame)
     // rd_.link_[Left_Hand].x_desired(0)  = rd_.link_[Left_Hand].local_xpos_init(0)  + hand_dist;
@@ -83,14 +93,20 @@ void TaskManager::movePelvHandPose()
     const double phase = std::fmod(static_cast<double>(sim_tick), total_ticks) / total_ticks;
     const double theta = 2.0 * std::acos(-1.0) * phase;
 
-    rd_.link_[Left_Hand].x_traj = rd_.link_[Left_Hand].local_xpos_init;
-    rd_.link_[Right_Hand].x_traj = rd_.link_[Right_Hand].local_xpos_init;
+    rd_.link_[Left_Hand].x_traj = rd_.link_[Left_Hand].support_xpos_init;
+    rd_.link_[Right_Hand].x_traj = rd_.link_[Right_Hand].support_xpos_init;
 
     rd_.link_[Left_Hand].x_traj(0) += hand_dist * (std::cos(theta) - 1.0);
     rd_.link_[Left_Hand].x_traj(2) += hand_dist * std::sin(theta);
 
     rd_.link_[Right_Hand].x_traj(0) += hand_dist * (std::cos(theta) - 1.0);
     rd_.link_[Right_Hand].x_traj(2) -= hand_dist * std::sin(theta);
+
+    hand_log << rd_.link_[Left_Hand].support_xpos.transpose() << " " << rd_.link_[Right_Hand].support_xpos.transpose() << endl;
+    hand_traj_log << rd_.link_[Left_Hand].x_traj.transpose() << " " << rd_.link_[Right_Hand].x_traj.transpose() << endl;
+
+    rd_.link_[Left_Hand].x_traj = rd_.link_[Left_Hand].x_traj - rd_.link_[Pelvis].support_xpos_init;
+    rd_.link_[Right_Hand].x_traj = rd_.link_[Right_Hand].x_traj - rd_.link_[Pelvis].support_xpos_init;
 
     rd_.link_[Left_Hand].r_traj  = rd_.link_[Left_Hand].local_rotm_init;
     rd_.link_[Right_Hand].r_traj = rd_.link_[Right_Hand].local_rotm_init;
@@ -125,9 +141,6 @@ void TaskManager::movePelvHandPose()
     if(sim_tick <= circling_number * traj_time * hz_)    {
         sim_tick++;
     }
-
-    hand_log << rd_.link_[Left_Hand].local_xpos.transpose() << " " << rd_.link_[Right_Hand].local_xpos.transpose() << endl;
-    hand_traj_log << rd_.link_[Left_Hand].x_traj.transpose() << " " << rd_.link_[Right_Hand].x_traj.transpose() << endl;
 }
 
 void TaskManager::moveTaichiMotion()

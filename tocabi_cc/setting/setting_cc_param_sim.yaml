@@ -64,7 +64,7 @@ joint_limits:
 
 task_param:
   traj_time: 3.0
-  pelv_dist: 0.0
+  pelv_dist: 0.03
   hand_dist: 0.1
   step_length: 0.0
   step_lateral: 0.08

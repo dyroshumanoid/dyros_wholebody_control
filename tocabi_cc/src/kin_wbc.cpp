@@ -18,12 +18,19 @@ void KinWBC::setTaskHierarchy(const TaskMotionType& motion_mode_)
     }
     else
     {
+        // task_hierarchy = {
+        //     {{COM_id, TaskType::Position}, {Pelvis, TaskType::Orientation}},
+        //     {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}},
+        //     {{Upper_Body, TaskType::Orientation}},
+        //     {{Head, TaskType::Orientation}},
+        //     {{Left_Hand, TaskType::Position}, {Left_Hand, TaskType::Orientation}, {Right_Hand, TaskType::Position}, {Right_Hand, TaskType::Orientation}}};
         task_hierarchy = {
-            {{COM_id, TaskType::Position}, {Pelvis, TaskType::Orientation}},
+            {{Left_Hand, TaskType::Position}, {Left_Hand, TaskType::Orientation}, {Right_Hand, TaskType::Position}, {Right_Hand, TaskType::Orientation}},
             {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}},
+            {{COM_id, TaskType::Position}, {Pelvis, TaskType::Orientation}},
             {{Upper_Body, TaskType::Orientation}},
             {{Head, TaskType::Orientation}},
-            {{Left_Hand, TaskType::Position}, {Left_Hand, TaskType::Orientation}, {Right_Hand, TaskType::Position}, {Right_Hand, TaskType::Orientation}}};
+        };
     }
 }
 
@@ -327,7 +334,7 @@ void KinWBC::calcInequalityConstraint()
     
     cbf_mgr_.getJointLimitCbfConstraint(A_qpos.block(0, 6, MODEL_DOF, MODEL_DOF), lbA_qpos, ubA_qpos);
 
-    constraints_.push_back({A_qpos, lbA_qpos, ubA_qpos});
+    // constraints_.push_back({A_qpos, lbA_qpos, ubA_qpos});    // temp
 
     //--- (2) Workspace Boundary constraints
     const int num_workspace_cbf = cbf_mgr_.getNumWorkspaceBoundaryPairs();
