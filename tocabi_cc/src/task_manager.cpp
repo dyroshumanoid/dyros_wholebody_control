@@ -83,27 +83,27 @@ void TaskManager::movePelvHandPose()
     rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos_init;
 
     // --- Hand Trajectory (Base Frame)
-    // rd_.link_[Left_Hand].x_desired(0)  = rd_.link_[Left_Hand].local_xpos_init(0)  + hand_dist;
-    // rd_.link_[Right_Hand].x_desired(0) = rd_.link_[Right_Hand].local_xpos_init(0) + hand_dist;
+    rd_.link_[Left_Hand].x_desired(0)  = rd_.link_[Left_Hand].support_xpos_init(0)  + hand_dist;
+    rd_.link_[Right_Hand].x_desired(0) = rd_.link_[Right_Hand].support_xpos_init(0) + hand_dist;
     
-    // rd_.link_[Left_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Left_Hand].local_xpos_init, rd_.link_[Left_Hand].x_desired);
-    // rd_.link_[Right_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Right_Hand].local_xpos_init, rd_.link_[Right_Hand].x_desired);
+    rd_.link_[Left_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Left_Hand].support_xpos_init, rd_.link_[Left_Hand].x_desired);
+    rd_.link_[Right_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Right_Hand].support_xpos_init, rd_.link_[Right_Hand].x_desired);
 
-    const double total_ticks = std::max(1.0, traj_time * hz_);
-    const double phase = std::fmod(static_cast<double>(sim_tick), total_ticks) / total_ticks;
-    const double theta = 2.0 * std::acos(-1.0) * phase;
+    // const double total_ticks = std::max(1.0, traj_time * hz_);
+    // const double phase = std::fmod(static_cast<double>(sim_tick), total_ticks) / total_ticks;
+    // const double theta = 2.0 * std::acos(-1.0) * phase;
 
-    rd_.link_[Left_Hand].x_traj = rd_.link_[Left_Hand].support_xpos_init;
-    rd_.link_[Right_Hand].x_traj = rd_.link_[Right_Hand].support_xpos_init;
+    // rd_.link_[Left_Hand].x_traj = rd_.link_[Left_Hand].support_xpos_init;
+    // rd_.link_[Right_Hand].x_traj = rd_.link_[Right_Hand].support_xpos_init;
 
-    rd_.link_[Left_Hand].x_traj(0) += hand_dist * (std::cos(theta) - 1.0);
-    rd_.link_[Left_Hand].x_traj(2) += hand_dist * std::sin(theta);
+    // rd_.link_[Left_Hand].x_traj(0) += hand_dist * (std::cos(theta) - 1.0);
+    // rd_.link_[Left_Hand].x_traj(2) += hand_dist * std::sin(theta);
 
-    rd_.link_[Right_Hand].x_traj(0) += hand_dist * (std::cos(theta) - 1.0);
-    rd_.link_[Right_Hand].x_traj(2) -= hand_dist * std::sin(theta);
+    // rd_.link_[Right_Hand].x_traj(0) += hand_dist * (std::cos(theta) - 1.0);
+    // rd_.link_[Right_Hand].x_traj(2) -= hand_dist * std::sin(theta);
 
-    hand_log << rd_.link_[Left_Hand].support_xpos.transpose() << " " << rd_.link_[Right_Hand].support_xpos.transpose() << endl;
-    hand_traj_log << rd_.link_[Left_Hand].x_traj.transpose() << " " << rd_.link_[Right_Hand].x_traj.transpose() << endl;
+    // hand_log << rd_.link_[Left_Hand].support_xpos.transpose() << " " << rd_.link_[Right_Hand].support_xpos.transpose() << endl;
+    // hand_traj_log << rd_.link_[Left_Hand].x_traj.transpose() << " " << rd_.link_[Right_Hand].x_traj.transpose() << endl;
 
     rd_.link_[Left_Hand].x_traj = rd_.link_[Left_Hand].x_traj - rd_.link_[Pelvis].support_xpos_init;
     rd_.link_[Right_Hand].x_traj = rd_.link_[Right_Hand].x_traj - rd_.link_[Pelvis].support_xpos_init;
@@ -274,7 +274,11 @@ void TaskManager::teleOperationController()
             {
                 //--- Base frame
                 rd_.link_[idx].local_xpos_init = rd_.link_[idx].local_xpos;
-                rd_.link_[idx].local_rotm_init = rd_.link_[idx].local_rotm;                             
+                rd_.link_[idx].local_rotm_init = rd_.link_[idx].local_rotm;          
+                
+                //--- Support frame
+                rd_.link_[idx].support_xpos_init = rd_.link_[idx].support_xpos;
+                rd_.link_[idx].support_rotm_init = rd_.link_[idx].support_rotm;
             }
 
             avatar_mode = false;        

@@ -938,8 +938,8 @@ void CustomController::loadParams()
     nh_cc_.getParam("/tocabi_controller/cbf/workspace_boundary_cbf_hand", workspace_boundary_cbf_hand);
     cbf_mgr_.setWorkspaceBoundaryCbfParameters(workspace_boundary_cbf_alpha, workspace_boundary_cbf_epsilon);
     std::vector<WorkspaceBoundaryPair> workspace_pairs = {
-        {Left_Hand,  Left_Hand   - 7, workspace_boundary_cbf_hand},
-        {Right_Hand, Right_Hand  - 7, workspace_boundary_cbf_hand},
+        {Left_Hand,  Left_Hand - 5, workspace_boundary_cbf_hand},
+        {Right_Hand, Right_Hand - 5, workspace_boundary_cbf_hand},
     };
     cbf_mgr_.setWorkspaceBoundaryPairs(workspace_pairs);
 

@@ -1,6 +1,0 @@
-# COM Trajectory Tracking Metrics
-RMSE xyz [m]: [0.003029, 0.008826, 0.003773]
-MAE  xyz [m]: [0.002964, 0.008460, 0.003638]
-MaxAbs xyz [m]: [0.004755, 0.013277, 0.004597]
-RMSE ||e|| [m]: 0.010065
-Max  ||e|| [m]: 0.014458

@@ -53,4 +53,8 @@ private:
 
     Eigen::VectorQd q_init_des;
 
+    // Damped pseudo-inverse parameters
+    double damping_lambda_ = 0.0001;  // Damping coefficient for singularity handling
+    Eigen::MatrixXd computeDampedPinv(const Eigen::MatrixXd &J);
+
 };

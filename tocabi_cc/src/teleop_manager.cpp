@@ -165,11 +165,11 @@ void TeleOperationManager::calibrationFunction(const bool &calibration_done)
             std::cout << " " << std::endl;
 
             //--- Arm Length Ratio
-            double robot_larm_length = (rd_.link_[Left_Hand].local_xpos - rd_.link_[Left_Hand - 4].local_xpos).norm();
+            double robot_larm_length = (rd_.link_[Left_Hand].local_xpos  - rd_.link_[Left_Hand - 5].local_xpos).norm();
             double human_larm_length = (tracker_lshoulder_pose_mapped_.translation() - tracker_lhand_pose_mapped_.translation()).norm();
             larm_length_ratio = robot_larm_length / human_larm_length;
 
-            double robot_rarm_length = (rd_.link_[Right_Hand].local_xpos - rd_.link_[Right_Hand - 4].local_xpos).norm();
+            double robot_rarm_length = (rd_.link_[Right_Hand].local_xpos - rd_.link_[Right_Hand - 5].local_xpos).norm();
             double human_rarm_length = (tracker_rshoulder_pose_mapped_.translation() - tracker_rhand_pose_mapped_.translation()).norm();
             rarm_length_ratio = robot_rarm_length / human_rarm_length;
 
@@ -202,8 +202,10 @@ void TeleOperationManager::calibrationFunction(const bool &calibration_done)
     robot_rhand_pose_retarget_.linear() = tracker_rhand_pose_mapped_.linear();
 
     //--- Hand Position Retargeting
-    robot_lhand_pose_retarget_.translation() = rd_.link_[Left_Hand - 5].local_xpos + larm_length_ratio * (tracker_lhand_pose_mapped_.translation() - tracker_lshoulder_pose_mapped_.translation());
-    robot_rhand_pose_retarget_.translation() = rd_.link_[Right_Hand - 5].local_xpos + rarm_length_ratio * (tracker_rhand_pose_mapped_.translation() - tracker_rshoulder_pose_mapped_.translation());
+    robot_lhand_pose_retarget_.translation() = rd_.link_[Left_Hand - 5].support_xpos + larm_length_ratio * (tracker_lhand_pose_mapped_.translation() - tracker_lshoulder_pose_mapped_.translation());
+    robot_rhand_pose_retarget_.translation() = rd_.link_[Right_Hand - 5].support_xpos + rarm_length_ratio * (tracker_rhand_pose_mapped_.translation() - tracker_rshoulder_pose_mapped_.translation());
+    robot_lhand_pose_retarget_.translation() -= rd_.link_[Pelvis].support_xpos_init;
+    robot_rhand_pose_retarget_.translation() -= rd_.link_[Pelvis].support_xpos_init;
 
     //--- Foot Position Retargeting
     //TODO
@@ -212,9 +214,9 @@ void TeleOperationManager::calibrationFunction(const bool &calibration_done)
 
     //--- CoM Position Retargeting
     robot_com_pose_retarget_.translation()(2) = rd_.link_[COM_id].support_xpos_init(2) + pelvis_height_ratio * (tracker_pelv_pos_mapped_support_(2) - tracker_pelv_pos_mapped_support_init_(2));
-    robot_com_pose_retarget_.translation() -= rd_.link_[Pelvis].support_xpos;
     double com_horizontal_offset = ((tracker_pelv_pose_mapped_.translation().head(2) - tracker_lfoot_pose_mapped_.translation().head(2)).transpose() * (tracker_rfoot_pose_mapped_.translation().head(2) - tracker_lfoot_pose_mapped_.translation().head(2)))(0) / ((tracker_rfoot_pose_mapped_.translation().head(2) - tracker_lfoot_pose_mapped_.translation().head(2)).transpose() * (tracker_rfoot_pose_mapped_.translation().head(2) - tracker_lfoot_pose_mapped_.translation().head(2)))(0);
-    robot_com_pose_retarget_.translation().head(2) = rd_.link_[Left_Foot].local_xpos.head(2) + com_horizontal_offset * (rd_.link_[Right_Foot].local_xpos.head(2) - rd_.link_[Left_Foot].local_xpos.head(2));
+    robot_com_pose_retarget_.translation().head(2) = rd_.link_[Left_Foot].support_xpos.head(2) + com_horizontal_offset * (rd_.link_[Right_Foot].support_xpos.head(2) - rd_.link_[Left_Foot].support_xpos.head(2));
+    robot_com_pose_retarget_.translation() -= rd_.link_[Pelvis].support_xpos_init;
 
     //--- else
     robot_head_pose_retarget_.translation() = rd_.link_[Head].local_xpos_init;
@@ -244,9 +246,9 @@ void TeleOperationManager::sendReadyPoseToRobot(const bool &ready_pose_mode)
         static bool go_ready_pose_first = true;
         static double trajectory_duration = 5.0; // seconds
 
-        double target_x = 0.3;
+        double target_x = 0.2;
         double target_y = 0.1;
-        double target_z = 0.4;
+        double target_z = 0.3;
 
         if (go_ready_pose_first)
         {
@@ -260,8 +262,13 @@ void TeleOperationManager::sendReadyPoseToRobot(const bool &ready_pose_mode)
             rd_.link_[Left_Hand].x_desired = rd_.link_[Left_Hand].x_init;
             rd_.link_[Right_Hand].x_desired = rd_.link_[Right_Hand].x_init;
 
-            rd_.link_[Left_Hand].rot_desired  = rd_.link_[Left_Hand].rot_init  * DyrosMath::rotateWithY(M_PI / 2.0);
-            rd_.link_[Right_Hand].rot_desired = rd_.link_[Right_Hand].rot_init * DyrosMath::rotateWithY(M_PI / 2.0);
+            //--- SIM
+            rd_.link_[Left_Hand].rot_desired  = rd_.link_[Left_Hand].rot_init  * DyrosMath::rotateWithX(M_PI / 2.0);
+            rd_.link_[Right_Hand].rot_desired = rd_.link_[Right_Hand].rot_init * DyrosMath::rotateWithX(-M_PI / 2.0);
+
+            //--- REAL
+            // rd_.link_[Left_Hand].rot_desired  = rd_.link_[Left_Hand].rot_init  * DyrosMath::rotateWithY(M_PI / 2.0);
+            // rd_.link_[Right_Hand].rot_desired = rd_.link_[Right_Hand].rot_init * DyrosMath::rotateWithY(M_PI / 2.0);
 
             rd_.link_[Left_Hand].x_desired(0)  += target_x;
             rd_.link_[Right_Hand].x_desired(0) += target_x;

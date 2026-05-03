@@ -25,11 +25,11 @@ void KinWBC::setTaskHierarchy(const TaskMotionType& motion_mode_)
         //     {{Head, TaskType::Orientation}},
         //     {{Left_Hand, TaskType::Position}, {Left_Hand, TaskType::Orientation}, {Right_Hand, TaskType::Position}, {Right_Hand, TaskType::Orientation}}};
         task_hierarchy = {
-            {{Left_Hand, TaskType::Position}, {Left_Hand, TaskType::Orientation}, {Right_Hand, TaskType::Position}, {Right_Hand, TaskType::Orientation}},
-            {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}},
             {{COM_id, TaskType::Position}, {Pelvis, TaskType::Orientation}},
             {{Upper_Body, TaskType::Orientation}},
             {{Head, TaskType::Orientation}},
+            {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}},
+            {{Left_Hand, TaskType::Position}, {Left_Hand, TaskType::Orientation}, {Right_Hand, TaskType::Position}, {Right_Hand, TaskType::Orientation}},
         };
     }
 }
@@ -93,23 +93,23 @@ void KinWBC::computeTaskSpaceKinematicWBC()
     }
     else if (motion_mode == TaskMotionType::TeleOperation)
     {
-        Eigen::MatrixXd J(6, MODEL_DOF_VIRTUAL); J.setZero();
-        Eigen::VectorXd de(6);
+        // Eigen::MatrixXd J(6, MODEL_DOF_VIRTUAL); J.setZero();
+        // Eigen::VectorXd de(6);
 
-        J.block(0, 0, 3, MODEL_DOF_VIRTUAL) = rd_.link_[Left_Hand - 4].local_Jac_w;
-        J.block(3, 0, 3, MODEL_DOF_VIRTUAL) = rd_.link_[Right_Hand - 4].local_Jac_w;
+        // J.block(0, 0, 3, MODEL_DOF_VIRTUAL) = rd_.link_[Left_Hand - 4].local_Jac_w;
+        // J.block(3, 0, 3, MODEL_DOF_VIRTUAL) = rd_.link_[Right_Hand - 4].local_Jac_w;
 
-        Eigen::MatrixXd J_pre = J * Ni;
+        // Eigen::MatrixXd J_pre = J * Ni;
 
-        de.head(3) = (-1.0) * DyrosMath::getPhi(rd_.link_[Left_Hand - 4].local_rotm,  rd_.link_[Left_Hand - 4].r_traj);
-        de.tail(3) = (-1.0) * DyrosMath::getPhi(rd_.link_[Right_Hand - 4].local_rotm, rd_.link_[Right_Hand - 4].r_traj);
+        // de.head(3) = (-1.0) * DyrosMath::getPhi(rd_.link_[Left_Hand - 4].local_rotm,  rd_.link_[Left_Hand - 4].r_traj);
+        // de.tail(3) = (-1.0) * DyrosMath::getPhi(rd_.link_[Right_Hand - 4].local_rotm, rd_.link_[Right_Hand - 4].r_traj);
 
-        double w_ik = 0.9; double w_elbow = 0.1;
-        Eigen::MatrixXd J_weighted; J_weighted.setZero(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL);
+        // double w_ik = 0.7; double w_elbow = 0.3;
+        // Eigen::MatrixXd J_weighted; J_weighted.setZero(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL);
 
-        J_weighted = w_ik * Eigen::MatrixXd::Identity(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL) + w_elbow * J_pre.transpose() * J_pre;
-        Eigen::LDLT<Eigen::MatrixXd> ldlt(J_weighted);
-        qdot_des = ldlt.solve(w_ik * qdot_des + w_elbow * J_pre.transpose() * de);
+        // J_weighted = w_ik * Eigen::MatrixXd::Identity(MODEL_DOF_VIRTUAL, MODEL_DOF_VIRTUAL) + w_elbow * J_pre.transpose() * J_pre;
+        // Eigen::LDLT<Eigen::MatrixXd> ldlt(J_weighted);
+        // qdot_des = ldlt.solve(w_ik * qdot_des + w_elbow * J_pre.transpose() * de);
     }
 
     if(cbf_mgr_.getCbfMode() == CbfType::Kin){
@@ -334,7 +334,7 @@ void KinWBC::calcInequalityConstraint()
     
     cbf_mgr_.getJointLimitCbfConstraint(A_qpos.block(0, 6, MODEL_DOF, MODEL_DOF), lbA_qpos, ubA_qpos);
 
-    // constraints_.push_back({A_qpos, lbA_qpos, ubA_qpos});    // temp
+    constraints_.push_back({A_qpos, lbA_qpos, ubA_qpos});    // temp
 
     //--- (2) Workspace Boundary constraints
     const int num_workspace_cbf = cbf_mgr_.getNumWorkspaceBoundaryPairs();
