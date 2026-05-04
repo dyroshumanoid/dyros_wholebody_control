@@ -64,8 +64,9 @@ joint_limits:
 
 task_param:
   traj_time: 3.0
-  pelv_dist: 0.0
-  hand_dist: 0.1
+  pelv_dist: 0.02
+  # hand_dist: 0.4  # reachability
+  hand_dist: 0.1  # self-collision avoidance
   step_length: 0.0
   step_lateral: 0.08
   step_yaw: 0.0
@@ -89,14 +90,14 @@ wbid:
 cbf:
   cbf_mode : 1  # 0: idle, 1: kin, 2: dyn
   issf_mode : 1 # 0: no issf, 1: issf
-  workspace_boundary_cbf_hand: 0.63
+  workspace_boundary_cbf_hand: 0.62
 
   kin:
     joint_limit_cbf_alpha: 3.0
     joint_limit_cbf_epsilon: 50.0
 
     workspace_boundary_cbf_alpha: 3.0
-    workspace_boundary_cbf_epsilon: 10.0
+    workspace_boundary_cbf_epsilon: 1.0
 
     self_collision_cbf_alpha: 3.0
     self_collision_cbf_epsilon: 10.0  # hand
@@ -117,7 +118,7 @@ cbf:
     obstacle_avoidance_cbf_alpha: 30.0
     obstacle_avoidance_cbf_epsilon: 0.0
 
-motion_mode : 4 # 0: idle, 1: simple hand motion, 2: taichi, 3: walking, 4: teleop
+motion_mode : 1 # 0: idle, 1: simple hand motion, 2: taichi, 3: walking, 4: teleop
 
 friction_compensation:
   tau_coulomb: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0,

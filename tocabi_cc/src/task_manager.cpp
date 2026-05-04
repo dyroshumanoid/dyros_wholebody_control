@@ -67,47 +67,52 @@ void TaskManager::movePelvHandPose()
         rd_.link_[idx].r_traj.setIdentity();
     }
 
+    // --- (1) Reachability
     // //--- COM_id Trajectory (Support Frame)
-    rd_.link_[COM_id].x_desired    = rd_.link_[COM_id].support_xpos_init;
-    rd_.link_[COM_id].x_desired.head(2).setZero();
-    rd_.link_[COM_id].x_desired(1) = rd_.link_[COM_id].support_xpos_init(1) + pelv_dist;
-    rd_.link_[COM_id].x_desired(2) = rd_.link_[COM_id].support_xpos_init(2) - pelv_dist;
-    rd_.link_[COM_id].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[COM_id].support_xpos_init, rd_.link_[COM_id].x_desired);
+    // rd_.link_[COM_id].x_desired    = rd_.link_[COM_id].support_xpos_init;
+    // rd_.link_[COM_id].x_desired.head(2).setZero();
+    // rd_.link_[COM_id].x_desired(1) = rd_.link_[COM_id].support_xpos_init(1) + pelv_dist;
+    // rd_.link_[COM_id].x_desired(2) = rd_.link_[COM_id].support_xpos_init(2) - pelv_dist;
+    // rd_.link_[COM_id].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[COM_id].support_xpos_init, rd_.link_[COM_id].x_desired);
 
-    rd_.link_[Pelvis].r_traj = DyrosMath::rotationCubic(sim_tick, 0, traj_time * hz_, rd_.link_[Pelvis].local_rotm_init, Eigen::Matrix3d::Identity());
+    // --- Hand Trajectory (Support Frame)
+    // rd_.link_[Left_Hand].x_desired(0)  = rd_.link_[Left_Hand].support_xpos_init(0)  + 0.0;
+    // rd_.link_[Left_Hand].x_desired(1)  = rd_.link_[Left_Hand].support_xpos_init(1)  + hand_dist;
+    // rd_.link_[Left_Hand].x_desired(2)  = rd_.link_[Left_Hand].support_xpos_init(2)  + hand_dist;
+    // rd_.link_[Right_Hand].x_desired(0) = rd_.link_[Right_Hand].support_xpos_init(0) + 0.0;
+    // rd_.link_[Right_Hand].x_desired(1) = rd_.link_[Right_Hand].support_xpos_init(1) - hand_dist;
+    // rd_.link_[Right_Hand].x_desired(2) = rd_.link_[Right_Hand].support_xpos_init(2) - hand_dist;
 
-    com_log << rd_.link_[COM_id].support_xpos.transpose() << endl;
-    com_traj_log << rd_.link_[COM_id].x_traj.transpose() << endl;
+    // rd_.link_[Left_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Left_Hand].support_xpos_init, rd_.link_[Left_Hand].x_desired);
+    // rd_.link_[Right_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Right_Hand].support_xpos_init, rd_.link_[Right_Hand].x_desired);
 
-    //--- COM_id Trajectory (Base Frame)
+    // --- (2) Self Collision Avoidance
+    //--- COM, Hand Trajectory (Support Frame)
+    const double total_ticks = std::max(1.0, traj_time * hz_);
+    const double phase = std::fmod(static_cast<double>(sim_tick), total_ticks) / total_ticks;
+    const double theta = 2.0 * std::acos(-1.0) * phase;
+
+    rd_.link_[COM_id].x_traj = rd_.link_[COM_id].support_xpos_init;
+    rd_.link_[COM_id].x_traj(2) += pelv_dist * std::sin(theta);
+
+    rd_.link_[Left_Hand].x_traj = rd_.link_[Left_Hand].support_xpos_init;
+    rd_.link_[Right_Hand].x_traj = rd_.link_[Right_Hand].support_xpos_init;
+
+    rd_.link_[Left_Hand].x_traj(0) += hand_dist * (std::cos(theta) - 1.0);
+    rd_.link_[Left_Hand].x_traj(2) += hand_dist * std::sin(theta);
+
+    rd_.link_[Right_Hand].x_traj(0) += hand_dist * (std::cos(theta) - 1.0);
+    rd_.link_[Right_Hand].x_traj(2) -= hand_dist * std::sin(theta);
+
+    hand_log << rd_.link_[Left_Hand].support_xpos.transpose() << " " << rd_.link_[Right_Hand].support_xpos.transpose() << endl;
+    hand_traj_log << rd_.link_[Left_Hand].x_traj.transpose() << " " << rd_.link_[Right_Hand].x_traj.transpose() << endl;
+
+    // --- Convert to Base Frame Trajectory
     rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos_init;
-
-    // --- Hand Trajectory (Base Frame)
-    rd_.link_[Left_Hand].x_desired(0)  = rd_.link_[Left_Hand].support_xpos_init(0)  + hand_dist;
-    rd_.link_[Right_Hand].x_desired(0) = rd_.link_[Right_Hand].support_xpos_init(0) + hand_dist;
-    
-    rd_.link_[Left_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Left_Hand].support_xpos_init, rd_.link_[Left_Hand].x_desired);
-    rd_.link_[Right_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Right_Hand].support_xpos_init, rd_.link_[Right_Hand].x_desired);
-
-    // const double total_ticks = std::max(1.0, traj_time * hz_);
-    // const double phase = std::fmod(static_cast<double>(sim_tick), total_ticks) / total_ticks;
-    // const double theta = 2.0 * std::acos(-1.0) * phase;
-
-    // rd_.link_[Left_Hand].x_traj = rd_.link_[Left_Hand].support_xpos_init;
-    // rd_.link_[Right_Hand].x_traj = rd_.link_[Right_Hand].support_xpos_init;
-
-    // rd_.link_[Left_Hand].x_traj(0) += hand_dist * (std::cos(theta) - 1.0);
-    // rd_.link_[Left_Hand].x_traj(2) += hand_dist * std::sin(theta);
-
-    // rd_.link_[Right_Hand].x_traj(0) += hand_dist * (std::cos(theta) - 1.0);
-    // rd_.link_[Right_Hand].x_traj(2) -= hand_dist * std::sin(theta);
-
-    // hand_log << rd_.link_[Left_Hand].support_xpos.transpose() << " " << rd_.link_[Right_Hand].support_xpos.transpose() << endl;
-    // hand_traj_log << rd_.link_[Left_Hand].x_traj.transpose() << " " << rd_.link_[Right_Hand].x_traj.transpose() << endl;
-
     rd_.link_[Left_Hand].x_traj = rd_.link_[Left_Hand].x_traj - rd_.link_[Pelvis].support_xpos_init;
     rd_.link_[Right_Hand].x_traj = rd_.link_[Right_Hand].x_traj - rd_.link_[Pelvis].support_xpos_init;
 
+    rd_.link_[Pelvis].r_traj = DyrosMath::rotationCubic(sim_tick, 0, traj_time * hz_, rd_.link_[Pelvis].local_rotm_init, Eigen::Matrix3d::Identity());
     rd_.link_[Left_Hand].r_traj  = rd_.link_[Left_Hand].local_rotm_init;
     rd_.link_[Right_Hand].r_traj = rd_.link_[Right_Hand].local_rotm_init;
 
@@ -137,7 +142,7 @@ void TaskManager::movePelvHandPose()
     }
 
     //--- Increment Tick
-    const int circling_number = 5;
+    const int circling_number = 10;
     if(sim_tick <= circling_number * traj_time * hz_)    {
         sim_tick++;
     }
