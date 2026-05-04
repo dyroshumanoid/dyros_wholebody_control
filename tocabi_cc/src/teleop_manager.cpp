@@ -263,12 +263,12 @@ void TeleOperationManager::sendReadyPoseToRobot(const bool &ready_pose_mode)
             rd_.link_[Right_Hand].x_desired = rd_.link_[Right_Hand].x_init;
 
             //--- SIM
-            rd_.link_[Left_Hand].rot_desired  = rd_.link_[Left_Hand].rot_init  * DyrosMath::rotateWithX(M_PI / 2.0);
-            rd_.link_[Right_Hand].rot_desired = rd_.link_[Right_Hand].rot_init * DyrosMath::rotateWithX(-M_PI / 2.0);
+            // rd_.link_[Left_Hand].rot_desired  = rd_.link_[Left_Hand].rot_init  * DyrosMath::rotateWithX(M_PI / 2.0);
+            // rd_.link_[Right_Hand].rot_desired = rd_.link_[Right_Hand].rot_init * DyrosMath::rotateWithX(-M_PI / 2.0);
 
             //--- REAL
-            // rd_.link_[Left_Hand].rot_desired  = rd_.link_[Left_Hand].rot_init  * DyrosMath::rotateWithY(M_PI / 2.0);
-            // rd_.link_[Right_Hand].rot_desired = rd_.link_[Right_Hand].rot_init * DyrosMath::rotateWithY(M_PI / 2.0);
+            rd_.link_[Left_Hand].rot_desired  = rd_.link_[Left_Hand].rot_init  * DyrosMath::rotateWithY(M_PI / 2.0);
+            rd_.link_[Right_Hand].rot_desired = rd_.link_[Right_Hand].rot_init * DyrosMath::rotateWithY(M_PI / 2.0);
 
             rd_.link_[Left_Hand].x_desired(0)  += target_x;
             rd_.link_[Right_Hand].x_desired(0) += target_x;

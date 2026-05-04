@@ -334,8 +334,9 @@ void KinWBC::calcInequalityConstraint()
     
     cbf_mgr_.getJointLimitCbfConstraint(A_qpos.block(0, 6, MODEL_DOF, MODEL_DOF), lbA_qpos, ubA_qpos);
 
-    constraints_.push_back({A_qpos, lbA_qpos, ubA_qpos});    // temp
-
+    // constraints_.push_back({A_qpos, lbA_qpos, ubA_qpos}); 
+    constraints_.push_back({A_qpos.bottomRows(MODEL_DOF - 12), lbA_qpos.tail(MODEL_DOF - 12), ubA_qpos.tail(MODEL_DOF - 12)});
+    
     //--- (2) Workspace Boundary constraints
     const int num_workspace_cbf = cbf_mgr_.getNumWorkspaceBoundaryPairs();
     Eigen::MatrixXd A_workspace; A_workspace.setZero(num_workspace_cbf, MODEL_DOF_VIRTUAL);
@@ -347,24 +348,24 @@ void KinWBC::calcInequalityConstraint()
     constraints_.push_back({A_workspace, lbA_workspace, ubA_workspace});
 
     //--- (3) Self-collision avoidance constraints
-    const int num_self_collision_cbf = cbf_mgr_.getNumSelfCollisionPairs();
-    Eigen::MatrixXd A_self_collision; A_self_collision.setZero(num_self_collision_cbf, MODEL_DOF_VIRTUAL);
-    Eigen::VectorXd lbA_self_collision; lbA_self_collision.setZero(num_self_collision_cbf); 
-    Eigen::VectorXd ubA_self_collision; ubA_self_collision.setZero(num_self_collision_cbf);
+    // const int num_self_collision_cbf = cbf_mgr_.getNumSelfCollisionPairs();
+    // Eigen::MatrixXd A_self_collision; A_self_collision.setZero(num_self_collision_cbf, MODEL_DOF_VIRTUAL);
+    // Eigen::VectorXd lbA_self_collision; lbA_self_collision.setZero(num_self_collision_cbf); 
+    // Eigen::VectorXd ubA_self_collision; ubA_self_collision.setZero(num_self_collision_cbf);
 
-    cbf_mgr_.getSelfCollisionCbfConstraint(A_self_collision, lbA_self_collision, ubA_self_collision);
+    // cbf_mgr_.getSelfCollisionCbfConstraint(A_self_collision, lbA_self_collision, ubA_self_collision);
 
-    constraints_.push_back({A_self_collision, lbA_self_collision, ubA_self_collision});
+    // constraints_.push_back({A_self_collision, lbA_self_collision, ubA_self_collision});
 
     //--- (4) Obstacle avoidance constraints
-    const int num_obstacle_avoidance_cbf = cbf_mgr_.getNumObstacleAvoidancePairs();
-    Eigen::MatrixXd A_obstacle_avoidance; A_obstacle_avoidance.setZero(num_obstacle_avoidance_cbf, MODEL_DOF_VIRTUAL);
-    Eigen::VectorXd lbA_obstacle_avoidance; lbA_obstacle_avoidance.setZero(num_obstacle_avoidance_cbf); 
-    Eigen::VectorXd ubA_obstacle_avoidance; ubA_obstacle_avoidance.setZero(num_obstacle_avoidance_cbf);
+    // const int num_obstacle_avoidance_cbf = cbf_mgr_.getNumObstacleAvoidancePairs();
+    // Eigen::MatrixXd A_obstacle_avoidance; A_obstacle_avoidance.setZero(num_obstacle_avoidance_cbf, MODEL_DOF_VIRTUAL);
+    // Eigen::VectorXd lbA_obstacle_avoidance; lbA_obstacle_avoidance.setZero(num_obstacle_avoidance_cbf); 
+    // Eigen::VectorXd ubA_obstacle_avoidance; ubA_obstacle_avoidance.setZero(num_obstacle_avoidance_cbf);
 
-    cbf_mgr_.getObstacleAvoidanceCbfConstraint(A_obstacle_avoidance, lbA_obstacle_avoidance, ubA_obstacle_avoidance);
+    // cbf_mgr_.getObstacleAvoidanceCbfConstraint(A_obstacle_avoidance, lbA_obstacle_avoidance, ubA_obstacle_avoidance);
     
-    constraints_.push_back({A_obstacle_avoidance, lbA_obstacle_avoidance, ubA_obstacle_avoidance});
+    // constraints_.push_back({A_obstacle_avoidance, lbA_obstacle_avoidance, ubA_obstacle_avoidance});
 } 
 
 void KinWBC::checkGradHessSize()
