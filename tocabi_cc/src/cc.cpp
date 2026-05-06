@@ -366,7 +366,11 @@ void CustomController::computeFast()
 
                 // lhand_traj_log << rd_.control_time_  << " " << rd_.link_[Left_Hand].local_xpos.transpose()  << " " << rd_.link_[Left_Hand].x_traj.transpose() << std::endl;
                 // rhand_traj_log << rd_.control_time_  << " " << rd_.link_[Right_Hand].local_xpos.transpose() << " " << rd_.link_[Right_Hand].x_traj.transpose() << std::endl;
+<<<<<<< HEAD
                 min_distance_log << rd_.control_time_ << " " << rd_.dist_AB_left << " " << rd_.dist_AB_right << std::endl;
+=======
+                // std::cout << rd_.control_time_ << " " << rd_.dist_AB_left << " " << rd_.dist_AB_right << std::endl;
+>>>>>>> 543fb43 ([IJCAS] taichi motion)
 
                 // if(!cbf_mgr_.col_mgr_.cb_obstacles_.empty())
                 // {

@@ -164,26 +164,90 @@ void TaskManager::moveTaichiMotion()
     rd_.link_[COM_id].x_desired.head(2).setZero();
     rd_.link_[COM_id].x_desired(1) = rd_.link_[COM_id].support_xpos_init(1) + pelv_dist;
     rd_.link_[COM_id].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[COM_id].support_xpos_init, rd_.link_[COM_id].x_desired);
-    
-    //--- COM_id Trajectory (Base Frame)
-    rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos;
 
-    // --- Hand Trajectory (Base Frame)
+    //--- Contact Wrench
+    static double wn = sqrt(GRAVITY / rd_.link_[COM_id].support_xpos_init(2));
+    Eigen::Vector2d cp_measured = (rd_.link_[COM_id].support_xpos + rd_.link_[COM_id].support_v / wn).head(2);
+    Eigen::Vector2d cp_desired  = (rd_.link_[COM_id].x_traj + rd_.link_[COM_id].v_traj / wn).head(2);
+
+    Eigen::Vector6d lfoot_contact_wrench; lfoot_contact_wrench.setZero();
+    Eigen::Vector6d rfoot_contact_wrench; rfoot_contact_wrench.setZero();
+    Eigen::Vector2d del_zmp; del_zmp.setZero();
+    del_zmp = 1.4 * (cp_measured - cp_desired);
+    
+    double alpha = 0.0;
+    double F_R = 0.0, F_L = 0.0;
+    double Tau_all_y = 0.0, Tau_R_y = 0.0, Tau_L_y = 0.0;
+    double Tau_all_x = 0.0, Tau_R_x = 0.0, Tau_L_x = 0.0;
+
+    Eigen::Vector2d pL_sharp; pL_sharp.setZero(); pL_sharp = rd_.link_[Left_Foot].support_xpos.segment(0, 2);  
+    Eigen::Vector2d pR_sharp; pR_sharp.setZero(); pR_sharp = rd_.link_[Right_Foot].support_xpos.segment(0, 2); 
+
+    double zmp_x_ref = rd_.link_[COM_id].x_traj(0);
+    double zmp_y_ref = rd_.link_[COM_id].x_traj(1);
+    alpha = (zmp_y_ref + del_zmp(1) - pR_sharp(1)) / (pL_sharp(1) - pR_sharp(1));
+    alpha = DyrosMath::minmax_cut(alpha, 0.0, 1.0);
+
+    double real_robot_mass_offset_ = 0.0; 
+    // double real_robot_mass_offset_ = 6.17805; // 20250305: TOCABI 101.8 kg 
+    F_R = -(1 - alpha) * (rd_.link_[COM_id].mass + real_robot_mass_offset_) * GRAVITY;
+    F_L =     - alpha  * (rd_.link_[COM_id].mass + real_robot_mass_offset_) * GRAVITY;
+
+    Eigen::Vector2d pL; pL.setZero(); pL = rd_.link_[Left_Foot].support_xpos.segment(0, 2);
+    Eigen::Vector2d pR; pR.setZero(); pR = rd_.link_[Right_Foot].support_xpos.segment(0, 2);
+
+    Tau_all_x = -((pR(1) - (zmp_y_ref + del_zmp(1))) * F_R + (pL(1) - (zmp_y_ref + del_zmp(1))) * F_L);
+    Tau_all_y = +((pR(0) - (zmp_x_ref + del_zmp(0))) * F_R + (pL(0) - (zmp_x_ref + del_zmp(0))) * F_L);
+
+    Tau_R_x =(1 - alpha) * Tau_all_x;
+    Tau_R_y =(1 - alpha) * Tau_all_y;
+    Tau_L_x =     alpha  * Tau_all_x;
+    Tau_L_y =     alpha  * Tau_all_y;
+
+    lfoot_contact_wrench << 0.0, 0.0, F_L, Tau_L_x, Tau_L_y, 0.0;
+    rfoot_contact_wrench << 0.0, 0.0, F_R, Tau_R_x, Tau_R_y, 0.0;
+
+    lfoot_contact_wrench *= (-1.0);
+    rfoot_contact_wrench *= (-1.0);
+
+    rd_.LF_FT_DES = lfoot_contact_wrench;
+    rd_.RF_FT_DES = rfoot_contact_wrench;
+
+    //--- COM_id Trajectory (Base Frame)
+    rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos_init;
+
+    // --- Hand Trajectory (Support Frame)
     for (int idx = 1; idx < 3; idx++)
     {
-        rd_.link_[Left_Hand].x_desired(idx)  = rd_.link_[Left_Hand].local_xpos_init(idx) + hand_dist;
-        rd_.link_[Right_Hand].x_desired(idx) = rd_.link_[Right_Hand].local_xpos_init(idx) - hand_dist;
+        rd_.link_[Left_Hand].x_desired(idx)  = rd_.link_[Left_Hand].support_xpos_init(idx) + hand_dist;
+        rd_.link_[Right_Hand].x_desired(idx) = rd_.link_[Right_Hand].support_xpos_init(idx) - hand_dist;
     }
 
-    rd_.link_[Left_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Left_Hand].local_xpos_init, rd_.link_[Left_Hand].x_desired);
-    rd_.link_[Right_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Right_Hand].local_xpos_init, rd_.link_[Right_Hand].x_desired);
+    rd_.link_[Left_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Left_Hand].support_xpos_init, rd_.link_[Left_Hand].x_desired);
+    rd_.link_[Right_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Right_Hand].support_xpos_init, rd_.link_[Right_Hand].x_desired);
+
+    // --- Hand Trajectory (Base Frame)
+    rd_.link_[Left_Hand].x_traj = rd_.link_[Left_Hand].x_traj - rd_.link_[Pelvis].support_xpos_init;
+    rd_.link_[Right_Hand].x_traj = rd_.link_[Right_Hand].x_traj - rd_.link_[Pelvis].support_xpos_init;
     
     rd_.link_[Left_Hand].r_traj  = rd_.link_[Left_Hand].local_rotm_init;
     rd_.link_[Right_Hand].r_traj = rd_.link_[Right_Hand].local_rotm_init;
 
     //--- Swing Foot Trajectory (Base Frame)
-    rd_.link_[Right_Foot].x_desired(2) = rd_.link_[Right_Foot].local_xpos_init(2) + foot_height;
-    rd_.link_[Right_Foot].SetTrajectoryQuintic(sim_tick, traj_time * hz_, 2.0 * traj_time * hz_, rd_.link_[Right_Foot].local_xpos_init, rd_.link_[Right_Foot].x_desired);
+    rd_.link_[Right_Foot].x_desired = rd_.link_[Right_Foot].support_xpos_init;
+    rd_.link_[Right_Foot].x_desired(2) = rd_.link_[Right_Foot].support_xpos_init(2) + foot_height;
+    rd_.link_[Right_Foot].SetTrajectoryQuintic(sim_tick, traj_time * hz_, 2.0 * traj_time * hz_, rd_.link_[Right_Foot].support_xpos_init, rd_.link_[Right_Foot].x_desired);
+
+    rd_.link_[Right_Foot].x_traj = rd_.link_[Right_Foot].x_traj - rd_.link_[Pelvis].support_xpos_init;
+
+    //--- Upper Body Trajectory (Base Frame)
+    rd_.link_[Pelvis].r_traj = DyrosMath::rotationCubic(sim_tick, traj_time * hz_, 2.0 * traj_time * hz_, 
+                                                            rd_.link_[Pelvis].local_rotm_init, 
+                                                            DyrosMath::rotateWithX(-10 * DEG2RAD));
+
+    // rd_.link_[Upper_Body].r_traj = DyrosMath::rotationCubic(sim_tick, traj_time * hz_, 2.0 * traj_time * hz_, 
+    //                                                         rd_.link_[Upper_Body].local_rotm_init, 
+    //                                                         DyrosMath::rotateWithX(-10 * DEG2RAD));
 
     //--- Increment Tick
     sim_tick++;
@@ -195,7 +259,7 @@ void TaskManager::moveTaichiMotion()
         {
             rd_.is_left_contact_transition = true;
         
-            support_phase_indicator_ == ContactIndicator::LeftSingleSupport;
+            support_phase_indicator_ = ContactIndicator::LeftSingleSupport;
         }
     }
 }
