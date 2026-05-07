@@ -19,10 +19,10 @@ void KinWBC::setTaskHierarchy(const TaskMotionType& motion_mode_)
     else if(motion_mode == TaskMotionType::Taichi)
     {
         task_hierarchy = {
+            {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}},
             {{COM_id, TaskType::Position}, {Pelvis, TaskType::Orientation}},
             {{Upper_Body, TaskType::Orientation}},
             {{Head, TaskType::Orientation}},
-            {{Left_Foot, TaskType::Position}, {Left_Foot, TaskType::Orientation}, {Right_Foot, TaskType::Position}, {Right_Foot, TaskType::Orientation}},
             {{Left_Hand, TaskType::Position}, {Right_Hand, TaskType::Position}},
         };
     }
@@ -344,14 +344,9 @@ void KinWBC::calcInequalityConstraint()
     
     cbf_mgr_.getJointLimitCbfConstraint(A_qpos.block(0, 6, MODEL_DOF, MODEL_DOF), lbA_qpos, ubA_qpos);
 
-<<<<<<< HEAD
     // constraints_.push_back({A_qpos, lbA_qpos, ubA_qpos}); 
     constraints_.push_back({A_qpos.bottomRows(MODEL_DOF - 12), lbA_qpos.tail(MODEL_DOF - 12), ubA_qpos.tail(MODEL_DOF - 12)});
     
-=======
-    constraints_.push_back({A_qpos.bottomRows(MODEL_DOF - 12), lbA_qpos.tail(MODEL_DOF - 12), ubA_qpos.tail(MODEL_DOF - 12)});    // temp
-
->>>>>>> 543fb43 ([IJCAS] taichi motion)
     //--- (2) Workspace Boundary constraints
     const int num_workspace_cbf = cbf_mgr_.getNumWorkspaceBoundaryPairs();
     Eigen::MatrixXd A_workspace; A_workspace.setZero(num_workspace_cbf, MODEL_DOF_VIRTUAL);

@@ -129,6 +129,29 @@ def _write_metrics(path, left_metrics, right_metrics):
     path.write_text("\n".join(lines))
 
 
+def _load_min_distance(path):
+    data = _ensure_2d(np.loadtxt(path))
+    if data.shape[1] < 3:
+        raise ValueError("min_distance_log must have at least 3 columns: t left right")
+    idx = np.arange(data.shape[0])
+    left = data[:, 1]
+    right = data[:, 2]
+    return idx, left, right
+
+
+def _plot_min_distance(sample_idx, left, right, save_path):
+    fig, ax = plt.subplots(1, 1, figsize=(10, 4))
+    ax.plot(sample_idx, left, label="left", linewidth=1.6)
+    ax.plot(sample_idx, right, label="right", linewidth=1.6)
+    ax.set_xlabel("sample index")
+    ax.set_ylabel("min distance [m]")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="best")
+    fig.tight_layout()
+    fig.savefig(save_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Compare hand trajectory tracking: actual(hand_log) vs desired(hand_traj_log)."
@@ -148,6 +171,11 @@ def main():
         default="plots_hand",
         help="Directory where plots and metrics are saved",
     )
+    parser.add_argument(
+        "--min-distance-log",
+        default="min_distance_log.txt",
+        help="Path to min_distance_log file (time left right)",
+    )
     args = parser.parse_args()
 
     save_dir = Path(args.save_dir)
@@ -165,6 +193,13 @@ def main():
 
     metrics_file = save_dir / "tracking_metrics.txt"
     _write_metrics(metrics_file, l_metrics, r_metrics)
+
+    min_dist_path = Path(args.min_distance_log)
+    if min_dist_path.exists():
+        t_min, left_min, right_min = _load_min_distance(min_dist_path)
+        _plot_min_distance(t_min, left_min, right_min, save_dir / "min_distance.png")
+    else:
+        print(f"min_distance_log not found, skipping: {min_dist_path}")
 
     print(f"Saved plots and metrics to: {save_dir.resolve()}")
     print(f"Metrics file: {metrics_file.resolve()}")

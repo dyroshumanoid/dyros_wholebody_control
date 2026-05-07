@@ -14,6 +14,8 @@ ofstream hand_traj_log(         "/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc
 ofstream com_log(              "/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/com_log.txt");
 ofstream com_traj_log(         "/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/com_traj_log.txt");
 
+ofstream force_log(              "/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/force_log.txt");
+ofstream force_traj_log(         "/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/force_traj_log.txt");
 
 TaskManager::TaskManager(RobotData& rd) : rd_(rd)
 {
@@ -156,13 +158,14 @@ void TaskManager::moveTaichiMotion()
     {
         rd_.link_[idx].x_desired = rd_.link_[idx].local_xpos_init;
         rd_.link_[idx].x_traj = rd_.link_[idx].local_xpos_init;
-        rd_.link_[idx].r_traj.setIdentity();
+        rd_.link_[idx].r_traj = rd_.link_[idx].local_rotm_init;
     }
 
     //--- COM_id Trajectory (Support Frame)
     rd_.link_[COM_id].x_desired    = rd_.link_[COM_id].support_xpos_init;
-    rd_.link_[COM_id].x_desired.head(2).setZero();
-    rd_.link_[COM_id].x_desired(1) = rd_.link_[COM_id].support_xpos_init(1) + pelv_dist;
+    rd_.link_[COM_id].x_desired.head(2) = rd_.link_[Left_Foot].support_xpos_init.head(2);
+    // rd_.link_[COM_id].x_desired(1) = rd_.link_[COM_id].support_xpos_init(1) + pelv_dist;
+
     rd_.link_[COM_id].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[COM_id].support_xpos_init, rd_.link_[COM_id].x_desired);
 
     //--- Contact Wrench
@@ -188,8 +191,8 @@ void TaskManager::moveTaichiMotion()
     alpha = (zmp_y_ref + del_zmp(1) - pR_sharp(1)) / (pL_sharp(1) - pR_sharp(1));
     alpha = DyrosMath::minmax_cut(alpha, 0.0, 1.0);
 
-    double real_robot_mass_offset_ = 0.0; 
-    // double real_robot_mass_offset_ = 6.17805; // 20250305: TOCABI 101.8 kg 
+    // double real_robot_mass_offset_ = 0.0; 
+    double real_robot_mass_offset_ = 6.17805; // 20250305: TOCABI 101.8 kg 
     F_R = -(1 - alpha) * (rd_.link_[COM_id].mass + real_robot_mass_offset_) * GRAVITY;
     F_L =     - alpha  * (rd_.link_[COM_id].mass + real_robot_mass_offset_) * GRAVITY;
 
@@ -213,18 +216,48 @@ void TaskManager::moveTaichiMotion()
     rd_.LF_FT_DES = lfoot_contact_wrench;
     rd_.RF_FT_DES = rfoot_contact_wrench;
 
+    static Vector6d LF_FT_LPF = rd_.LF_FT;
+    static Vector6d RF_FT_LPF = rd_.RF_FT;
+
+    for (int i = 0; i < 6; i++)
+    {
+        LF_FT_LPF(i) = DyrosMath::lpf(rd_.LF_FT(i), LF_FT_LPF(i), 2000, 73);
+        RF_FT_LPF(i) = DyrosMath::lpf(rd_.RF_FT(i), RF_FT_LPF(i), 2000, 73);
+    }
+
+    //---Force Z axis feedback
+    rd_.LF_FT_DES(2) += 0.73 * (rd_.LF_FT_DES(2) + LF_FT_LPF(2));
+    rd_.RF_FT_DES(2) += 0.73 * (rd_.RF_FT_DES(2) + RF_FT_LPF(2));
+
+    // //---Moment X axis feedback
+    // rd_.LF_FT_DES(3) += 1.0 * (rd_.LF_FT_DES(3) + LF_FT_LPF(3));
+    // rd_.RF_FT_DES(3) += 1.0 * (rd_.RF_FT_DES(3) + RF_FT_LPF(3));
+
+    // //---Moment Y axis feedback
+    rd_.LF_FT_DES(4) += 0.73 * (rd_.LF_FT_DES(4) + LF_FT_LPF(4));
+    rd_.RF_FT_DES(4) += 0.73 * (rd_.RF_FT_DES(4) + RF_FT_LPF(4));
+
+    com_log << rd_.link_[COM_id].support_xpos.transpose() << endl;
+    com_traj_log << rd_.link_[COM_id].x_traj.transpose() << endl;
+
+    force_log << rd_.LF_FT.transpose() << " " << rd_.RF_FT.transpose() << endl;
+    force_traj_log << rd_.LF_FT_DES.transpose() << " " << rd_.RF_FT_DES.transpose() << endl;
+
     //--- COM_id Trajectory (Base Frame)
     rd_.link_[COM_id].x_traj = rd_.link_[COM_id].x_traj - rd_.link_[Pelvis].support_xpos_init;
 
     // --- Hand Trajectory (Support Frame)
     for (int idx = 1; idx < 3; idx++)
     {
-        rd_.link_[Left_Hand].x_desired(idx)  = rd_.link_[Left_Hand].support_xpos_init(idx) + hand_dist;
+        rd_.link_[Left_Hand].x_desired(idx)  = rd_.link_[Left_Hand].support_xpos_init(idx) + 2.0 * hand_dist;
         rd_.link_[Right_Hand].x_desired(idx) = rd_.link_[Right_Hand].support_xpos_init(idx) - hand_dist;
     }
 
     rd_.link_[Left_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Left_Hand].support_xpos_init, rd_.link_[Left_Hand].x_desired);
     rd_.link_[Right_Hand].SetTrajectoryQuintic(sim_tick, 0, traj_time * hz_, rd_.link_[Right_Hand].support_xpos_init, rd_.link_[Right_Hand].x_desired);
+
+    hand_log << rd_.link_[Left_Hand].support_xpos.transpose() << " " << rd_.link_[Right_Hand].support_xpos.transpose() << endl;
+    hand_traj_log << rd_.link_[Left_Hand].x_traj.transpose() << " " << rd_.link_[Right_Hand].x_traj.transpose() << endl;
 
     // --- Hand Trajectory (Base Frame)
     rd_.link_[Left_Hand].x_traj = rd_.link_[Left_Hand].x_traj - rd_.link_[Pelvis].support_xpos_init;
@@ -236,16 +269,18 @@ void TaskManager::moveTaichiMotion()
     //--- Swing Foot Trajectory (Base Frame)
     rd_.link_[Right_Foot].x_desired = rd_.link_[Right_Foot].support_xpos_init;
     rd_.link_[Right_Foot].x_desired(2) = rd_.link_[Right_Foot].support_xpos_init(2) + foot_height;
-    rd_.link_[Right_Foot].SetTrajectoryQuintic(sim_tick, traj_time * hz_, 2.0 * traj_time * hz_, rd_.link_[Right_Foot].support_xpos_init, rd_.link_[Right_Foot].x_desired);
+    rd_.link_[Right_Foot].SetTrajectoryQuintic(sim_tick, 1.5 * traj_time * hz_, 2.5 * traj_time * hz_, rd_.link_[Right_Foot].support_xpos_init, rd_.link_[Right_Foot].x_desired);
 
     rd_.link_[Right_Foot].x_traj = rd_.link_[Right_Foot].x_traj - rd_.link_[Pelvis].support_xpos_init;
 
-    //--- Upper Body Trajectory (Base Frame)
-    rd_.link_[Pelvis].r_traj = DyrosMath::rotationCubic(sim_tick, traj_time * hz_, 2.0 * traj_time * hz_, 
-                                                            rd_.link_[Pelvis].local_rotm_init, 
-                                                            DyrosMath::rotateWithX(-10 * DEG2RAD));
+    // rd_.link_[Left_Foot].r_traj  = rd_.link_[Left_Foot].local_rotm_init;
+    // rd_.link_[Right_Foot].r_traj = rd_.link_[Right_Foot].local_rotm_init;
 
-    // rd_.link_[Upper_Body].r_traj = DyrosMath::rotationCubic(sim_tick, traj_time * hz_, 2.0 * traj_time * hz_, 
+    //--- Upper Body Trajectory (Base Frame)
+    // rd_.link_[Pelvis].r_traj = DyrosMath::rotationCubic(sim_tick, 1.5 * traj_time * hz_, 2.5 * traj_time * hz_, 
+    //                                                         rd_.link_[Pelvis].local_rotm_init, 
+    //                                                         DyrosMath::rotateWithX(-10 * DEG2RAD));
+    // rd_.link_[Upper_Body].r_traj = DyrosMath::rotationCubic(sim_tick, 1.5 * traj_time * hz_, 2.5 * traj_time * hz_, 
     //                                                         rd_.link_[Upper_Body].local_rotm_init, 
     //                                                         DyrosMath::rotateWithX(-10 * DEG2RAD));
 
@@ -255,12 +290,12 @@ void TaskManager::moveTaichiMotion()
     //--- contact transition
     if (sim_tick == traj_time * hz_ - 1)
     {
-        if (support_phase_indicator_ == ContactIndicator::DoubleSupport)
-        {
-            rd_.is_left_contact_transition = true;
+        // if (support_phase_indicator_ == ContactIndicator::DoubleSupport)
+        // {
+        //     rd_.is_left_contact_transition = true;
         
-            support_phase_indicator_ = ContactIndicator::LeftSingleSupport;
-        }
+        //     support_phase_indicator_ = ContactIndicator::LeftSingleSupport;
+        // }
     }
 }
 

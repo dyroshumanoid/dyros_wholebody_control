@@ -2,19 +2,8 @@
 
 using namespace TOCABI;
 
-ofstream joint_desired_log("/home/dyros/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
-ofstream joint_position_log("/home/dyros/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
-ofstream joint_velocity_log("/home/dyros/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
-ofstream torque_sum_log("/home/dyros/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
-ofstream task_command_log("/home/dyros/catkin_ws/src/tocabi_cc/data/task_command_log.txt");
-ofstream min_distance_log("/home/dyros/catkin_ws/src/tocabi_cc/data/min_distance_log.txt");
-
-// ofstream joint_desired_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/joint_desired_log.txt");
-// ofstream joint_position_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/joint_position_log.txt");
-// ofstream joint_velocity_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/joint_velocity_log.txt");
-// ofstream torque_sum_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/torque_sum_log.txt");
-// ofstream task_command_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/task_command_log.txt");
-// ofstream min_distance_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/min_distance_log.txt");
+// ofstream min_distance_log("/home/dyros/catkin_ws/src/tocabi_cc/data/min_distance_log.txt");
+ofstream min_distance_log("/home/kwan/ubuntu-20-04/catkin_ws/src/tocabi_cc/data/min_distance_log.txt");
 
 CustomController::CustomController(RobotData &rd) : rd_(rd),
                                                     cm_(rd, model),
@@ -155,16 +144,6 @@ void CustomController::computeSlow()
                     rd_.torque_desired(i) = rd_.pos_kp_v[i] * (rd_.q_desired(i) - rd_.q_(i)) + rd_.pos_kv_v[i] * (0.0 - rd_.q_dot_(i));
                 }
             }
-
-            // torque_sum_log << torque_sum.transpose() << std::endl;
-            // joint_desired_log << rd_.q_desired.transpose() << std::endl;
-            // joint_position_log << rd_.q_.transpose() << std::endl;
-            // task_command_log << rd_.link_[Left_Hand].x_traj.transpose() << " "
-            //                  << rd_.link_[Right_Hand].x_traj.transpose() << " "
-            //                  << DyrosMath::rot2Euler(rd_.link_[Left_Hand].r_traj).transpose() << " "
-            //                  << DyrosMath::rot2Euler(rd_.link_[Right_Hand].r_traj).transpose() << std::endl;
-            // torque_idn_log << torque_idn.transpose() << std::endl;
-            // torque_pd_log << torque_pd.transpose() << std::endl;
 
             is_slow_loop_once = true;
         }
@@ -312,10 +291,10 @@ void CustomController::computeSlow()
                 rd_.torque_desired(i) = DyrosMath::minmax_cut(rd_.torque_desired(i), -rd_.torque_limit(i), rd_.torque_limit(i));
             }
 
-            joint_desired_log << rd_.q_desired(sinusoid_joint_target_) << std::endl;
-            joint_position_log << rd_.q_(sinusoid_joint_target_) << std::endl;
-            joint_velocity_log << rd_.q_dot_(sinusoid_joint_target_) << std::endl;
-            torque_sum_log << rd_.torque_desired(sinusoid_joint_target_) << std::endl;
+            // joint_desired_log << rd_.q_desired(sinusoid_joint_target_) << std::endl;
+            // joint_position_log << rd_.q_(sinusoid_joint_target_) << std::endl;
+            // joint_velocity_log << rd_.q_dot_(sinusoid_joint_target_) << std::endl;
+            // torque_sum_log << rd_.torque_desired(sinusoid_joint_target_) << std::endl;
         }
         else
         {
@@ -366,11 +345,7 @@ void CustomController::computeFast()
 
                 // lhand_traj_log << rd_.control_time_  << " " << rd_.link_[Left_Hand].local_xpos.transpose()  << " " << rd_.link_[Left_Hand].x_traj.transpose() << std::endl;
                 // rhand_traj_log << rd_.control_time_  << " " << rd_.link_[Right_Hand].local_xpos.transpose() << " " << rd_.link_[Right_Hand].x_traj.transpose() << std::endl;
-<<<<<<< HEAD
                 min_distance_log << rd_.control_time_ << " " << rd_.dist_AB_left << " " << rd_.dist_AB_right << std::endl;
-=======
-                // std::cout << rd_.control_time_ << " " << rd_.dist_AB_left << " " << rd_.dist_AB_right << std::endl;
->>>>>>> 543fb43 ([IJCAS] taichi motion)
 
                 // if(!cbf_mgr_.col_mgr_.cb_obstacles_.empty())
                 // {
